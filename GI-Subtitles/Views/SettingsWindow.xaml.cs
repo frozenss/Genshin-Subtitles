@@ -35,6 +35,7 @@ using System.Globalization;
 using System.Web.UI.WebControls;
 using System.ServiceModel.Syndication;
 using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using Microsoft.Win32;
 using GI_Subtitles.Core.Config;
 using GI_Subtitles.Core.Input;
@@ -139,6 +140,7 @@ namespace GI_Subtitles.Views
         {
             _version = version;
             InitializeComponent();
+            SourceInitialized += (sender, args) => FitWindowToWorkingArea();
             Scale = scale;
             // Load UI language from config, default to zh-CN
             string uiLang = Config.Get("UILang", "zh-CN");
@@ -245,6 +247,29 @@ namespace GI_Subtitles.Views
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
             RecognizeDialogueOptionsCheckBox.IsChecked = Config.Get("RecognizeDialogueOptions", false);
             UpdateSecondRegionDeleteButtonState();
+        }
+
+        private void FitWindowToWorkingArea()
+        {
+            var source = PresentationSource.FromVisual(this);
+            if (source?.CompositionTarget == null)
+            {
+                return;
+            }
+
+            var screen = System.Windows.Forms.Screen.FromHandle(new WindowInteropHelper(this).Handle);
+            var fromDevice = source.CompositionTarget.TransformFromDevice;
+            var topLeft = fromDevice.Transform(new System.Windows.Point(screen.WorkingArea.Left, screen.WorkingArea.Top));
+            var bottomRight = fromDevice.Transform(new System.Windows.Point(screen.WorkingArea.Right, screen.WorkingArea.Bottom));
+            double availableWidth = Math.Max(320, bottomRight.X - topLeft.X - 24);
+            double availableHeight = Math.Max(240, bottomRight.Y - topLeft.Y - 24);
+
+            MinWidth = Math.Min(MinWidth, availableWidth);
+            MinHeight = Math.Min(MinHeight, availableHeight);
+            MaxWidth = availableWidth;
+            MaxHeight = availableHeight;
+            Width = Math.Min(Width, availableWidth);
+            Height = Math.Min(Height, availableHeight);
         }
 
         private void ResetLocation_Click(object sender, RoutedEventArgs e)

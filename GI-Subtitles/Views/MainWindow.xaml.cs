@@ -143,8 +143,9 @@ namespace GI_Subtitles.Views
         private double _voicePlaybackSpeed = NormalizePlaybackSpeed(Config.Get<double>("VoicePlaybackSpeed", 1.0));
         private const int AudioTempCleanupThreshold = 60;
         private const int AudioTempFilesToKeep = 10;
-        private int failedCount = 0;
-        private bool usingRegion2 = false;
+        private readonly RecognitionRegionFallback _regionFallback = new RecognitionRegionFallback();
+        private bool? _lastCaptureUsedSecondaryRegion;
+        private string _lastRegionConfiguration;
         private bool _isUserMovingWindow = false;
         private bool _forceVoiceReplayRequested = false;
         private bool _forceRefreshPending = false;
@@ -334,34 +335,16 @@ namespace GI_Subtitles.Views
                         notify.ChooseRegion();
                     }
 
-                    bool isRegion2Valid = notify.Region2 != null && notify.Region2.Length == 4 &&
-                                         int.TryParse(notify.Region2[2], out int region2Width) && region2Width > 0 &&
-                                         int.TryParse(notify.Region2[3], out int region2Height) && region2Height > 0;
+                    SynchronizeRecognitionRegionConfiguration();
+                    bool isRegion2Valid = IsValidRegion(notify.Region2);
+                    if (_regionFallback.UseSecondaryRegion && !isRegion2Valid)
+                    {
+                        _regionFallback.Reset();
+                    }
 
-                    if (failedCount > 4 && isRegion2Valid)
-                    {
-                        if (usingRegion2)
-                        {
-                            target = CaptureRegion(notify.Region);
-                        }
-                        else
-                        {
-                            target = CaptureRegion(notify.Region2);
-                        }
-                        failedCount = 0;
-                        usingRegion2 = !usingRegion2;
-                    }
-                    else
-                    {
-                        if (usingRegion2 && isRegion2Valid)
-                        {
-                            target = CaptureRegion(notify.Region2);
-                        }
-                        else
-                        {
-                            target = CaptureRegion(notify.Region);
-                        }
-                    }
+                    bool useSecondaryRegion = _regionFallback.UseSecondaryRegion && isRegion2Valid;
+                    ResetFrameBaselinesWhenRegionChanges(useSecondaryRegion);
+                    target = CaptureRegion(useSecondaryRegion ? notify.Region2 : notify.Region);
 
                     bool passedToOcr = false;
                     Mat frameMat = null;
@@ -379,7 +362,7 @@ namespace GI_Subtitles.Views
                                 if (IsOcrIntervalReady())
                                 {
                                     SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
-                                    _ = TriggerOcrAsync(frameMat.Clone(), target);
+                                    _ = TriggerOcrAsync(frameMat.Clone(), target, useSecondaryRegion: useSecondaryRegion);
                                     passedToOcr = true;
                                 }
                                 else
@@ -475,7 +458,7 @@ namespace GI_Subtitles.Views
 
                                     Logger.Log.Debug("Subtitle changed vs OCR and stabilized vs previous, start OCR");
                                     SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
-                                    _ = TriggerOcrAsync(frameMat.Clone(), target);
+                                    _ = TriggerOcrAsync(frameMat.Clone(), target, useSecondaryRegion: useSecondaryRegion);
                                     passedToOcr = true;
                                 }
                                 else
@@ -858,6 +841,7 @@ namespace GI_Subtitles.Views
             Mat frameToProcess,
             Bitmap target,
             bool forceRefresh = false,
+            bool useSecondaryRegion = false,
             string darkScreenHash = null)
         {
             _isOcrRunning = true;
@@ -930,9 +914,9 @@ namespace GI_Subtitles.Views
                         ocrText = recognizedText;
                         Logger.Log.Debug($"OCR Content: {recognizedText}");
 
-                        if (recognizedText.Length < 2)
+                        if (darkScreenHash == null)
                         {
-                            failedCount++;
+                            _regionFallback.RecordResult(useSecondaryRegion, recognizedText.Length >= 2);
                         }
                     }
                     catch (Exception ex)
@@ -1004,9 +988,9 @@ namespace GI_Subtitles.Views
 
             try
             {
-                string[] region = usingRegion2 && IsValidRegion(notify.Region2)
-                    ? notify.Region2
-                    : notify.Region;
+                _regionFallback.Reset();
+                ResetFrameBaselines();
+                string[] region = notify.Region;
 
                 if (!IsValidRegion(region))
                 {
@@ -1180,6 +1164,42 @@ namespace GI_Subtitles.Views
             _lastDarkScreenCandidateHash = null;
             _lastDarkScreenOcrHash = null;
             _darkScreenStableFrames = 0;
+        }
+
+        private void SynchronizeRecognitionRegionConfiguration()
+        {
+            string configuration = string.Join(",", notify.Region ?? Array.Empty<string>()) + "|" +
+                                   string.Join(",", notify.Region2 ?? Array.Empty<string>());
+            if (string.Equals(configuration, _lastRegionConfiguration, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _lastRegionConfiguration = configuration;
+            _regionFallback.Reset();
+            _lastCaptureUsedSecondaryRegion = null;
+            ResetFrameBaselines();
+            Logger.Log.Info($"Recognition region configuration changed; OCR frame baselines reset: {configuration}");
+        }
+
+        private void ResetFrameBaselinesWhenRegionChanges(bool useSecondaryRegion)
+        {
+            if (_lastCaptureUsedSecondaryRegion == useSecondaryRegion)
+            {
+                return;
+            }
+
+            _lastCaptureUsedSecondaryRegion = useSecondaryRegion;
+            ResetFrameBaselines();
+            Logger.Log.Debug($"OCR capture switched to {(useSecondaryRegion ? "secondary" : "primary")} region; frame baselines reset");
+        }
+
+        private void ResetFrameBaselines()
+        {
+            _lastBinaryFrame?.Dispose();
+            _lastBinaryFrame = null;
+            _lastOcrBinaryFrame?.Dispose();
+            _lastOcrBinaryFrame = null;
         }
 
         private bool TryScanDialogueOptions()

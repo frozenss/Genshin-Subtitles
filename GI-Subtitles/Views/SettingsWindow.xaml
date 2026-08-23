@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource App_Settings}" 
         Height="550" Width="850"
+        MinHeight="360" MinWidth="620"
         Icon="../Resources/mask.ico" 
         Topmost="True"
         WindowStartupLocation="CenterOwner">
@@ -91,11 +92,15 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Control panel: language & game selection -->
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
+                        <WrapPanel HorizontalAlignment="Center" Margin="0,0,0,16">
                             <!-- UI language control is now moved to tray Language menu, keep hidden here for compatibility -->
                             <TextBlock Text="{DynamicResource UI_Language}" VerticalAlignment="Center" Margin="0,0,6,0"
                                        Visibility="Collapsed"/>
@@ -107,17 +112,19 @@
                                 <ComboBoxItem Content="日本語" Tag="ja-JP"/>
                             </ComboBox>
 
-                            <TextBlock Text="{DynamicResource Select_Game}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <ComboBox Name="GameSelector" Width="120" VerticalAlignment="Center" Margin="0,0,16,0">
-                            </ComboBox>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,8">
+                                <TextBlock Text="{DynamicResource Select_Game}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox Name="GameSelector" Width="120" VerticalAlignment="Center"/>
+                            </StackPanel>
 
-                            <TextBlock Text="{DynamicResource Recognize_Lang}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <ComboBox Name="InputSelector" Width="100" VerticalAlignment="Center" Margin="0,0,16,0">
-                            </ComboBox>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,8">
+                                <TextBlock Text="{DynamicResource Recognize_Lang}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox Name="InputSelector" Width="100" VerticalAlignment="Center"/>
+                            </StackPanel>
 
-                            <TextBlock Text="{DynamicResource Output_Lang}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <!-- Multi-select output languages (max 2), apply by confirm button -->
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                <TextBlock Text="{DynamicResource Output_Lang}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <ListBox Name="OutputSelector"
                                          Width="150"
                                          Height="80"
@@ -131,7 +138,7 @@
                                         Click="OutputConfirmButton_Click"
                                         IsEnabled="False"/>
                             </StackPanel>
-                        </StackPanel>
+                        </WrapPanel>
 
                         <!-- Data information area -->
                         <StackPanel Grid.Row="1" Margin="0,0,0,16">
@@ -189,17 +196,18 @@
                         </StackPanel>
 
                         <!-- Progress bar and download speed -->
-                        <StackPanel Grid.Row="4" Margin="0,6,0,0">
+                        <StackPanel Grid.Row="3" Margin="0,6,0,0">
                             <ProgressBar Name="DownloadProgressBar" Height="20" Minimum="0" Maximum="100"/>
                             <TextBlock Name="DownloadSpeedText" Margin="0,6,0,0"/>
                         </StackPanel>
 
-                        <Label Grid.Row="5" Name="Status" HorizontalAlignment="Center" Margin="0,3,0,0"
+                        <Label Grid.Row="4" Name="Status" HorizontalAlignment="Center" Margin="0,3,0,0"
                    Content="Loading..."/>
-                        <Image Grid.Row="6" Name="Capture" HorizontalAlignment="Center"/>
+                        <Image Grid.Row="5" Name="Capture" HorizontalAlignment="Center" VerticalAlignment="Top"
+                               Stretch="Uniform" MaxHeight="180"/>
 
                         <!-- Action buttons -->
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <WrapPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,0,0,6">
                             <Button x:Name="SyncButton" Style="{StaticResource PrimaryButton}" 
                                     Content="{DynamicResource Btn_Sync}" Click="SyncButton_Click"
                                     ToolTip="{DynamicResource Help_Sync}"/>
@@ -218,7 +226,7 @@
                             <Button x:Name="RegionButton" Style="{StaticResource PrimaryButton}"
                                     Content="{DynamicResource Btn_Region}" Click="RegionButton_Click"
                                     ToolTip="{DynamicResource Help_Region}"/>
-                        </StackPanel>
+                        </WrapPanel>
                     </Grid>
                 </ScrollViewer>
             </TabItem>
@@ -342,7 +350,7 @@
                     </StackPanel>
 
                     <!-- Action Buttons -->
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,10,0,0">
+                    <WrapPanel Grid.Row="3" HorizontalAlignment="Left" Margin="0,10,0,0">
                         <Button Content="{DynamicResource Btn_ResetLocation}" Margin="0,0,20,0" Click="ResetLocation_Click"/>
                         <Button x:Name="SecondRegionButton"
                                 Content="{DynamicResource Btn_SecondRegion}"
@@ -362,7 +370,7 @@
                                        VerticalAlignment="Center"/>
                         </Button>
                         <Button Content="{DynamicResource Btn_OpenFolder}" Margin="0,0,20,0" Click="OpenAppDataFolder_Click"/>
-                    </StackPanel>
+                    </WrapPanel>
 
                 </Grid>
             </TabItem>
