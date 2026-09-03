@@ -1,5 +1,7 @@
 # Genshin-Subtitles Documentation
 
+This is a personal fork of [qew21/Genshin-Subtitles](https://github.com/qew21/Genshin-Subtitles), for personal use.
+
 [**DeepWiki**](https://deepwiki.com/qew21/Genshin-Subtitles)
 
 [**English**](./README.md) | [**中文简体**](./README_CN.md)
@@ -107,12 +109,10 @@ Genshin-Subtitles enables players to:
 
 ### Building
 
-```bash
-# Restore NuGet packages
-nuget restore GI-Subtitles.sln
-
-# Build Release version
-msbuild GI-Subtitles.sln -t:GI-Subtitles:Rebuild -p:Configuration=Release -p:Platform=x64
+```powershell
+# Restore packages.config, OCR models, and build with Visual Studio MSBuild.
+# Do not use `dotnet build`: this solution is packages.config + .NET Framework.
+pwsh -File scripts/Build.ps1 -Configuration Release
 ```
 
 ### Running Tests

@@ -1,5 +1,7 @@
 # 原神双语字幕插件
 
+本仓库是 [qew21/Genshin-Subtitles](https://github.com/qew21/Genshin-Subtitles) 的个人 fork，仅供个人使用。
+
 基于 [PaddleOCRSharp](https://github.com/raoyutian/PaddleOCRSharp) 文本识别和 [Genshin_Datasets](https://github.com/AI-Hobbyist/Genshin_Voice_Sorting_Scripts/tree/main/AI%20Hobbyist%20Version/Indexs) 原神多语言文本 json 内容。
 
 ## 介绍
@@ -96,12 +98,10 @@ https://www.bilibili.com/video/BV1qxtjeME7e/
 
 ### 构建
 
-```bash
-# 还原 NuGet 包
-nuget restore GI-Subtitles.sln
-
-# 构建 Release 版本
-msbuild GI-Subtitles.sln -t:GI-Subtitles:Rebuild -p:Configuration=Release -p:Platform=x64
+```powershell
+# 还原 packages.config、OCR 模型，并用 Visual Studio MSBuild 构建。
+# 不要使用 `dotnet build`：本解决方案是 packages.config + .NET Framework。
+pwsh -File scripts/Build.ps1 -Configuration Release
 ```
 
 ### 测试
