@@ -11,3 +11,7 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 ### Domain docs
 
 Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agents/domain.md`.
+
+### Git branches
+
+Default working branch is `personal` (fork mainline). `master` fast-forwards `upstream/master` only. Feature work, upstream PRs, and syncing: see `docs/agents/git-branches.md`.
