@@ -46,7 +46,7 @@ _Avoid_: 主区域 without 配音; primary region when you mean the fallback pro
 
 **OCR cadence**:
 The live timing stack that samples frames on one clock, diffs each capture region against its own previous frame, and runs OCR only for regions that changed. Dark-screen scan and dialogue-option scan ride the same clock and the same serial OCR queue; they do not pause region pairs. OCR is one engine on one queue.
-_Avoid_: 识图频率 (that name implies a single Hz); per-pair timer; using this name for the settings-window slider (that lever is OCR interval); whole-beat preemption
+_Avoid_: 识图频率 (that name implies a single Hz); per-pair timer; using this name for the settings-window 最小识图间隔 control (that lever is OCR interval); whole-beat preemption
 
 **OCR interval**:
 The minimum time between OCR engine runs on the single serial queue. In the settings window this lever is labelled 最小识图间隔; it is the one user-facing control of OCR cadence.
