@@ -47,6 +47,7 @@ using System.ServiceModel.PeerResolvers;
 using System.Net.Http;
 using GI_Subtitles.Core.Cache;
 using GI_Subtitles.Core.Config;
+using GI_Subtitles.Core.Overlay;
 using GI_Subtitles.Core.UI;
 using GI_Subtitles.Models;
 using GI_Subtitles.Services.OCR;
@@ -78,8 +79,7 @@ namespace GI_Subtitles.Views
         private bool _isOcrRunning = false;
         private readonly double ChangeThreshold = Math.Max(0, Math.Min(1, Config.Get<double>("OCRThreshold", 0.01)));
         private DateTime _lastOcrTime = DateTime.MinValue;
-        private readonly TimeSpan MinOcrInterval = TimeSpan.FromMilliseconds(
-            Math.Max(1, Config.Get<int>("OCRInterval", 400)));
+        private readonly LiveOverlaySession _overlaySession = new LiveOverlaySession(new ConfigOcrIntervalStore());
         string ocrText = "";
         private NotifyIcon notifyIcon;
         string lastHeader = null;
@@ -231,7 +231,7 @@ namespace GI_Subtitles.Views
 
             notify = new INotifyIcon();
             notifyIcon = notify.InitializeNotifyIcon(Scale);
-            data = new SettingsWindow(version, notify, Scale);
+            data = new SettingsWindow(version, notify, Scale, _overlaySession);
             data.InitializeKey(handle);
             notify.SetData(data);
             CleanupOldUpdatePackages();
@@ -823,7 +823,7 @@ namespace GI_Subtitles.Views
         private bool IsOcrIntervalReady()
         {
             var now = DateTime.UtcNow;
-            if (now - _lastOcrTime < MinOcrInterval)
+            if (now - _lastOcrTime < TimeSpan.FromMilliseconds(_overlaySession.EngineOcrIntervalMs))
             {
                 return false;
             }

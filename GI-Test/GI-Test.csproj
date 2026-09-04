@@ -102,6 +102,7 @@
     <Compile Include="TestOCR.cs" />
     <Compile Include="TestDarkScreenSubtitleDetector.cs" />
     <Compile Include="TestRecognitionRegionFallback.cs" />
+    <Compile Include="TestLiveOverlaySessionOcrInterval.cs" />
     <Compile Include="OCRBenchmarkTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

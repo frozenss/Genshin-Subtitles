@@ -39,6 +39,7 @@ using System.Windows.Interop;
 using Microsoft.Win32;
 using GI_Subtitles.Core.Config;
 using GI_Subtitles.Core.Input;
+using GI_Subtitles.Core.Overlay;
 using GI_Subtitles.Core.UI;
 using GI_Subtitles.Models;
 using GI_Subtitles.Services.Translation;
@@ -81,6 +82,9 @@ namespace GI_Subtitles.Views
         double Scale = 1;
         INotifyIcon notifyIcon;
         private readonly string _version;
+        private readonly LiveOverlaySession _overlaySession;
+        private OcrIntervalSettingsView _ocrIntervalView;
+        private bool _ocrIntervalBinding;
         // Windows API functions for registering and unregistering hotkeys
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -136,9 +140,15 @@ namespace GI_Subtitles.Views
             window.RefreshUrl();
         }
 
-        public SettingsWindow(string version, INotifyIcon notify, double scale = 1)
+        public SettingsWindow(string version, INotifyIcon notify, double scale, LiveOverlaySession overlaySession)
         {
+            if (overlaySession == null)
+            {
+                throw new ArgumentNullException(nameof(overlaySession));
+            }
+
             _version = version;
+            _overlaySession = overlaySession;
             InitializeComponent();
             SourceInitialized += (sender, args) => FitWindowToWorkingArea();
             Scale = scale;
@@ -247,6 +257,69 @@ namespace GI_Subtitles.Views
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
             RecognizeDialogueOptionsCheckBox.IsChecked = Config.Get("RecognizeDialogueOptions", false);
             UpdateSecondRegionDeleteButtonState();
+            BindOcrIntervalSettings();
+            IsVisibleChanged += SettingsWindow_IsVisibleChanged;
+        }
+
+        private void SettingsWindow_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (IsVisible)
+            {
+                BindOcrIntervalSettings();
+            }
+        }
+
+        private void BindOcrIntervalSettings()
+        {
+            if (OcrIntervalTextBox == null)
+            {
+                return;
+            }
+
+            _ocrIntervalBinding = true;
+            try
+            {
+                _ocrIntervalView = _overlaySession.OpenOcrIntervalSettings();
+                OcrIntervalTextBox.Text = _ocrIntervalView.BoxText;
+                UpdateOcrIntervalWarning();
+            }
+            finally
+            {
+                _ocrIntervalBinding = false;
+            }
+        }
+
+        private void UpdateOcrIntervalWarning()
+        {
+            if (OcrIntervalOutOfRangeWarning == null || _ocrIntervalView == null
+                || string.IsNullOrEmpty(_ocrIntervalView.OutOfRangeWarning))
+            {
+                if (OcrIntervalOutOfRangeWarning != null)
+                {
+                    OcrIntervalOutOfRangeWarning.Visibility = Visibility.Collapsed;
+                    OcrIntervalOutOfRangeWarning.Text = string.Empty;
+                }
+                return;
+            }
+
+            string format = TryFindResource("Config_OcrInterval_OutOfRange") as string;
+            OcrIntervalOutOfRangeWarning.Text = string.IsNullOrEmpty(format)
+                ? _ocrIntervalView.OutOfRangeWarning
+                : string.Format(format, _ocrIntervalView.BoxText);
+            OcrIntervalOutOfRangeWarning.Visibility = Visibility.Visible;
+        }
+
+        private void OcrIntervalTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_ocrIntervalBinding || _ocrIntervalView == null)
+            {
+                return;
+            }
+
+            _ocrIntervalView.BoxText = OcrIntervalTextBox.Text;
+            _ocrIntervalView.Commit();
+            OcrIntervalTextBox.Text = _ocrIntervalView.BoxText;
+            UpdateOcrIntervalWarning();
         }
 
         private void FitWindowToWorkingArea()
@@ -355,6 +428,7 @@ namespace GI_Subtitles.Views
 
                 // Update window title so that it reflects the new language
                 UpdateWindowTitle();
+                UpdateOcrIntervalWarning();
             }
             finally
             {

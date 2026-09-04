@@ -125,6 +125,9 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Core\Config\Config.cs" />
+    <Compile Include="Core\Overlay\IOcrIntervalStore.cs" />
+    <Compile Include="Core\Overlay\ConfigOcrIntervalStore.cs" />
+    <Compile Include="Core\Overlay\LiveOverlaySession.cs" />
     <Compile Include="Core\Cache\LRUCache.cs" />
     <Compile Include="Common\OCRSummary.cs" />
     <Compile Include="Common\TextMapNormalizer.cs" />
