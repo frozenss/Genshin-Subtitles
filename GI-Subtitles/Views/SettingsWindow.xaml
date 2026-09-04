@@ -476,6 +476,12 @@
                                    TextWrapping="Wrap"
                                    Foreground="Gray"
                                    FontStyle="Italic"/>
+                        <CheckBox x:Name="RecognizeDarkScreenSubtitlesCheckBox"
+                                  Checked="RecognizeDarkScreenSubtitlesCheckBox_Checked"
+                                  Unchecked="RecognizeDarkScreenSubtitlesCheckBox_Checked"
+                                  Content="{DynamicResource Config_RecognizeDarkScreenSubtitles}"
+                                  ToolTip="{DynamicResource Config_RecognizeDarkScreenSubtitles_Tooltip}"
+                                  Margin="0,0,0,6"/>
                         <CheckBox x:Name="RecognizeDialogueOptionsCheckBox"
                                   Checked="RecognizeDialogueOptionsCheckBox_Checked"
                                   Unchecked="RecognizeDialogueOptionsCheckBox_Checked"

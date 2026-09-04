@@ -103,6 +103,8 @@
     <sys:String x:Key="Config_Multiline" xmlns:sys="clr-namespace:System;assembly=mscorlib">启用多行识别（推荐开启）</sys:String>
     <sys:String x:Key="Config_AutoStart" xmlns:sys="clr-namespace:System;assembly=mscorlib">开机自动启动</sys:String>
     <sys:String x:Key="Config_PlayVoice" xmlns:sys="clr-namespace:System;assembly=mscorlib">启用支线配音</sys:String>
+    <sys:String x:Key="Config_RecognizeDarkScreenSubtitles" xmlns:sys="clr-namespace:System;assembly=mscorlib">识别暗屏字幕</sys:String>
+    <sys:String x:Key="Config_RecognizeDarkScreenSubtitles_Tooltip" xmlns:sys="clr-namespace:System;assembly=mscorlib">在暗屏过场中自动检测中央字幕带并显示翻译。不是区域对，也不占用对话选项的识别。</sys:String>
     <sys:String x:Key="Config_RecognizeDialogueOptions" xmlns:sys="clr-namespace:System;assembly=mscorlib">识别对话选项</sys:String>
     <sys:String x:Key="Config_RecognizeDialogueOptions_Tooltip" xmlns:sys="clr-namespace:System;assembly=mscorlib">自动定位右侧对话选项；鼠标选择后识别实际点击的选项并触发翻译和 AI 配音。</sys:String>
     <sys:String x:Key="Btn_TestVoice" xmlns:sys="clr-namespace:System;assembly=mscorlib">测试配音</sys:String>

@@ -95,6 +95,8 @@
     <sys:String x:Key="Config_Multiline" xmlns:sys="clr-namespace:System;assembly=mscorlib">Enable multi-line recognition</sys:String>
     <sys:String x:Key="Config_AutoStart" xmlns:sys="clr-namespace:System;assembly=mscorlib">Start with Windows</sys:String>
     <sys:String x:Key="Config_PlayVoice" xmlns:sys="clr-namespace:System;assembly=mscorlib">Enable voice</sys:String>
+    <sys:String x:Key="Config_RecognizeDarkScreenSubtitles" xmlns:sys="clr-namespace:System;assembly=mscorlib">Recognize dark-screen subtitles</sys:String>
+    <sys:String x:Key="Config_RecognizeDarkScreenSubtitles_Tooltip" xmlns:sys="clr-namespace:System;assembly=mscorlib">Detects the central subtitle band on a mostly-dark cutscene and shows the translation. This is not a region pair.</sys:String>
     <sys:String x:Key="Config_RecognizeDialogueOptions" xmlns:sys="clr-namespace:System;assembly=mscorlib">Recognize dialogue choices</sys:String>
     <sys:String x:Key="Config_RecognizeDialogueOptions_Tooltip" xmlns:sys="clr-namespace:System;assembly=mscorlib">Automatically locates dialogue choices and voices the option selected with the mouse.</sys:String>
     <sys:String x:Key="Btn_TestVoice" xmlns:sys="clr-namespace:System;assembly=mscorlib">Test voice</sys:String>

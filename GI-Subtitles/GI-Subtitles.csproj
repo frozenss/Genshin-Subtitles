@@ -129,6 +129,8 @@
     <Compile Include="Core\Overlay\IRegionPairStore.cs" />
     <Compile Include="Core\Overlay\OverlayRect.cs" />
     <Compile Include="Core\Overlay\PairFrameSample.cs" />
+    <Compile Include="Core\Overlay\ExtraPathSample.cs" />
+    <Compile Include="Core\Overlay\ExtraPathBody.cs" />
     <Compile Include="Core\Overlay\PairSubtitleBody.cs" />
     <Compile Include="Core\Overlay\RegionOutline.cs" />
     <Compile Include="Core\Overlay\RegionPair.cs" />

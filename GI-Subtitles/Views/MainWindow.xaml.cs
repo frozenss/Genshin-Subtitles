@@ -187,19 +187,22 @@ namespace GI_Subtitles.Views
         private string _lastDialogueOptionHash;
         private List<DialogueOptionCandidate> _lastDialogueOptions = new List<DialogueOptionCandidate>();
         private int _dialogueOptionMissCount;
-        private static readonly TimeSpan DialogueOptionScanInterval = TimeSpan.FromMilliseconds(400);
-        private readonly bool _recognizeDarkScreenSubtitles = Config.Get("RecognizeDarkScreenSubtitles", true);
-        private readonly TimeSpan _darkScreenScanInterval = TimeSpan.FromMilliseconds(
-            Math.Max(250, Config.Get("DarkScreenScanInterval", 500)));
+        private static readonly TimeSpan DialogueOptionScanInterval =
+            TimeSpan.FromMilliseconds(LiveOverlaySession.DialogueOptionScanIntervalMs);
+        private static readonly TimeSpan DarkScreenScanInterval =
+            TimeSpan.FromMilliseconds(LiveOverlaySession.DarkScreenScanIntervalMs);
         private DateTime _lastDarkScreenScanTime = DateTime.MinValue;
-        private bool _darkScreenMode;
         private string _lastDarkScreenCandidateHash;
         private string _lastDarkScreenOcrHash;
         private int _darkScreenStableFrames;
-        private readonly DispatcherTimer _dialogueChoiceDisplayTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(3)
-        };
+        private Bitmap _darkScreenBitmap;
+        private Mat _darkScreenMat;
+        private string _darkScreenPendingHash;
+        private Bitmap _dialogueOptionBitmap;
+        private Mat _dialogueOptionMat;
+        private System.Drawing.Point _dialogueOptionOrigin;
+        private double _dialogueOptionConfidence;
+        private string _pendingExtraPathVoiceKey;
         private ReleaseManifest availableUpdate;
         private readonly LocalVoiceFileResolver _genshinVoiceFileResolver;
 
@@ -216,12 +219,6 @@ namespace GI_Subtitles.Views
             _genshinVoiceFileResolver = new LocalVoiceFileResolver(dataDir, "Genshin");
             Task.Run(() => CleanupOldAudioTempFiles());
             InitializeComponent();
-            _dialogueChoiceDisplayTimer.Tick += (sender, args) =>
-            {
-                _dialogueChoiceDisplayTimer.Stop();
-                ClearDialogueChoiceHeader();
-                UpdateHeaderPosition();
-            };
             _forceRefreshDebounceTimer.Tick += (sender, args) =>
             {
                 _forceRefreshDebounceTimer.Stop();
@@ -231,7 +228,7 @@ namespace GI_Subtitles.Views
             _hintTimer.Tick += (sender, args) =>
             {
                 _overlaySession.Tick();
-                TryStartBusyPairOcr();
+                TryStartBusyOcr();
                 ApplyHintChrome();
                 ApplyOutlineChromeIfChanged();
                 if (!_overlaySession.HintVisible && _overlaySession.PreviewOutlines.Count == 0)
@@ -355,19 +352,12 @@ namespace GI_Subtitles.Views
             {
                 return;
             }
-            if (TryScanDarkScreenSubtitles())
-            {
-                return;
-            }
-            if (TryScanDialogueOptions())
-            {
-                return;
-            }
             if (Interlocked.Exchange(ref OCR_TIMER, 1) == 0)
             {
                 try
                 {
-                    SampleRegionPairsAndMaybeOcr();
+                    ExtraPathSample extra = CollectExtraPathSample();
+                    SampleRegionPairsAndMaybeOcr(extra);
                 }
                 catch (Exception ex)
                 {
@@ -377,7 +367,7 @@ namespace GI_Subtitles.Views
             }
         }
 
-        private void SampleRegionPairsAndMaybeOcr()
+        private void SampleRegionPairsAndMaybeOcr(ExtraPathSample extra)
         {
             IReadOnlyList<RegionPair> pairs = _overlaySession.Pairs;
             int engineCount = Math.Min(LiveOverlaySession.EnginePairCap, pairs.Count);
@@ -440,8 +430,20 @@ namespace GI_Subtitles.Views
                 }
             }
 
-            _overlaySession.Beat(samples);
-            TryStartBusyPairOcr();
+            _overlaySession.Beat(extra ?? ExtraPathSample.None, samples);
+            string extraVoiceKey = null;
+            if (extra != null && extra.DialogueChoiceSelected)
+            {
+                extraVoiceKey = _pendingExtraPathVoiceKey;
+                _pendingExtraPathVoiceKey = null;
+            }
+
+            MaybePlayPairVoice(
+                extraVoiceKey,
+                extra != null ? extra.DialogueChoiceContent : string.Empty,
+                string.Empty);
+
+            TryStartBusyOcr();
             ApplyPairOverlay();
         }
 
@@ -510,6 +512,7 @@ namespace GI_Subtitles.Views
             {
                 try
                 {
+                    _overlaySession.Tick();
                     ApplyPairOverlay();
                 }
                 catch (Exception ex)
@@ -548,6 +551,8 @@ namespace GI_Subtitles.Views
                 _extraPairBodies[i].Visibility = Visibility.Collapsed;
             }
 
+            ApplyDarkScreenOverlay();
+            ApplyDialogueChoiceEchoOverlay();
             UpdateHeaderPosition();
         }
 
@@ -557,8 +562,7 @@ namespace GI_Subtitles.Views
             if (!display.IsValid)
             {
                 SubtitleText.Visibility = Visibility.Collapsed;
-                if (DialogueChoiceText.Visibility != Visibility.Visible &&
-                    PlaybackSpeedBadge.Visibility != Visibility.Visible)
+                if (PlaybackSpeedBadge.Visibility != Visibility.Visible)
                 {
                     HeaderPanel.Visibility = Visibility.Collapsed;
                 }
@@ -583,19 +587,90 @@ namespace GI_Subtitles.Views
             HeaderPanel.Width = width;
             System.Windows.Controls.Panel.SetZIndex(HeaderPanel, body.RecognitionOrder);
 
-            if (DialogueChoiceText.Visibility != Visibility.Visible)
-            {
-                HeaderText.Text = body.Header;
-                HeaderText.Visibility = _overlaySession.SubtitlesVisible && !string.IsNullOrEmpty(body.Header)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-            }
+            HeaderText.Text = body.Header;
+            HeaderText.Visibility = _overlaySession.SubtitlesVisible && !string.IsNullOrEmpty(body.Header)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
             bool headerChromeVisible = _overlaySession.SubtitlesVisible &&
                 (HeaderText.Visibility == Visibility.Visible ||
-                 DialogueChoiceText.Visibility == Visibility.Visible ||
                  PlaybackSpeedBadge.Visibility == Visibility.Visible);
             HeaderPanel.Visibility = headerChromeVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ApplyDarkScreenOverlay()
+        {
+            ExtraPathBody body = _overlaySession.DarkScreenBody;
+            if (!body.Visible || !body.Display.IsValid)
+            {
+                DarkScreenText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            System.Windows.Point canvasPoint = DisplayToCanvas(body.Display);
+            Canvas.SetLeft(DarkScreenText, canvasPoint.X);
+            Canvas.SetTop(DarkScreenText, canvasPoint.Y);
+            DarkScreenText.Width = body.Display.Width / Scale;
+            DarkScreenText.Height = body.Display.Height / Scale;
+            DarkScreenText.MaxHeight = body.Display.Height / Scale;
+            DarkScreenText.FontSize = Config.Get<int>("Size");
+            DarkScreenText.Text = string.IsNullOrEmpty(body.Header)
+                ? body.Content
+                : body.Header + Environment.NewLine + body.Content;
+            DarkScreenText.Visibility = Visibility.Visible;
+            System.Windows.Controls.Panel.SetZIndex(DarkScreenText, body.RecognitionOrder);
+        }
+
+        private void ApplyDialogueChoiceEchoOverlay()
+        {
+            ExtraPathBody echo = _overlaySession.DialogueChoiceEcho;
+            if (!echo.Visible || !echo.Display.IsValid)
+            {
+                DialogueChoiceText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            System.Windows.Point canvasPoint = DisplayToCanvas(echo.Display);
+            Canvas.SetLeft(DialogueChoiceText, canvasPoint.X);
+            Canvas.SetTop(DialogueChoiceText, canvasPoint.Y);
+            DialogueChoiceText.Width = echo.Display.Width / Scale;
+            DialogueChoiceText.Text = echo.Content;
+            DialogueChoiceText.Visibility = Visibility.Visible;
+            System.Windows.Controls.Panel.SetZIndex(DialogueChoiceText, echo.RecognitionOrder);
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    if (DialogueChoiceText.Visibility != Visibility.Visible)
+                    {
+                        return;
+                    }
+
+                    DialogueChoiceText.UpdateLayout();
+                    double echoHeight = DialogueChoiceText.ActualHeight;
+                    if (echoHeight <= 0)
+                    {
+                        echoHeight = 18;
+                    }
+
+                    double headerLift = 0;
+                    if (_overlaySession.Pairs.Count > 0 &&
+                        _overlaySession.VoicePrimaryId == _overlaySession.Pairs[0].Id &&
+                        HeaderPanel.Visibility == Visibility.Visible)
+                    {
+                        HeaderPanel.UpdateLayout();
+                        headerLift = HeaderPanel.ActualHeight + 4;
+                    }
+
+                    var transform = (System.Windows.Media.TranslateTransform)DialogueChoiceText.RenderTransform;
+                    transform.Y = -(echoHeight + 4 + headerLift);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log.Error($"Error updating dialogue-choice echo position: {ex}");
+                }
+            }), DispatcherPriority.Loaded);
         }
 
         private void ApplyExtraPairOverlay(System.Windows.Controls.TextBlock block, PairSubtitleBody body)
@@ -736,14 +811,32 @@ namespace GI_Subtitles.Views
             }
         }
 
-        private void TryStartBusyPairOcr()
+        private void TryStartBusyOcr()
         {
-            if (_isOcrRunning || !_overlaySession.BusyOcrPairIndex.HasValue)
+            if (_isOcrRunning)
             {
                 return;
             }
 
-            int idx = _overlaySession.BusyOcrPairIndex.Value;
+            int? slot = _overlaySession.BusyOcrSlot;
+            if (!slot.HasValue)
+            {
+                return;
+            }
+
+            if (slot.Value == LiveOverlaySession.DarkScreenOcrSlot)
+            {
+                TryStartDarkScreenOcr();
+                return;
+            }
+
+            if (slot.Value == LiveOverlaySession.DialogueOptionsOcrSlot)
+            {
+                TryStartDialogueOptionsOcr();
+                return;
+            }
+
+            int idx = slot.Value;
             if (idx < 0 || idx >= _pairCapturedMats.Count || _pairCapturedMats[idx] == null)
             {
                 return;
@@ -763,6 +856,44 @@ namespace GI_Subtitles.Views
             _pairCapturedBitmaps[idx] = null;
             SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
             _ = TriggerOcrAsync(frame, bitmap, pairIndex: idx);
+        }
+
+        private void TryStartDarkScreenOcr()
+        {
+            if (_darkScreenMat == null || _darkScreenBitmap == null)
+            {
+                _overlaySession.CompleteOcr(miss: true);
+                TryStartBusyOcr();
+                return;
+            }
+
+            Mat frame = _darkScreenMat;
+            Bitmap bitmap = _darkScreenBitmap;
+            string hash = _darkScreenPendingHash;
+            _darkScreenMat = null;
+            _darkScreenBitmap = null;
+            _darkScreenPendingHash = null;
+            _lastDarkScreenOcrHash = hash;
+            SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
+            _ = TriggerOcrAsync(frame, bitmap, darkScreenHash: hash);
+        }
+
+        private void TryStartDialogueOptionsOcr()
+        {
+            if (_dialogueOptionMat == null || _dialogueOptionBitmap == null)
+            {
+                _overlaySession.CompleteOcr(miss: true);
+                TryStartBusyOcr();
+                return;
+            }
+
+            Mat frame = _dialogueOptionMat;
+            Bitmap bitmap = _dialogueOptionBitmap;
+            System.Drawing.Point origin = _dialogueOptionOrigin;
+            double confidence = _dialogueOptionConfidence;
+            _dialogueOptionMat = null;
+            _dialogueOptionBitmap = null;
+            _ = RecognizeDialogueOptionsAsync(frame, bitmap, origin, confidence);
         }
 
         /// <summary>
@@ -1000,7 +1131,7 @@ namespace GI_Subtitles.Views
                         return;
                     }
 
-                    TryStartBusyPairOcr();
+                    TryStartBusyOcr();
                 }));
             }
         }
@@ -1037,6 +1168,21 @@ namespace GI_Subtitles.Views
                     _overlaySession.ApplyPairResult(appliedPair, miss: true);
                     _overlaySession.Refresh(hasCaptureRegion: true, foundText: false);
                 }
+                return;
+            }
+
+            if (_overlaySession.BusyOcrSlot == LiveOverlaySession.DarkScreenOcrSlot)
+            {
+                if (!usable)
+                {
+                    _overlaySession.NoteOcrMiss();
+                    _overlaySession.CompleteOcr(miss: true);
+                    return;
+                }
+
+                _overlaySession.CompleteOcr(miss: false, content, header);
+                MaybePlayPairVoice(key, content, header);
+                ApplyPairOverlay();
                 return;
             }
 
@@ -1111,18 +1257,27 @@ namespace GI_Subtitles.Views
 
         private void MaybePlayPairVoice(string key, string content, string header)
         {
-            if (_overlaySession.TakeVoicePlayRequest() == null)
+            VoicePlayRequest request = _overlaySession.TakeVoicePlayRequest();
+            if (request == null)
             {
+                return;
+            }
+
+            if (request.ExtraPath)
+            {
+                if (!Config.Get<bool>("PlayVoice", false) || string.IsNullOrEmpty(key))
+                {
+                    _overlaySession.NoteVoicePlaybackEnded();
+                    return;
+                }
+
+                string extraAudioKey = VoiceContentHelper.CalculateMd5Hash(key);
+                PlayDialogueOptionAudio(extraAudioKey);
                 return;
             }
 
             bool forceVoiceReplay = _forceVoiceReplayRequested;
             bool contentChanged = forceVoiceReplay || content != lastContent;
-            bool headerChanged = header != lastHeader;
-            if (contentChanged || headerChanged)
-            {
-                ClearDialogueChoiceHeader();
-            }
 
             lastHeader = header;
             lastContent = content;
@@ -1195,40 +1350,66 @@ namespace GI_Subtitles.Views
                    int.TryParse(region[3], out int height) && height > 0;
         }
 
-        private bool TryScanDarkScreenSubtitles()
+        private ExtraPathSample CollectExtraPathSample()
         {
-            if (!_recognizeDarkScreenSubtitles || !IsValidRegion(notify.Region))
+            if (!_overlaySession.HasValidCapture ||
+                !TryGetFirstValidCaptureScreen(out System.Drawing.Rectangle screen))
             {
-                return false;
+                DisposeDarkScreenHold();
+                DisposeDialogueOptionHold();
+                return ExtraPathSample.None;
+            }
+
+            ExtraPathSample extra = ObserveDarkScreen(screen);
+            return ObserveDialogueOptions(screen, extra);
+        }
+
+        private bool TryGetFirstValidCaptureScreen(out System.Drawing.Rectangle screen)
+        {
+            screen = System.Drawing.Rectangle.Empty;
+            IReadOnlyList<RegionPair> pairs = _overlaySession.Pairs;
+            int engineCount = Math.Min(LiveOverlaySession.EnginePairCap, pairs.Count);
+            for (int i = 0; i < engineCount; i++)
+            {
+                OverlayRect capture = pairs[i].Capture;
+                if (!capture.IsValid)
+                {
+                    continue;
+                }
+
+                var anchor = new System.Drawing.Point(
+                    capture.X + capture.Width / 2,
+                    capture.Y + capture.Height / 2);
+                screen = Screen.GetBounds(anchor);
+                return true;
+            }
+
+            return false;
+        }
+
+        private ExtraPathSample ObserveDarkScreen(System.Drawing.Rectangle screen)
+        {
+            if (!Config.Get("RecognizeDarkScreenSubtitles", true))
+            {
+                DisposeDarkScreenHold();
+                return ExtraPathSample.None;
             }
 
             DateTime now = DateTime.UtcNow;
-            if (now - _lastDarkScreenScanTime < _darkScreenScanInterval)
+            if (now - _lastDarkScreenScanTime < DarkScreenScanInterval)
             {
-                return _darkScreenMode && !string.IsNullOrEmpty(_lastDarkScreenCandidateHash);
+                return ExtraPathSample.None;
             }
-            _lastDarkScreenScanTime = now;
 
-            if (_isOcrRunning)
-            {
-                return _darkScreenMode && !string.IsNullOrEmpty(_lastDarkScreenCandidateHash);
-            }
+            _lastDarkScreenScanTime = now;
 
             Bitmap searchBitmap = null;
             Mat searchMat = null;
             Bitmap candidateBitmap = null;
             Mat candidateFrame = null;
-            bool candidatePassedToOcr = false;
+            bool heldCandidate = false;
             try
             {
-                int regionX = int.Parse(notify.Region[0]);
-                int regionY = int.Parse(notify.Region[1]);
-                int regionWidth = int.Parse(notify.Region[2]);
-                int regionHeight = int.Parse(notify.Region[3]);
-                var anchor = new System.Drawing.Point(
-                    regionX + regionWidth / 2,
-                    regionY + regionHeight / 2);
-                System.Drawing.Rectangle screen = Screen.GetBounds(anchor);
                 var searchBounds = new System.Drawing.Rectangle(
                     screen.Left + (int)Math.Round(screen.Width * 0.05),
                     screen.Top + (int)Math.Round(screen.Height * 0.20),
@@ -1244,24 +1425,23 @@ namespace GI_Subtitles.Views
                     out double darkRatio,
                     out double brightRatio);
 
-                _darkScreenMode = isDarkScreen;
                 if (!isDarkScreen)
                 {
                     ResetDarkScreenCandidate();
-                    return false;
+                    DisposeDarkScreenHold();
+                    return ExtraPathSample.DarkScreenEnded();
                 }
 
                 if (!found)
                 {
                     ResetDarkScreenCandidate();
+                    DisposeDarkScreenHold();
                     if (debug)
                     {
                         Logger.Log.Debug(
                             $"Dark screen detected without subtitle candidate: dark={darkRatio:F3}, bright={brightRatio:F4}");
                     }
-                    // A dark gameplay scene without a central text candidate must not
-                    // suppress OCR of the user's normal subtitle region.
-                    return false;
+                    return ExtraPathSample.DarkScreenWithoutCandidate();
                 }
 
                 var bitmapRegion = new System.Drawing.Rectangle(
@@ -1274,6 +1454,11 @@ namespace GI_Subtitles.Views
                     System.Drawing.Imaging.PixelFormat.Format24bppRgb);
                 candidateFrame = candidateBitmap.ToMat();
                 string candidateHash = ImageProcessor.ComputeRobustHash(candidateFrame);
+                var absoluteBand = new OverlayRect(
+                    searchBounds.Left + candidateRegion.X,
+                    searchBounds.Top + candidateRegion.Y,
+                    candidateRegion.Width,
+                    candidateRegion.Height);
 
                 if (!string.IsNullOrEmpty(_lastDarkScreenCandidateHash) &&
                     ImageProcessor.CalculateHammingDistance(
@@ -1288,41 +1473,34 @@ namespace GI_Subtitles.Views
                 }
                 _lastDarkScreenCandidateHash = candidateHash;
 
-                if (_darkScreenStableFrames < 2 ||
-                    (!string.IsNullOrEmpty(_lastDarkScreenOcrHash) &&
+                bool needsOcr = _darkScreenStableFrames >= 2 &&
+                    (string.IsNullOrEmpty(_lastDarkScreenOcrHash) ||
                      ImageProcessor.CalculateHammingDistance(
                          candidateHash,
-                         _lastDarkScreenOcrHash) <= 2))
+                         _lastDarkScreenOcrHash) > 2);
+
+                if (needsOcr)
                 {
-                    return true;
+                    HoldDarkScreenFrames(candidateBitmap, candidateFrame, candidateHash);
+                    candidateBitmap = null;
+                    candidateFrame = null;
+                    heldCandidate = true;
+                    Logger.Log.Debug(
+                        $"Stable dark-screen subtitle detected: dark={darkRatio:F3}, bright={brightRatio:F4}, " +
+                        $"candidate={candidateRegion}");
                 }
 
-                if (!_overlaySession.TryBeginOcr())
-                {
-                    return true;
-                }
-
-                _lastDarkScreenOcrHash = candidateHash;
-                Logger.Log.Debug(
-                    $"Stable dark-screen subtitle detected: dark={darkRatio:F3}, bright={brightRatio:F4}, " +
-                    $"candidate={candidateRegion}");
-                SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
-                _ = TriggerOcrAsync(candidateFrame, candidateBitmap, darkScreenHash: candidateHash);
-                candidateFrame = null;
-                candidateBitmap = null;
-                candidatePassedToOcr = true;
-                return true;
+                return ExtraPathSample.DarkScreenCandidate(absoluteBand, needsOcr);
             }
             catch (Exception ex)
             {
                 Logger.Log.Warn($"Dark-screen subtitle scan failed: {ex.Message}");
-                _darkScreenMode = false;
                 ResetDarkScreenCandidate();
-                return false;
+                return ExtraPathSample.None;
             }
             finally
             {
-                if (!candidatePassedToOcr)
+                if (!heldCandidate)
                 {
                     candidateFrame?.Dispose();
                     candidateBitmap?.Dispose();
@@ -1339,30 +1517,40 @@ namespace GI_Subtitles.Views
             _darkScreenStableFrames = 0;
         }
 
-        private bool TryScanDialogueOptions()
+        private void HoldDarkScreenFrames(Bitmap bitmap, Mat mat, string hash)
         {
+            DisposeDarkScreenHold();
+            _darkScreenBitmap = bitmap;
+            _darkScreenMat = mat;
+            _darkScreenPendingHash = hash;
+        }
+
+        private void DisposeDarkScreenHold()
+        {
+            _darkScreenBitmap?.Dispose();
+            _darkScreenMat?.Dispose();
+            _darkScreenBitmap = null;
+            _darkScreenMat = null;
+            _darkScreenPendingHash = null;
+        }
+
+        private ExtraPathSample ObserveDialogueOptions(System.Drawing.Rectangle screen, ExtraPathSample extra)
+        {
+            extra = extra ?? ExtraPathSample.None;
             if (!string.Equals(Game, "Genshin", StringComparison.OrdinalIgnoreCase) ||
                 !Config.Get("RecognizeDialogueOptions", false) ||
                 DateTime.UtcNow - _lastDialogueOptionScanTime < DialogueOptionScanInterval)
             {
-                return false;
+                return extra;
             }
 
             _lastDialogueOptionScanTime = DateTime.UtcNow;
-            if (_isOcrRunning || !IsValidRegion(notify.Region))
-            {
-                return false;
-            }
 
             Bitmap screenBitmap = null;
             Mat screenMat = null;
             try
             {
-                var anchor = new System.Drawing.Point(
-                    int.Parse(notify.Region[0]),
-                    int.Parse(notify.Region[1]));
-                System.Drawing.Rectangle bounds = Screen.GetBounds(anchor);
-                screenBitmap = CaptureRectangle(bounds);
+                screenBitmap = CaptureRectangle(screen);
                 screenMat = screenBitmap.ToMat();
 
                 double threshold = Config.Get("DialogueOptionTemplateThreshold", 0.74);
@@ -1372,8 +1560,15 @@ namespace GI_Subtitles.Views
                         out double confidence,
                         threshold))
                 {
-                    HandleDialogueOptionsMissing();
-                    return false;
+                    string choice = TryTakeDialogueChoice();
+                    if (!string.IsNullOrEmpty(choice))
+                    {
+                        return extra == ExtraPathSample.None
+                            ? ExtraPathSample.DialogueChoice(choice)
+                            : extra.WithDialogueChoice(choice);
+                    }
+
+                    return extra;
                 }
 
                 _dialogueOptionMissCount = 0;
@@ -1391,27 +1586,25 @@ namespace GI_Subtitles.Views
                 {
                     optionFrame.Dispose();
                     optionBitmap.Dispose();
-                    return true;
-                }
-
-                if (!_overlaySession.TryBeginOcr())
-                {
-                    optionFrame.Dispose();
-                    optionBitmap.Dispose();
-                    return true;
+                    return extra;
                 }
 
                 _lastDialogueOptionHash = optionHash;
-                var absoluteOrigin = new System.Drawing.Point(
-                    bounds.Left + relativeTextRegion.X,
-                    bounds.Top + relativeTextRegion.Y);
-                _ = RecognizeDialogueOptionsAsync(optionFrame, optionBitmap, absoluteOrigin, confidence);
-                return true;
+                HoldDialogueOptionFrames(
+                    optionBitmap,
+                    optionFrame,
+                    new System.Drawing.Point(
+                        screen.Left + relativeTextRegion.X,
+                        screen.Top + relativeTextRegion.Y),
+                    confidence);
+                return extra == ExtraPathSample.None
+                    ? ExtraPathSample.DialogueOptionsReady()
+                    : extra.WithDialogueOptionsReady();
             }
             catch (Exception ex)
             {
                 Logger.Log.Warn($"Dialogue option scan failed: {ex.Message}");
-                return false;
+                return extra;
             }
             finally
             {
@@ -1427,11 +1620,14 @@ namespace GI_Subtitles.Views
             double templateConfidence)
         {
             _isOcrRunning = true;
+            bool miss = true;
             try
             {
                 OCRResult result = await Task.Run(() => data.engine.DetectTextFromMat(frame));
                 var candidates = new List<DialogueOptionCandidate>();
-                foreach (PaddleOCRSharp.TextBlock block in result.TextBlocks
+                IEnumerable<PaddleOCRSharp.TextBlock> blocks = result?.TextBlocks ??
+                    Enumerable.Empty<PaddleOCRSharp.TextBlock>();
+                foreach (PaddleOCRSharp.TextBlock block in blocks
                     .Where(block => !string.IsNullOrWhiteSpace(block.Text) && block.Score >= 0.45f))
                 {
                     float minX = block.BoxPoints.Min(point => point.X);
@@ -1451,7 +1647,8 @@ namespace GI_Subtitles.Views
                     .OrderBy(candidate => candidate.Bounds.Top)
                     .ThenBy(candidate => candidate.Bounds.Left)
                     .ToList();
-                if (candidates.Count == 0)
+                miss = candidates.Count == 0;
+                if (miss)
                 {
                     // Retry unchanged frames when OCR temporarily returns no usable text.
                     _lastDialogueOptionHash = null;
@@ -1468,22 +1665,46 @@ namespace GI_Subtitles.Views
                 frame?.Dispose();
                 bitmap?.Dispose();
                 _isOcrRunning = false;
+                _overlaySession.CompleteOcr(miss);
+                _ = Dispatcher.BeginInvoke(new Action(TryStartBusyOcr));
             }
         }
 
-        private void HandleDialogueOptionsMissing()
+        private void HoldDialogueOptionFrames(
+            Bitmap bitmap,
+            Mat mat,
+            System.Drawing.Point origin,
+            double confidence)
+        {
+            DisposeDialogueOptionHold();
+            _dialogueOptionBitmap = bitmap;
+            _dialogueOptionMat = mat;
+            _dialogueOptionOrigin = origin;
+            _dialogueOptionConfidence = confidence;
+        }
+
+        private void DisposeDialogueOptionHold()
+        {
+            _dialogueOptionBitmap?.Dispose();
+            _dialogueOptionMat?.Dispose();
+            _dialogueOptionBitmap = null;
+            _dialogueOptionMat = null;
+        }
+
+        private string TryTakeDialogueChoice()
         {
             if (_lastDialogueOptions.Count == 0)
             {
                 _lastDialogueOptionHash = null;
                 _dialogueOptionMissCount = 0;
-                return;
+                DisposeDialogueOptionHold();
+                return null;
             }
 
             _dialogueOptionMissCount++;
             if (_dialogueOptionMissCount < 2)
             {
-                return;
+                return null;
             }
 
             System.Drawing.Point cursor = System.Windows.Forms.Cursor.Position;
@@ -1496,50 +1717,19 @@ namespace GI_Subtitles.Views
             _lastDialogueOptions = new List<DialogueOptionCandidate>();
             _lastDialogueOptionHash = null;
             _dialogueOptionMissCount = 0;
+            DisposeDialogueOptionHold();
 
             if (selected == null)
             {
-                return;
+                return null;
             }
 
             Logger.Log.Debug($"Selected dialogue option: {selected.Text}");
-            ShowDialogueChoice(selected.Text);
-        }
-
-        private void ShowDialogueChoice(string recognizedText)
-        {
-            MatchResult match = data.Matcher.FindMatchWithHeaderSeparated(recognizedText, out string key);
-            string displayText = string.IsNullOrWhiteSpace(match.Content)
-                ? recognizedText
+            MatchResult match = data.Matcher.FindMatchWithHeaderSeparated(selected.Text, out string key);
+            _pendingExtraPathVoiceKey = key;
+            return string.IsNullOrWhiteSpace(match.Content)
+                ? selected.Text
                 : match.Content.Trim();
-
-            DialogueChoiceText.Text = $"◆ {displayText}";
-            DialogueChoiceText.Visibility = Visibility.Visible;
-            HeaderText.Visibility = Visibility.Collapsed;
-            _dialogueChoiceDisplayTimer.Stop();
-            _dialogueChoiceDisplayTimer.Start();
-            ApplyPairOverlay();
-
-            if (Config.Get<bool>("PlayVoice", false) && !string.IsNullOrEmpty(key))
-            {
-                string audioKey = VoiceContentHelper.CalculateMd5Hash(key);
-                PlayDialogueOptionAudio(audioKey);
-            }
-        }
-
-        private void ClearDialogueChoiceHeader()
-        {
-            if (DialogueChoiceText.Visibility != Visibility.Visible)
-            {
-                return;
-            }
-
-            DialogueChoiceText.Text = string.Empty;
-            DialogueChoiceText.Visibility = Visibility.Collapsed;
-            _dialogueChoiceDisplayTimer.Stop();
-            HeaderText.Visibility = string.IsNullOrEmpty(lastHeader)
-                ? Visibility.Collapsed
-                : Visibility.Visible;
         }
 
         private static long DistanceSquared(
@@ -2221,6 +2411,18 @@ namespace GI_Subtitles.Views
             }
 
             DisposeCurrentAudioPlayback();
+            NoteVoicePlaybackEndedOnUi();
+        }
+
+        private void NoteVoicePlaybackEndedOnUi()
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                _overlaySession.NoteVoicePlaybackEnded();
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(() => _overlaySession.NoteVoicePlaybackEnded()));
         }
 
         private void StartAudioPlayback(
@@ -2296,7 +2498,7 @@ namespace GI_Subtitles.Views
         {
             while (true)
             {
-                VoiceAudioSource source;
+                VoiceAudioSource source = null;
                 lock (_audioPlaybackQueueLock)
                 {
                     if (generation != _audioPlaybackGeneration)
@@ -2314,10 +2516,17 @@ namespace GI_Subtitles.Views
                     if (_audioPlaybackQueue.Count == 0)
                     {
                         _audioPlaybackQueueActive = false;
-                        return;
                     }
+                    else
+                    {
+                        source = _audioPlaybackQueue.Dequeue();
+                    }
+                }
 
-                    source = _audioPlaybackQueue.Dequeue();
+                if (source == null)
+                {
+                    NoteVoicePlaybackEndedOnUi();
+                    return;
                 }
 
                 if (!string.IsNullOrEmpty(source.LocalFilePath) &&

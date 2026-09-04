@@ -13,8 +13,14 @@ namespace GI_Subtitles.Core.Overlay
         public const string OcrIntervalConfigKey = "OCRInterval";
         public const int HintDurationMs = 2000;
         public const int PreviewDurationMs = 10000;
+        public const int DialogueChoiceEchoDurationMs = 3000;
+        public const int DarkScreenScanIntervalMs = 500;
+        public const int DialogueOptionScanIntervalMs = 400;
+        public const int DarkScreenOcrSlot = -2;
+        public const int DialogueOptionsOcrSlot = -1;
         public const int EnginePairCap = 8;
         public const int SettingsPairCap = 4;
+        private const string DialogueChoiceEchoPrefix = "◆ ";
 
         private const string HintResourceRecognitionRunning = "Hint_RecognitionRunning";
         private const string HintResourceRecognitionStopped = "Hint_RecognitionStopped";
@@ -39,6 +45,14 @@ namespace GI_Subtitles.Core.Overlay
         private int _storedMs;
         private DateTime? _hintExpiresAt;
         private DateTime? _previewExpiresAt;
+        private DateTime? _echoExpiresAt;
+        private OverlayRect _darkScreenBand = OverlayRect.Invalid;
+        private string _darkScreenHeader = string.Empty;
+        private string _darkScreenContent = string.Empty;
+        private int _darkScreenRecognitionOrder;
+        private bool _darkScreenActive;
+        private string _echoContent = string.Empty;
+        private int _echoRecognitionOrder;
         private DateTime _lastOcrTime = DateTime.MinValue;
         private int? _busyPairIndex;
         private int _recognitionSequence;
@@ -82,9 +96,57 @@ namespace GI_Subtitles.Core.Overlay
             get { return _ocrQueue; }
         }
 
-        public int? BusyOcrPairIndex
+        public int? BusyOcrSlot
         {
             get { return _busyPairIndex; }
+        }
+
+        public int? BusyOcrPairIndex
+        {
+            get
+            {
+                if (!_busyPairIndex.HasValue || _busyPairIndex.Value < 0)
+                {
+                    return null;
+                }
+
+                return _busyPairIndex;
+            }
+        }
+
+        public ExtraPathBody DarkScreenBody
+        {
+            get
+            {
+                bool visible = SubtitlesVisible
+                    && _darkScreenBand.IsValid
+                    && !string.IsNullOrEmpty(_darkScreenContent);
+                return new ExtraPathBody(
+                    _darkScreenBand,
+                    _darkScreenHeader,
+                    _darkScreenContent,
+                    visible,
+                    _darkScreenRecognitionOrder);
+            }
+        }
+
+        public ExtraPathBody DialogueChoiceEcho
+        {
+            get
+            {
+                int index = IndexOfPair(VoicePrimaryId);
+                OverlayRect display = index >= 0 ? _pairs[index].Display : OverlayRect.Invalid;
+                bool visible = SubtitlesVisible
+                    && index >= 0
+                    && display.IsValid
+                    && !string.IsNullOrEmpty(_echoContent);
+                return new ExtraPathBody(
+                    display,
+                    string.Empty,
+                    _echoContent,
+                    visible,
+                    _echoRecognitionOrder);
+            }
         }
 
         public bool HasValidCapture
@@ -301,7 +363,13 @@ namespace GI_Subtitles.Core.Overlay
         {
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
+            ExpireEchoIfNeeded();
             TryStartNextOcr();
+        }
+
+        public void NoteVoicePlaybackEnded()
+        {
+            VoicePlaybackActive = false;
         }
 
         public void SetCapture(int pairIndex, OverlayRect capture)
@@ -495,8 +563,15 @@ namespace GI_Subtitles.Core.Overlay
 
         public void Beat(params PairFrameSample[] samples)
         {
+            Beat(ExtraPathSample.None, samples);
+        }
+
+        public void Beat(ExtraPathSample extra, params PairFrameSample[] samples)
+        {
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
+            ExpireEchoIfNeeded();
+            ApplyExtraPathSample(extra);
             int engineCount = Math.Min(EnginePairCap, _pairs.Count);
             for (int i = 0; i < engineCount; i++)
             {
@@ -531,12 +606,26 @@ namespace GI_Subtitles.Core.Overlay
         {
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
+            ExpireEchoIfNeeded();
             if (!_busyPairIndex.HasValue)
             {
                 return;
             }
 
-            ApplyPairResult(_busyPairIndex.Value, miss, content, header);
+            int busy = _busyPairIndex.Value;
+            if (busy == DarkScreenOcrSlot)
+            {
+                ApplyDarkScreenResult(miss, content, header);
+                return;
+            }
+
+            if (busy == DialogueOptionsOcrSlot)
+            {
+                ReleaseBusySlot();
+                return;
+            }
+
+            ApplyPairResult(busy, miss, content, header);
         }
 
         public void ApplyPairResult(int pairIndex, bool miss, string content = null, string header = null)
@@ -862,19 +951,179 @@ namespace GI_Subtitles.Core.Overlay
             }
         }
 
+        private void ApplyExtraPathSample(ExtraPathSample extra)
+        {
+            if (extra == null || extra == ExtraPathSample.None || !HasValidCapture)
+            {
+                return;
+            }
+
+            int insertAt = 0;
+            if (extra.DarkScreenObserved)
+            {
+                if (!extra.DarkScreenIsDark || !extra.DarkScreenHasCandidate)
+                {
+                    ClearDarkScreen();
+                    RemoveQueuedSlot(DarkScreenOcrSlot);
+                }
+                else
+                {
+                    _darkScreenActive = true;
+                    _darkScreenBand = extra.DarkScreenBand ?? OverlayRect.Invalid;
+                    if (extra.DarkScreenNeedsOcr)
+                    {
+                        insertAt = EnqueueOcrAt(insertAt, DarkScreenOcrSlot);
+                    }
+                }
+            }
+
+            if (extra.DialogueOptionsNeedOcr)
+            {
+                insertAt = EnqueueOcrAt(insertAt, DialogueOptionsOcrSlot);
+            }
+
+            if (extra.DialogueChoiceSelected)
+            {
+                ShowDialogueChoiceEcho(extra.DialogueChoiceContent);
+            }
+        }
+
+        private void ShowDialogueChoiceEcho(string content)
+        {
+            int index = IndexOfPair(VoicePrimaryId);
+            if (index < 0 || !_pairs[index].Display.IsValid)
+            {
+                ClearEcho();
+                return;
+            }
+
+            string trimmed = content ?? string.Empty;
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                ClearEcho();
+                return;
+            }
+
+            _echoContent = trimmed.StartsWith(DialogueChoiceEchoPrefix, StringComparison.Ordinal)
+                ? trimmed
+                : DialogueChoiceEchoPrefix + trimmed;
+            _recognitionSequence++;
+            _echoRecognitionOrder = _recognitionSequence;
+            _echoExpiresAt = _utcNow().AddMilliseconds(DialogueChoiceEchoDurationMs);
+            EmitExtraPathVoice(string.Empty, _echoContent);
+        }
+
+        private void ApplyDarkScreenResult(bool miss, string content, string header)
+        {
+            if (!miss && _darkScreenActive)
+            {
+                _darkScreenHeader = header ?? string.Empty;
+                _darkScreenContent = content ?? string.Empty;
+                _recognitionSequence++;
+                _darkScreenRecognitionOrder = _recognitionSequence;
+                EmitExtraPathVoice(_darkScreenHeader, _darkScreenContent);
+            }
+
+            ReleaseBusySlot();
+        }
+
+        private void ClearDarkScreen()
+        {
+            _darkScreenActive = false;
+            _darkScreenBand = OverlayRect.Invalid;
+            _darkScreenHeader = string.Empty;
+            _darkScreenContent = string.Empty;
+            _darkScreenRecognitionOrder = 0;
+        }
+
+        private void ClearEcho()
+        {
+            _echoContent = string.Empty;
+            _echoRecognitionOrder = 0;
+            _echoExpiresAt = null;
+        }
+
+        private void ExpireEchoIfNeeded()
+        {
+            if (_echoExpiresAt.HasValue && _utcNow() >= _echoExpiresAt.Value)
+            {
+                ClearEcho();
+            }
+        }
+
+        private void EmitExtraPathVoice(string header, string content)
+        {
+            if (VoicePlaybackActive || string.IsNullOrEmpty(content))
+            {
+                return;
+            }
+
+            VoicePlaybackToken++;
+            VoicePlaybackActive = true;
+            _pendingVoicePlay = new VoicePlayRequest(0, header, content, VoicePlaybackToken, extraPath: true);
+        }
+
+        private void ReleaseBusySlot()
+        {
+            _busyPairIndex = null;
+            TryStartNextOcr();
+        }
+
         private void EnqueueOcr(int pairIndex)
         {
-            if (_busyPairIndex == pairIndex)
+            EnqueueOcrAt(_ocrQueue.Count, pairIndex);
+        }
+
+        private int EnqueueOcrAt(int insertAt, int slot)
+        {
+            if (_busyPairIndex == slot)
             {
-                return;
+                return insertAt;
             }
 
-            if (_ocrQueue.Contains(pairIndex))
+            int existing = _ocrQueue.IndexOf(slot);
+            if (existing >= 0)
             {
-                return;
+                if (existing != insertAt)
+                {
+                    _ocrQueue.RemoveAt(existing);
+                    if (existing < insertAt)
+                    {
+                        insertAt--;
+                    }
+
+                    _ocrQueue.Insert(Math.Min(insertAt, _ocrQueue.Count), slot);
+                }
+
+                return insertAt + 1;
             }
 
-            _ocrQueue.Add(pairIndex);
+            if (insertAt < 0)
+            {
+                insertAt = 0;
+            }
+
+            if (insertAt >= _ocrQueue.Count)
+            {
+                _ocrQueue.Add(slot);
+            }
+            else
+            {
+                _ocrQueue.Insert(insertAt, slot);
+            }
+
+            return insertAt + 1;
+        }
+
+        private void RemoveQueuedSlot(int slot)
+        {
+            for (int i = _ocrQueue.Count - 1; i >= 0; i--)
+            {
+                if (_ocrQueue[i] == slot)
+                {
+                    _ocrQueue.RemoveAt(i);
+                }
+            }
         }
 
         private void TryStartNextOcr()
@@ -1055,11 +1304,17 @@ namespace GI_Subtitles.Core.Overlay
     public sealed class VoicePlayRequest
     {
         public VoicePlayRequest(int pairId, string header, string content, int token)
+            : this(pairId, header, content, token, extraPath: false)
+        {
+        }
+
+        public VoicePlayRequest(int pairId, string header, string content, int token, bool extraPath)
         {
             PairId = pairId;
             Header = header ?? string.Empty;
             Content = content ?? string.Empty;
             Token = token;
+            ExtraPath = extraPath;
         }
 
         public int PairId { get; }
@@ -1069,5 +1324,7 @@ namespace GI_Subtitles.Core.Overlay
         public string Content { get; }
 
         public int Token { get; }
+
+        public bool ExtraPath { get; }
     }
 }

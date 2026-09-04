@@ -252,6 +252,7 @@ namespace GI_Subtitles.Views
             // Boolean flags
             AutoStartCheckBox.IsChecked = Config.Get("AutoStart", false);
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
+            RecognizeDarkScreenSubtitlesCheckBox.IsChecked = Config.Get("RecognizeDarkScreenSubtitles", true);
             RecognizeDialogueOptionsCheckBox.IsChecked = Config.Get("RecognizeDialogueOptions", false);
             BindOcrIntervalSettings();
             RefreshPairPage();
@@ -2217,6 +2218,18 @@ namespace GI_Subtitles.Views
             {
                 mainWindow.PlayVoiceTest();
             }
+        }
+
+        private void RecognizeDarkScreenSubtitlesCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_uiLangInitialized)
+            {
+                return;
+            }
+
+            Config.Set(
+                "RecognizeDarkScreenSubtitles",
+                RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true);
         }
 
         private void RecognizeDialogueOptionsCheckBox_Checked(object sender, RoutedEventArgs e)
