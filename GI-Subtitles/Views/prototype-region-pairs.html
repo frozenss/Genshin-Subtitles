@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE · 区域对怎么选、怎么拖</title>
+  <!--
+    Three variants of the region-pair list + boxing + drag, switchable via ?variant=,
+    with scene=settings|boxing|runtime. Hosted next to SettingsWindow.xaml.
+    Throwaway. Do not ship.
+  -->
+  <style>
+    :root {
+      --gold: #e6c35c;
+      --lime: #3ee05a;
+      --red: #e24b4b;
+      --ink: #0c1018;
+      --panel: #161b27;
+      --muted: #8b93a7;
+      --warn: #d7a84b;
+      --fail: #ff8b7a;
+      --wpf: #f0f0f0;
+      --wpf-edge: #d0d0d0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      background: #07090e;
+      color: #e8ecf4;
+      display: grid;
+      grid-template-columns: 1fr 310px;
+      grid-template-rows: auto auto 1fr;
+      height: 100%;
+    }
+    header.chrome {
+      grid-column: 1 / -1;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid #252b3a;
+      background: #0e121b;
+    }
+    header.chrome .kicker {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #d7a84b;
+      font-weight: 700;
+    }
+    header.chrome h1 {
+      margin: 2px 0 4px;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    header.chrome p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 92ch;
+    }
+    .scenes {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #0e121b;
+      border-bottom: 1px solid #252b3a;
+    }
+    .scenes button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .scenes button.on {
+      background: #3a2f14;
+      border-color: var(--gold);
+      color: #ffe9a8;
+    }
+    .stage-wrap { position: relative; min-height: 0; }
+    .desk {
+      margin: 12px;
+      height: calc(100% - 24px);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #3a3a3a;
+      box-shadow: inset 0 0 0 1px #2a3144;
+      position: relative;
+    }
+
+    /* WPF-ish settings window */
+    .win {
+      position: absolute;
+      inset: 18px 24px 28px;
+      background: var(--wpf);
+      color: #222;
+      border: 1px solid #7a7a7a;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      min-width: 0;
+    }
+    .win-title {
+      height: 28px;
+      background: linear-gradient(#fff, #ececec);
+      border-bottom: 1px solid #c8c8c8;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    .win-title .dot {
+      width: 14px; height: 14px;
+      background: #5b8def;
+      border-radius: 2px;
+    }
+    .tabs {
+      display: flex;
+      gap: 1px;
+      padding: 8px 10px 0;
+      background: var(--wpf);
+      flex: 0 0 auto;
+    }
+    .tabs span {
+      background: #e6e6e6;
+      border: 1px solid #bdbdbd;
+      border-bottom: none;
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: 3px 3px 0 0;
+      color: #444;
+    }
+    .tabs span.on {
+      background: #fff;
+      color: #111;
+      font-weight: 650;
+    }
+    .tab-body {
+      flex: 1;
+      min-height: 0;
+      margin: 0 10px 10px;
+      background: #fff;
+      border: 1px solid #bdbdbd;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    .row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+    .muted { color: #666; font-style: italic; }
+    .btn {
+      font: inherit;
+      background: #f8f8f8;
+      border: 1px solid #adadad;
+      border-radius: 2px;
+      padding: 3px 10px;
+      cursor: pointer;
+      color: #222;
+    }
+    .btn:hover { background: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.danger { color: #8a1f1f; }
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fff4ce;
+      color: #7a5a00;
+      border: 1px solid #e0c060;
+    }
+    .chip.dead {
+      background: #f3e8e8;
+      color: #7a3030;
+      border-color: #e0a0a0;
+    }
+
+    /* A: stacked cards */
+    .card {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin: 0 0 8px;
+      background: #fafafa;
+    }
+    .card.sel { outline: 2px solid #5b8def; }
+    .card.over { border-left: 4px solid var(--warn); }
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .kv { display: grid; grid-template-columns: 4.5em 1fr auto auto; gap: 4px 8px; align-items: center; }
+    .kv .coords { font-variant-numeric: tabular-nums; color: #333; }
+
+    /* B: table + map */
+    .split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; height: 100%; min-height: 280px; }
+    table.pairs { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.pairs th, table.pairs td {
+      border-bottom: 1px solid #e5e5e5;
+      padding: 6px 6px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    table.pairs tr.sel td { background: #e8f0ff; }
+    table.pairs tr.over td { background: #fff8e6; }
+    .minimap {
+      position: relative;
+      background: #1a2744;
+      border: 1px solid #333;
+      height: 100%;
+      min-height: 220px;
+      overflow: hidden;
+    }
+    .minimap .r {
+      position: absolute;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px #000;
+      pointer-events: none;
+    }
+    .minimap .cap { border: 2px solid var(--lime); background: rgba(62,224,90,0.12); }
+    .minimap .dis { border: 2px solid var(--gold); background: rgba(230,195,92,0.16); }
+    .minimap .sel.cap { box-shadow: 0 0 0 2px #fff; }
+    .minimap .sel.dis { box-shadow: 0 0 0 2px #fff; }
+
+    /* C: master-detail rail */
+    .md { display: grid; grid-template-columns: 200px 1fr; gap: 10px; height: 100%; }
+    .rail { border-right: 1px solid #e5e5e5; padding-right: 8px; overflow: auto; }
+    .rail-item {
+      padding: 8px;
+      border: 1px solid #ddd;
+      margin: 0 0 6px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .rail-item.sel { border-color: #5b8def; background: #eef4ff; }
+    .rail-item.over { border-left: 4px solid var(--warn); }
+    .detail {
+      background: #f7f7f7;
+      border: 1px solid #e0e0e0;
+      padding: 10px;
+    }
+    .preview-pair {
+      position: relative;
+      height: 160px;
+      background: #1a2744;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+
+    /* Game stage */
+    .stage {
+      position: relative;
+      margin: 12px;
+      height: calc(100% - 24px);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 500px at 20% 10%, #2a3d6a 0%, transparent 55%),
+        radial-gradient(900px 400px at 90% 20%, #3a2a1c 0%, transparent 50%),
+        linear-gradient(180deg, #1a2744 0%, #0e1524 45%, #0a0e16 100%);
+      box-shadow: inset 0 0 0 1px #2a3144;
+      user-select: none;
+    }
+    .skyline {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 58%, rgba(8,10,16,0.55) 100%);
+      pointer-events: none;
+    }
+    .char {
+      position: absolute;
+      bottom: 38%;
+      width: 180px; height: 260px;
+      opacity: 0.92;
+      pointer-events: none;
+    }
+    .char-l {
+      left: 16%;
+      background: linear-gradient(180deg, #f4c4b0 0 18%, #e07a6a 18% 42%, #f2eee8 42% 100%);
+      clip-path: polygon(40% 0, 68% 6%, 72% 28%, 90% 48%, 70% 100%, 28% 100%, 18% 52%, 32% 30%);
+    }
+    .char-r {
+      right: 18%;
+      background: linear-gradient(180deg, #f8e6c8 0 16%, #3d6ad9 16% 48%, #e8e4dc 48% 100%);
+      clip-path: polygon(35% 0, 62% 4%, 78% 36%, 88% 100%, 22% 100%, 18% 46%);
+    }
+    .game-line {
+      position: absolute;
+      left: 10%; right: 10%;
+      top: 64%; height: 14%;
+      background: linear-gradient(180deg, rgba(16,20,32,0.55), rgba(10,12,20,0.72));
+      border-top: 1px solid rgba(230,195,92,0.35);
+      color: #f4f1ea;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      text-shadow: 0 1px 3px #000;
+      pointer-events: none;
+    }
+    .dim {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+    }
+    .stage.boxing .dim { display: block; }
+    .rect {
+      position: absolute;
+      pointer-events: none;
+    }
+    .rect.cap {
+      border: 3px solid var(--red);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    }
+    .rect.cap.lime { border-color: var(--lime); }
+    .rect.dis {
+      border: 3px solid var(--gold);
+      background: rgba(230,195,92,0.08);
+    }
+    .rect.prefill {
+      border-style: dashed;
+      background: rgba(230,195,92,0.18);
+    }
+    .rect .tag {
+      position: absolute;
+      left: 0; top: -18px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 6px;
+      white-space: nowrap;
+      color: #fff;
+      background: rgba(0,0,0,0.72);
+    }
+    .banner {
+      position: absolute;
+      top: 12px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,12,18,0.92);
+      color: #fff;
+      border: 1px solid var(--gold);
+      padding: 8px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      z-index: 6;
+      pointer-events: none;
+    }
+    .banner small { display: block; font-weight: 400; color: #c9d0e0; font-size: 12px; margin-top: 2px; }
+    .sub {
+      position: absolute;
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      text-align: center;
+      text-shadow: 0 1px 3px #000;
+      cursor: grab;
+      pointer-events: auto;
+      padding: 8px 6px 4px;
+    }
+    .sub.dimmed { opacity: 0.28; pointer-events: none; }
+    .sub .handle {
+      display: none;
+      width: 18px; height: 18px;
+      margin: 0 auto 4px;
+      background: rgba(255,255,255,0.85);
+      border-radius: 2px;
+      cursor: move;
+    }
+    .sub:hover .handle, .sub.dragging .handle { display: block; }
+    .sub .pairchip {
+      display: none;
+      position: absolute;
+      right: 0; top: -18px;
+      font-size: 11px;
+      background: #111;
+      color: #ffe9a8;
+      border: 1px solid var(--gold);
+      padding: 1px 6px;
+    }
+    .sub:hover .pairchip, .sub.dragging .pairchip { display: block; }
+    .sub.frame {
+      box-shadow: 0 0 0 2px var(--gold);
+      background: rgba(0,0,0,0.15);
+    }
+    .ghost-tag {
+      position: absolute;
+      transform: translate(-50%, -120%);
+      background: #111;
+      color: #ffe9a8;
+      border: 1px solid var(--gold);
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      pointer-events: none;
+      z-index: 8;
+      display: none;
+    }
+    .handles span {
+      position: absolute;
+      width: 8px; height: 8px;
+      background: #fff;
+      border: 1px solid var(--gold);
+      pointer-events: auto;
+    }
+    .handles .n { top: -5px; left: 50%; margin-left: -4px; cursor: ns-resize; }
+    .handles .s { bottom: -5px; left: 50%; margin-left: -4px; cursor: ns-resize; }
+    .handles .e { right: -5px; top: 50%; margin-top: -4px; cursor: ew-resize; }
+    .handles .w { left: -5px; top: 50%; margin-top: -4px; cursor: ew-resize; }
+
+    aside.chrome {
+      border-left: 1px solid #252b3a;
+      background: var(--panel);
+      padding: 12px 14px 16px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .state {
+      background: #0e121b;
+      border: 1px solid #252b3a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .state dl { margin: 0; display: grid; grid-template-columns: 7em 1fr; gap: 4px 8px; }
+    .state dt { color: var(--muted); }
+    .state dd { margin: 0; font-variant-numeric: tabular-nums; }
+    fieldset {
+      border: 1px solid #2a3144;
+      border-radius: 6px;
+      margin: 0 0 12px;
+      padding: 8px 8px 10px;
+    }
+    legend { color: var(--muted); padding: 0 4px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    aside button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+    aside button:hover { background: #2c354a; }
+    .note {
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+    .switcher {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #111;
+      color: #f5f5f5;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      z-index: 20;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .switcher button {
+      width: 32px; height: 28px;
+      border-radius: 999px;
+      background: #222;
+      color: #fff;
+      border: 1px solid #666;
+      font-size: 16px;
+      padding: 0;
+      cursor: pointer;
+    }
+    .switcher .label { min-width: 210px; text-align: center; }
+    .pair-list { margin: 0; padding-left: 16px; color: #c9d0e0; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="kicker">PROTOTYPE · 非产品代码</div>
+    <h1>区域对怎么选、怎么拖</h1>
+    <p>
+      列表模型已锁定：区域对是列表；框完识别区立刻框显示区；显示区默认预填为识别区同宽、下偏 Pad；
+      拖那对字幕就是改显示区；添加上限 4，超过 4 的手改项仍要能看见、能删。
+      这里只比外观。不要比识图节奏、行为记录、按键提示、配音主区点选。
+    </p>
+  </header>
+
+  <div class="scenes" id="scenes">
+    <button type="button" data-scene="settings">设置窗</button>
+    <button type="button" data-scene="boxing">游戏里框选</button>
+    <button type="button" data-scene="runtime">运行时拖字幕</button>
+  </div>
+
+  <div class="stage-wrap">
+    <div id="root"></div>
+    <div class="switcher" id="switcher">
+      <button type="button" id="prev" aria-label="上一变体">←</button>
+      <div class="label" id="switcherLabel">A</div>
+      <button type="button" id="next" aria-label="下一变体">→</button>
+    </div>
+  </div>
+
+  <aside class="chrome">
+    <h2>当前状态</h2>
+    <div class="state">
+      <dl>
+        <dt>变体</dt><dd id="stVariant">A</dd>
+        <dt>场景</dt><dd id="stScene">设置窗</dd>
+        <dt>区域对数</dt><dd id="stCount">2</dd>
+        <dt>添加</dt><dd id="stAdd">可添加</dd>
+        <dt>选中</dt><dd id="stSel">对 1</dd>
+        <dt>框选步骤</dt><dd id="stBox">—</dd>
+        <dt>正在拖</dt><dd id="stDrag">否</dd>
+        <dt>刚才</dt><dd id="stLast">（无）</dd>
+      </dl>
+    </div>
+    <p class="note" id="variantNote"></p>
+    <h2>区域对</h2>
+    <ol class="pair-list" id="pairDump"></ol>
+    <fieldset>
+      <legend>列表动作</legend>
+      <div class="btns">
+        <button type="button" id="addPair">添加区域对</button>
+        <button type="button" id="delSel">删除选中</button>
+        <button type="button" id="seed5">塞入 5 对（看超出上限）</button>
+        <button type="button" id="reset">恢复两对</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>框选 / 拖</legend>
+      <div class="btns">
+        <button type="button" id="boxSel">框选选中的对</button>
+        <button type="button" id="boxCap">只重框识别区</button>
+        <button type="button" id="boxDis">只重框显示区</button>
+        <button type="button" id="cancelBox">取消框选 Esc</button>
+      </div>
+      <p class="note" style="margin:8px 0 0">游戏画面上按住拖。变体 C 在预填显示区时按 Enter 确认。</p>
+    </fieldset>
+  </aside>
+
+  <script>
+    const ADD_CAP = 4;
+    const ENGINE_IGNORE = 9;
+    const PAD_PCT = 8;
+    const VARIANTS = [
+      {
+        key: "A",
+        name: "配置页卡片叠",
+        note: "列表仍住在「其他配置」页，一对一张卡片，识别区/显示区各有框选。游戏里先红框识别区，再金框显示区；预填是底下那张金色虚线。运行时拖字幕出现四向把手和对号角标。"
+      },
+      {
+        key: "B",
+        name: "区域对页 + 缩略图",
+        note: "独立「区域对」页：左表右屏幕缩略图。框完识别区后显示区直接变成可拖的金色实框（不是再拉一次橡皮筋）。运行时拖字幕会同时亮起这一对的识别区（绿）和显示区（金）。"
+      },
+      {
+        key: "C",
+        name: "精简列表 + 两步向导",
+        note: "设置里只留编号列表，添加即进全屏两步向导。预填显示区带八向把手，Enter 确认、Esc 重拉。运行时那对显示区变成可见金框，其他对的字幕变淡。"
+      }
+    ];
+    const SCENE_LABEL = { settings: "设置窗", boxing: "游戏里框选", runtime: "运行时拖字幕" };
+    const LINES = [
+      "所以嘛，每次我们前往下一个国家的时候…",
+      "（旁白）风把旗帜吹向提瓦特的边界。",
+      "要不要现在就出发？",
+      "左侧木牌：禁止入内",
+      "任务提示：与派蒙对话"
+    ];
+
+    function seedTwo() {
+      return [
+        { capture: { x: 10, y: 62, w: 80, h: 14 }, display: { x: 10, y: 84, w: 80, h: 10 } },
+        { capture: { x: 72, y: 28, w: 22, h: 16 }, display: { x: 72, y: 52, w: 22, h: 10 } }
+      ];
+    }
+    function dummyPair(i) {
+      const x = 8 + (i % 3) * 28;
+      const y = 8 + Math.floor(i / 3) * 22;
+      return {
+        capture: { x: x, y: y, w: 24, h: 10 },
+        display: { x: x, y: Math.min(88, y + 12), w: 24, h: 8 }
+      };
+    }
+
+    const params = new URLSearchParams(location.search);
+    let variantIndex = Math.max(0, VARIANTS.findIndex(v => v.key === (params.get("variant") || "A").toUpperCase()));
+    if (variantIndex < 0) variantIndex = 0;
+    const state = {
+      pairs: seedTwo(),
+      selected: 0,
+      scene: (params.get("scene") || "settings"),
+      boxing: { step: null, rubber: null, start: null, only: null, handle: null },
+      drag: { i: -1, ox: 0, oy: 0 },
+      last: "（无）"
+    };
+    if (!SCENE_LABEL[state.scene]) state.scene = "settings";
+
+    const root = document.getElementById("root");
+    const els = {
+      label: document.getElementById("switcherLabel"),
+      note: document.getElementById("variantNote"),
+      stVariant: document.getElementById("stVariant"),
+      stScene: document.getElementById("stScene"),
+      stCount: document.getElementById("stCount"),
+      stAdd: document.getElementById("stAdd"),
+      stSel: document.getElementById("stSel"),
+      stBox: document.getElementById("stBox"),
+      stDrag: document.getElementById("stDrag"),
+      stLast: document.getElementById("stLast"),
+      pairDump: document.getElementById("pairDump")
+    };
+
+    function current() { return VARIANTS[variantIndex]; }
+    function overLimit(i) { return i >= ADD_CAP; }
+    function engineDead(i) { return i >= ENGINE_IGNORE; }
+    function fmt(r) {
+      if (!r) return "未设";
+      const px = (n, s) => Math.round(n * s);
+      return px(r.x, 19.2) + ", " + px(r.y, 10.8) + ", " + px(r.w, 19.2) + ", " + px(r.h, 10.8);
+    }
+    function prefillFrom(cap) {
+      const h = Math.max(8, Math.round(cap.h * 0.7));
+      let y = cap.y + cap.h + PAD_PCT;
+      if (y + h > 98) y = Math.max(2, cap.y - PAD_PCT - h);
+      return { x: cap.x, y: y, w: cap.w, h: h };
+    }
+    function clampRect(r) {
+      r.w = Math.max(4, r.w);
+      r.h = Math.max(4, r.h);
+      r.x = Math.max(0, Math.min(96, r.x));
+      r.y = Math.max(0, Math.min(96, r.y));
+      if (r.x + r.w > 100) r.w = 100 - r.x;
+      if (r.y + r.h > 100) r.h = 100 - r.y;
+      return r;
+    }
+    function rubberToRect(rb) {
+      if (!rb) return null;
+      const x = Math.min(rb.x0, rb.x1);
+      const y = Math.min(rb.y0, rb.y1);
+      return clampRect({ x, y, w: Math.abs(rb.x1 - rb.x0), h: Math.abs(rb.y1 - rb.y0) });
+    }
+    function pctEvent(e, el) {
+      const b = el.getBoundingClientRect();
+      return {
+        x: ((e.clientX - b.left) / b.width) * 100,
+        y: ((e.clientY - b.top) / b.height) * 100
+      };
+    }
+    function setLast(msg) { state.last = msg; renderState(); }
+
+    function setVariant(i, push) {
+      variantIndex = (i + VARIANTS.length) % VARIANTS.length;
+      const v = current();
+      const url = new URL(location.href);
+      url.searchParams.set("variant", v.key);
+      url.searchParams.set("scene", state.scene);
+      if (push !== false) history.replaceState(null, "", url);
+      els.label.textContent = v.key + " (" + v.name + ")";
+      els.note.textContent = v.note;
+      render();
+    }
+    function setScene(s) {
+      state.scene = s;
+      if (s !== "boxing") {
+        state.boxing.step = null;
+        state.boxing.rubber = null;
+        state.boxing.start = null;
+        state.boxing.handle = null;
+      }
+      if (s !== "runtime") state.drag.i = -1;
+      const url = new URL(location.href);
+      url.searchParams.set("variant", current().key);
+      url.searchParams.set("scene", s);
+      history.replaceState(null, "", url);
+      render();
+    }
+
+    function addPair() {
+      if (state.pairs.length >= ADD_CAP) {
+        setLast("已到添加上限 4，按钮应停用");
+        return;
+      }
+      state.pairs.push({ capture: null, display: null });
+      state.selected = state.pairs.length - 1;
+      startBoxing("capture", "both");
+      setLast("添加了对 " + (state.selected + 1) + "，立刻框识别区");
+    }
+    function delSel() {
+      if (!state.pairs.length) return;
+      const n = state.selected + 1;
+      state.pairs.splice(state.selected, 1);
+      state.selected = Math.max(0, Math.min(state.selected, state.pairs.length - 1));
+      setLast("删了对 " + n);
+      render();
+    }
+    function seedFive() {
+      const next = seedTwo();
+      while (next.length < 5) next.push(dummyPair(next.length));
+      state.pairs = next;
+      state.selected = 0;
+      setLast("手改塞入 5 对：第 5 对超出添加上限，仍能看见、能删、会跑");
+      render();
+    }
+    function resetPairs() {
+      state.pairs = seedTwo();
+      state.selected = 0;
+      setLast("恢复两对");
+      render();
+    }
+    function startBoxing(step, only) {
+      state.scene = "boxing";
+      state.boxing = { step: step, rubber: null, start: null, only: only || "both", handle: null };
+      const url = new URL(location.href);
+      url.searchParams.set("variant", current().key);
+      url.searchParams.set("scene", "boxing");
+      history.replaceState(null, "", url);
+      render();
+    }
+
+    function finishCapture(rect) {
+      const p = state.pairs[state.selected];
+      p.capture = clampRect(rect);
+      p.display = prefillFrom(p.capture);
+      if (state.boxing.only === "capture") {
+        state.boxing.step = null;
+        state.scene = "settings";
+        setLast("只改了识别区，显示区按预填规则重算");
+        render();
+        return;
+      }
+      state.boxing.step = "display";
+      state.boxing.rubber = null;
+      state.boxing.start = null;
+      setLast("识别区已定，显示区已预填，可拖改或重拉");
+      render();
+    }
+    function finishDisplay(rect) {
+      const p = state.pairs[state.selected];
+      p.display = clampRect(rect);
+      state.boxing.step = null;
+      state.boxing.rubber = null;
+      state.scene = "runtime";
+      setLast("显示区已定，拖这条字幕就是改它对");
+      render();
+    }
+
+    function renderState() {
+      const v = current();
+      els.stVariant.textContent = v.key + " · " + v.name;
+      els.stScene.textContent = SCENE_LABEL[state.scene];
+      els.stCount.textContent = String(state.pairs.length);
+      els.stAdd.textContent = state.pairs.length >= ADD_CAP ? "停（上限 4）" : "可添加";
+      els.stSel.textContent = state.pairs.length ? ("对 " + (state.selected + 1)) : "（空）";
+      els.stBox.textContent = state.boxing.step === "capture" ? "框识别区" :
+        state.boxing.step === "display" ? "框/确认显示区" : "—";
+      els.stDrag.textContent = state.drag.i >= 0 ? ("对 " + (state.drag.i + 1) + " 显示区") : "否";
+      els.stLast.textContent = state.last;
+      els.pairDump.innerHTML = state.pairs.map((p, i) => {
+        const extra = overLimit(i) ? " · 超出添加上限" : "";
+        const dead = engineDead(i) ? " · 引擎忽略" : "";
+        return "<li>对 " + (i + 1) + extra + dead +
+          "<br>识别 " + fmt(p.capture) +
+          "<br>显示 " + fmt(p.display) + "</li>";
+      }).join("");
+      document.querySelectorAll(".scenes button").forEach(b => {
+        b.classList.toggle("on", b.getAttribute("data-scene") === state.scene);
+      });
+      document.getElementById("addPair").disabled = state.pairs.length >= ADD_CAP;
+    }
+
+    function pairBadges(i) {
+      let s = "";
+      if (overLimit(i)) s += '<span class="chip">超出添加上限</span>';
+      if (engineDead(i)) s += ' <span class="chip dead">引擎忽略</span>';
+      return s;
+    }
+
+    function settingsA() {
+      const addOff = state.pairs.length >= ADD_CAP;
+      const cards = state.pairs.map((p, i) => `
+        <div class="card ${i === state.selected ? "sel" : ""} ${overLimit(i) ? "over" : ""}" data-sel="${i}">
+          <h3>对 ${i + 1} ${pairBadges(i)}
+            <button class="btn danger" data-del="${i}" style="margin-left:auto">删除</button>
+          </h3>
+          <div class="kv">
+            <div>识别区</div>
+            <div class="coords">${fmt(p.capture)}</div>
+            <button class="btn" data-box="capture" data-i="${i}">框选</button>
+            <button class="btn" data-prev="${i}">预览</button>
+            <div>显示区</div>
+            <div class="coords">${fmt(p.display)}</div>
+            <button class="btn" data-box="display" data-i="${i}">框选</button>
+            <span></span>
+          </div>
+        </div>`).join("");
+      return `
+        <div class="desk">
+          <div class="win">
+            <div class="win-title"><span class="dot"></span>设置</div>
+            <div class="tabs">
+              <span>语言</span><span>快捷键</span><span class="on">其他配置选项</span><span>帮助</span>
+            </div>
+            <div class="tab-body">
+              <div class="row">
+                <span style="width:140px">字幕偏移 (Pad)</span>
+                <button class="btn">−</button>
+                <input value="86" style="width:48px" readonly />
+                <button class="btn">+</button>
+                <span class="muted">只用于预填显示区的下偏，不是运行时绑定</span>
+              </div>
+              <div style="font-weight:700;margin:8px 0 6px">区域对</div>
+              ${cards || '<p class="muted">还没有区域对。</p>'}
+              <button class="btn" data-add="1" ${addOff ? "disabled" : ""}>添加区域对</button>
+              ${addOff ? '<span class="muted"> 已到添加上限 4。手改进来的项仍列在上面。</span>' : ""}
+              <div class="row" style="margin-top:14px"><label><input type="checkbox"> 开机自动启动</label></div>
+              <div class="row"><label><input type="checkbox" checked> 启用支线配音</label></div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function settingsB() {
+      const addOff = state.pairs.length >= ADD_CAP;
+      const rows = state.pairs.map((p, i) => `
+        <tr class="${i === state.selected ? "sel" : ""} ${overLimit(i) ? "over" : ""}" data-sel="${i}">
+          <td>${i + 1}</td>
+          <td>${fmt(p.capture)}</td>
+          <td>${fmt(p.display)}</td>
+          <td>${pairBadges(i)}</td>
+          <td>
+            <button class="btn" data-box="both" data-i="${i}">框选</button>
+            <button class="btn danger" data-del="${i}">删</button>
+          </td>
+        </tr>`).join("");
+      const map = state.pairs.map((p, i) => {
+        const cap = p.capture ? `<div class="r cap ${i === state.selected ? "sel" : ""}" style="left:${p.capture.x}%;top:${p.capture.y}%;width:${p.capture.w}%;height:${p.capture.h}%">识 ${i + 1}</div>` : "";
+        const dis = p.display ? `<div class="r dis ${i === state.selected ? "sel" : ""}" style="left:${p.display.x}%;top:${p.display.y}%;width:${p.display.w}%;height:${p.display.h}%">字 ${i + 1}</div>` : "";
+        return cap + dis;
+      }).join("");
+      return `
+        <div class="desk">
+          <div class="win">
+            <div class="win-title"><span class="dot"></span>设置</div>
+            <div class="tabs">
+              <span>语言</span><span>快捷键</span><span>其他配置</span><span class="on">区域对</span><span>帮助</span>
+            </div>
+            <div class="tab-body">
+              <div class="row">
+                <button class="btn" data-add="1" ${addOff ? "disabled" : ""}>添加区域对</button>
+                <span class="muted">${addOff ? "已到添加上限 4" : "添加后立刻去游戏里框选"}</span>
+              </div>
+              <div class="split">
+                <table class="pairs">
+                  <thead><tr><th>#</th><th>识别区</th><th>显示区</th><th></th><th></th></tr></thead>
+                  <tbody>${rows}</tbody>
+                </table>
+                <div class="minimap">${map}</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function settingsC() {
+      const addOff = state.pairs.length >= ADD_CAP;
+      const p = state.pairs[state.selected];
+      const rail = state.pairs.map((q, i) => `
+        <div class="rail-item ${i === state.selected ? "sel" : ""} ${overLimit(i) ? "over" : ""}" data-sel="${i}">
+          <div>对 ${i + 1} ${pairBadges(i)}</div>
+          <div class="muted">${q.capture ? "识别 " + Math.round(q.capture.w * 19.2) + "×" + Math.round(q.capture.h * 10.8) : "未框识别区"}</div>
+        </div>`).join("");
+      const prev = p ? `
+        <div class="preview-pair">
+          ${p.capture ? `<div class="rect cap lime" style="left:${p.capture.x}%;top:${p.capture.y}%;width:${p.capture.w}%;height:${p.capture.h}%"><span class="tag">识别</span></div>` : ""}
+          ${p.display ? `<div class="rect dis" style="left:${p.display.x}%;top:${p.display.y}%;width:${p.display.w}%;height:${p.display.h}%"><span class="tag">显示</span></div>` : ""}
+        </div>` : "";
+      return `
+        <div class="desk">
+          <div class="win">
+            <div class="win-title"><span class="dot"></span>设置</div>
+            <div class="tabs">
+              <span>语言</span><span>快捷键</span><span class="on">其他配置选项</span><span>帮助</span>
+            </div>
+            <div class="tab-body">
+              <div class="md">
+                <div class="rail">
+                  ${rail || '<p class="muted">还没有区域对。</p>'}
+                  <button class="btn" data-add="1" ${addOff ? "disabled" : ""}>添加区域对</button>
+                  ${addOff ? '<p class="muted">已到添加上限。超出项仍在列表里，可删。</p>' : ""}
+                </div>
+                <div class="detail">
+                  ${p ? `
+                    <div class="row"><strong>对 ${state.selected + 1}</strong>
+                      <button class="btn danger" data-del="${state.selected}" style="margin-left:auto">删除这对</button>
+                    </div>
+                    ${prev}
+                    <div class="row">
+                      <button class="btn" data-box="both" data-i="${state.selected}">重新框选这一对</button>
+                    </div>
+                    <p class="muted">添加或重框都会进入两步向导：先识别区，再确认预填的显示区。</p>
+                  ` : '<p class="muted">选一对，或添加。</p>'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function rectStyle(r) {
+      return `left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%`;
+    }
+
+    function gameChrome() {
+      return `<div class="skyline"></div><div class="char char-l"></div><div class="char char-r"></div>
+        <div class="game-line">派蒙　…所以嘛，每次我们前往下一个国家的时候，路上总有那么一个分界点。</div>
+        <div class="dim"></div>`;
+    }
+
+    function boxingView() {
+      const v = current().key;
+      const p = state.pairs[state.selected] || { capture: null, display: null };
+      const step = state.boxing.step;
+      let banner = "";
+      if (step === "capture") {
+        banner = v === "C"
+          ? `<div class="banner">第 1 步 · 框识别区（对 ${state.selected + 1}）<small>拖出红框。松手后立刻预填显示区。</small></div>`
+          : `<div class="banner">框选识别区 · 对 ${state.selected + 1}<small>红框 = 识别区。松手后进入显示区。</small></div>`;
+      } else if (step === "display") {
+        banner = v === "C"
+          ? `<div class="banner">第 2 步 · 确认显示区（已预填）<small>拖边或拖整框。Enter 确认，Esc 重拉。</small></div>`
+          : v === "B"
+            ? `<div class="banner">显示区已预填 · 对 ${state.selected + 1}<small>直接拖这块金色实框。不必再拉一次橡皮筋。</small></div>`
+            : `<div class="banner">框选显示区 · 对 ${state.selected + 1}<small>金色虚线是预填。Enter 收下它，或再拉一个金框盖住它。</small></div>`;
+      } else {
+        banner = `<div class="banner">点「框选选中的对」开始<small>或在设置窗里按那一对的框选。</small></div>`;
+      }
+
+      const rubber = rubberToRect(state.boxing.rubber);
+      let extra = "";
+      if (p.capture && step !== "capture") {
+        extra += `<div class="rect cap ${v === "B" ? "lime" : ""}" style="${rectStyle(p.capture)}"><span class="tag">识别 ${state.selected + 1}</span></div>`;
+      }
+      if (step === "display" && p.display) {
+        const cls = v === "A" ? "rect dis prefill" : "rect dis";
+        extra += `<div class="rect ${cls}" id="prefillBox" style="${rectStyle(p.display)}">
+          <span class="tag">${v === "A" ? "预填显示区" : "显示 " + (state.selected + 1)}</span>
+          ${v !== "A" ? '<div class="handles"><span class="n" data-h="n"></span><span class="s" data-h="s"></span><span class="e" data-h="e"></span><span class="w" data-h="w"></span></div>' : ""}
+        </div>`;
+      }
+      if (rubber && step === "capture") {
+        extra += `<div class="rect cap" style="${rectStyle(rubber)}"></div>`;
+      }
+      if (rubber && step === "display" && v === "A") {
+        extra += `<div class="rect dis" style="${rectStyle(rubber)}"><span class="tag">新显示区</span></div>`;
+      }
+      if (rubber && step === "display" && v === "C" && state.boxing.handle === "redraw") {
+        extra += `<div class="rect dis" style="${rectStyle(rubber)}"><span class="tag">重拉显示区</span></div>`;
+      }
+
+      return `<div class="stage boxing" id="stage">${gameChrome()}${banner}${extra}</div>`;
+    }
+
+    function runtimeView() {
+      const v = current().key;
+      const dragging = state.drag.i;
+      const rects = state.pairs.map((p, i) => {
+        if (!p.display) return "";
+        const line = LINES[i % LINES.length];
+        const dim = v === "C" && dragging >= 0 && dragging !== i ? " dimmed" : "";
+        const frame = v === "C" && (dragging === i || state.selected === i) ? " frame" : "";
+        const chip = v === "A" ? `<span class="pairchip">对 ${i + 1} 显示区</span><span class="handle"></span>` : "";
+        return `<div class="sub${dim}${frame}${dragging === i ? " dragging" : ""}" data-drag="${i}" style="${rectStyle(p.display)}">${chip}${line}</div>`;
+      }).join("");
+
+      let overlays = "";
+      if (v === "B") {
+        const i = dragging >= 0 ? dragging : state.selected;
+        const p = state.pairs[i];
+        if (p && p.capture) overlays += `<div class="rect cap lime" style="${rectStyle(p.capture)}"><span class="tag">识别 ${i + 1}</span></div>`;
+        if (p && p.display) overlays += `<div class="rect dis" style="${rectStyle(p.display)}"><span class="tag">显示 ${i + 1}</span></div>`;
+      }
+      const ghost = v === "B"
+        ? `<div class="ghost-tag" id="ghostTag">对 ${dragging >= 0 ? dragging + 1 : state.selected + 1} 显示区</div>`
+        : "";
+
+      return `<div class="stage" id="stage">${gameChrome()}${overlays}${rects}${ghost}</div>`;
+    }
+
+    function render() {
+      const v = current().key;
+      if (state.scene === "settings") {
+        root.innerHTML = v === "A" ? settingsA() : v === "B" ? settingsB() : settingsC();
+      } else if (state.scene === "boxing") {
+        root.innerHTML = boxingView();
+        bindStage();
+      } else {
+        root.innerHTML = runtimeView();
+        bindRuntime();
+      }
+      bindSettings();
+      renderState();
+    }
+
+    function bindSettings() {
+      root.querySelectorAll("[data-sel]").forEach(n => {
+        n.addEventListener("click", (e) => {
+          if (e.target.closest("button")) return;
+          state.selected = Number(n.getAttribute("data-sel"));
+          setLast("选中对 " + (state.selected + 1));
+          render();
+        });
+      });
+      root.querySelectorAll("[data-del]").forEach(n => {
+        n.addEventListener("click", (e) => {
+          e.stopPropagation();
+          state.selected = Number(n.getAttribute("data-del"));
+          delSel();
+        });
+      });
+      root.querySelectorAll("[data-add]").forEach(n => n.addEventListener("click", addPair));
+      root.querySelectorAll("[data-box]").forEach(n => {
+        n.addEventListener("click", (e) => {
+          e.stopPropagation();
+          state.selected = Number(n.getAttribute("data-i"));
+          const kind = n.getAttribute("data-box");
+          if (kind === "display") startBoxing("display", "display");
+          else if (kind === "capture") startBoxing("capture", "capture");
+          else startBoxing("capture", "both");
+          setLast("开始框选对 " + (state.selected + 1));
+        });
+      });
+      root.querySelectorAll("[data-prev]").forEach(n => {
+        n.addEventListener("click", (e) => {
+          e.stopPropagation();
+          state.selected = Number(n.getAttribute("data-prev"));
+          state.scene = "runtime";
+          setLast("预览识别区（稿上借用运行时画面，不是产品提示）");
+          render();
+        });
+      });
+    }
+
+    function applyRect(el, r) {
+      if (!el || !r) return;
+      el.style.left = r.x + "%";
+      el.style.top = r.y + "%";
+      el.style.width = r.w + "%";
+      el.style.height = r.h + "%";
+    }
+    function ensureLiveRect(id, cls) {
+      const stage = document.getElementById("stage");
+      if (!stage) return null;
+      let el = document.getElementById(id);
+      if (!el) {
+        el = document.createElement("div");
+        el.id = id;
+        el.className = cls;
+        stage.appendChild(el);
+      } else {
+        el.className = cls;
+      }
+      return el;
+    }
+
+    function bindStage() {
+      const stage = document.getElementById("stage");
+      if (!stage) return;
+      stage.addEventListener("mousedown", onBoxDown);
+    }
+
+    function onBoxDown(e) {
+      if (state.scene !== "boxing" || !state.boxing.step) return;
+      const stage = document.getElementById("stage");
+      const h = e.target.getAttribute && e.target.getAttribute("data-h");
+      const p = pctEvent(e, stage);
+      if (state.boxing.step === "display" && current().key !== "A") {
+        const dis = state.pairs[state.selected].display;
+        if (h) {
+          state.boxing.handle = h;
+          state.boxing.start = p;
+          return;
+        }
+        if (dis && p.x >= dis.x && p.x <= dis.x + dis.w && p.y >= dis.y && p.y <= dis.y + dis.h) {
+          state.boxing.handle = "move";
+          state.boxing.start = { x: p.x - dis.x, y: p.y - dis.y };
+          return;
+        }
+        if (current().key === "C") {
+          state.boxing.handle = "redraw";
+          state.boxing.start = p;
+          state.boxing.rubber = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+          applyRect(ensureLiveRect("rubber", "rect dis"), rubberToRect(state.boxing.rubber));
+          return;
+        }
+      }
+      state.boxing.start = p;
+      state.boxing.rubber = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      const cls = state.boxing.step === "capture" ? "rect cap" : "rect dis";
+      applyRect(ensureLiveRect("rubber", cls), rubberToRect(state.boxing.rubber));
+    }
+
+    function onBoxMove(e) {
+      if (state.scene !== "boxing" || !state.boxing.step) return;
+      const stage = document.getElementById("stage");
+      if (!stage) return;
+      const p = pctEvent(e, stage);
+      if (state.boxing.step === "display" && state.boxing.handle && current().key !== "A") {
+        const dis = state.pairs[state.selected].display;
+        if (!dis || !state.boxing.start) return;
+        if (state.boxing.handle === "move") {
+          dis.x = p.x - state.boxing.start.x;
+          dis.y = p.y - state.boxing.start.y;
+          clampRect(dis);
+        } else if (state.boxing.handle === "redraw") {
+          state.boxing.rubber.x1 = p.x;
+          state.boxing.rubber.y1 = p.y;
+          applyRect(ensureLiveRect("rubber", "rect dis"), rubberToRect(state.boxing.rubber));
+          return;
+        } else {
+          if (state.boxing.handle === "n") {
+            const b = dis.y + dis.h;
+            dis.y = p.y; dis.h = b - p.y;
+          }
+          if (state.boxing.handle === "s") dis.h = p.y - dis.y;
+          if (state.boxing.handle === "w") {
+            const rgt = dis.x + dis.w;
+            dis.x = p.x; dis.w = rgt - p.x;
+          }
+          if (state.boxing.handle === "e") dis.w = p.x - dis.x;
+          clampRect(dis);
+        }
+        applyRect(document.getElementById("prefillBox"), dis);
+        return;
+      }
+      if (!state.boxing.rubber || !state.boxing.start) return;
+      if (e.buttons !== 1) return;
+      state.boxing.rubber.x1 = p.x;
+      state.boxing.rubber.y1 = p.y;
+      const cls = state.boxing.step === "capture" ? "rect cap" : "rect dis";
+      applyRect(ensureLiveRect("rubber", cls), rubberToRect(state.boxing.rubber));
+    }
+
+    function onBoxUp() {
+      if (state.scene !== "boxing" || !state.boxing.step) return;
+      if (state.boxing.step === "display" && state.boxing.handle && current().key !== "A") {
+        if (state.boxing.handle === "redraw") {
+          const r = rubberToRect(state.boxing.rubber);
+          state.boxing.handle = null;
+          state.boxing.rubber = null;
+          if (r && r.w > 2 && r.h > 2) finishDisplay(r);
+          else render();
+          return;
+        }
+        state.boxing.handle = null;
+        renderState();
+        return;
+      }
+      if (!state.boxing.rubber) return;
+      const r = rubberToRect(state.boxing.rubber);
+      state.boxing.rubber = null;
+      state.boxing.start = null;
+      if (!r || r.w < 2 || r.h < 2) { render(); return; }
+      if (state.boxing.step === "capture") finishCapture(r);
+      else finishDisplay(r);
+    }
+
+    function bindRuntime() {
+      const stage = document.getElementById("stage");
+      if (!stage) return;
+      stage.querySelectorAll("[data-drag]").forEach(n => {
+        n.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          const i = Number(n.getAttribute("data-drag"));
+          state.selected = i;
+          state.drag.i = i;
+          const p = pctEvent(e, stage);
+          const d = state.pairs[i].display;
+          state.drag.ox = p.x - d.x;
+          state.drag.oy = p.y - d.y;
+          setLast("拖对 " + (i + 1) + " 的显示区");
+          render();
+        });
+      });
+    }
+
+    function onDragMove(e) {
+      if (state.drag.i < 0 || state.scene !== "runtime") return;
+      const stage = document.getElementById("stage");
+      if (!stage) return;
+      const p = pctEvent(e, stage);
+      const d = state.pairs[state.drag.i].display;
+      d.x = p.x - state.drag.ox;
+      d.y = p.y - state.drag.oy;
+      clampRect(d);
+      const sub = stage.querySelector('[data-drag="' + state.drag.i + '"]');
+      applyRect(sub, d);
+      if (current().key === "B") {
+        const overlays = stage.querySelectorAll(".rect.dis");
+        overlays.forEach(el => applyRect(el, d));
+      }
+      const tag = document.getElementById("ghostTag");
+      if (tag) {
+        tag.style.display = "block";
+        tag.style.left = p.x + "%";
+        tag.style.top = p.y + "%";
+        tag.textContent = "对 " + (state.drag.i + 1) + " 显示区";
+      }
+      renderState();
+    }
+    function onDragUp() {
+      if (state.drag.i < 0) return;
+      setLast("松开：对 " + (state.drag.i + 1) + " 显示区已改");
+      state.drag.i = -1;
+      render();
+    }
+
+    document.getElementById("prev").onclick = () => setVariant(variantIndex - 1);
+    document.getElementById("next").onclick = () => setVariant(variantIndex + 1);
+    document.getElementById("addPair").onclick = addPair;
+    document.getElementById("delSel").onclick = delSel;
+    document.getElementById("seed5").onclick = seedFive;
+    document.getElementById("reset").onclick = resetPairs;
+    document.getElementById("boxSel").onclick = () => { startBoxing("capture", "both"); setLast("框选选中的对"); };
+    document.getElementById("boxCap").onclick = () => { startBoxing("capture", "capture"); setLast("只重框识别区"); };
+    document.getElementById("boxDis").onclick = () => { startBoxing("display", "display"); setLast("只重框显示区"); };
+    document.getElementById("cancelBox").onclick = () => {
+      state.boxing.step = null;
+      state.boxing.rubber = null;
+      state.scene = "settings";
+      setLast("取消框选");
+      render();
+    };
+    document.querySelectorAll(".scenes button").forEach(b => {
+      b.onclick = () => setScene(b.getAttribute("data-scene"));
+    });
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") setVariant(variantIndex - 1);
+      if (e.key === "ArrowRight") setVariant(variantIndex + 1);
+      if (e.key === "Escape") {
+        state.boxing.step = null;
+        state.boxing.rubber = null;
+        state.drag.i = -1;
+        if (state.scene === "boxing") {
+          state.scene = "settings";
+          setLast("Esc 取消框选");
+          render();
+        }
+      }
+      if (e.key === "Enter" && state.scene === "boxing" && state.boxing.step === "display") {
+        const p = state.pairs[state.selected];
+        if (p && p.display) finishDisplay(p.display);
+      }
+    });
+    window.addEventListener("mousemove", (e) => { onBoxMove(e); onDragMove(e); });
+    window.addEventListener("mouseup", () => { onBoxUp(); onDragUp(); });
+
+    setVariant(variantIndex, false);
+  </script>
+</body>
+</html>
