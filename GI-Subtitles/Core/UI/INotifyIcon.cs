@@ -34,13 +34,11 @@ namespace GI_Subtitles.Core.UI
         private bool AutoStart = Config.Config.Get("AutoStart", false);
         private LiveOverlaySession _overlaySession;
         string version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-        double Scale = 1;
         public bool isContextMenuOpen = false;
         private Views.SettingsWindow data;
 
         public NotifyIcon InitializeNotifyIcon(double scale)
         {
-            Scale = scale;
             NotifyIcon notifyIcon;
             contextMenuStrip = new ContextMenuStrip();
             // Localized tray menu texts (fallback to Chinese)
@@ -516,54 +514,5 @@ namespace GI_Subtitles.Core.UI
             isContextMenuOpen = false;
         }
 
-        public void ShowRegionOverlay()
-        {
-            if (Region[1] == "0") return;
-            int x = Convert.ToInt32(int.Parse(Region[0]) / Scale);
-            int y = Convert.ToInt32(int.Parse(Region[1]) / Scale);
-            int w = Convert.ToInt32(int.Parse(Region[2]) / Scale);
-            int h = Convert.ToInt32(int.Parse(Region[3]) / Scale);
-            Logger.Log.Debug($"x {x} y {y} w {w} h {h}");
-
-            var overlay = new Window
-            {
-                WindowStyle = WindowStyle.None,
-                AllowsTransparency = true,
-                Background = System.Windows.Media.Brushes.Transparent,
-                Topmost = true,
-                ShowInTaskbar = false,
-                Width = SystemParameters.VirtualScreenWidth,
-                Height = SystemParameters.VirtualScreenHeight,
-                Left = 0,
-                Top = 0
-            };
-
-            var canvas = new Canvas();
-            var rect = new System.Windows.Shapes.Rectangle
-            {
-                Stroke = System.Windows.Media.Brushes.LimeGreen,
-                StrokeThickness = 10,
-                Width = w,
-                Height = h,
-                IsHitTestVisible = true // Ensure that mouse events can be captured
-            };
-            Canvas.SetLeft(rect, x);
-            Canvas.SetTop(rect, y);
-            canvas.Children.Add(rect);
-            overlay.Content = canvas;
-
-            overlay.Show();
-
-            var timer = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(10)
-            };
-            timer.Tick += (_, __) =>
-            {
-                timer.Stop();
-                overlay.Close();
-            };
-            timer.Start();
-        }
     }
 }

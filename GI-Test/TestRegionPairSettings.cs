@@ -185,6 +185,30 @@ namespace GI_Test
         }
 
         [TestMethod]
+        public void AdjustDisplay_ArmsSelectedCard_UntilToggledOff()
+        {
+            LiveOverlaySession session = CreateSessionWithPairs(2);
+            var page = new RegionPairSettings(session);
+            int firstId = session.Pairs[0].Id;
+            int secondId = session.Pairs[1].Id;
+
+            Assert.IsTrue(page.Cards[0].CanAdjustDisplay);
+            Assert.IsTrue(page.TryToggleDisplayAdjust(firstId));
+            Assert.IsTrue(page.Cards[0].IsAdjustArmed);
+            Assert.IsFalse(page.Cards[1].IsAdjustArmed);
+            Assert.IsFalse(session.IsClickThrough);
+
+            Assert.IsTrue(page.TryToggleDisplayAdjust(secondId));
+            Assert.IsFalse(page.Cards[0].IsAdjustArmed);
+            Assert.IsTrue(page.Cards[1].IsAdjustArmed);
+
+            page.CancelDisplayAdjust();
+            Assert.IsFalse(page.Cards[0].IsAdjustArmed);
+            Assert.IsFalse(page.Cards[1].IsAdjustArmed);
+            Assert.IsTrue(session.IsClickThrough);
+        }
+
+        [TestMethod]
         public void FourPairs_RefuseAdd_ThreeAllowCommit()
         {
             LiveOverlaySession session = CreateSessionWithPairs(4);

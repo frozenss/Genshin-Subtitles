@@ -6,7 +6,8 @@
         MinHeight="360" MinWidth="620"
         Icon="../Resources/mask.ico" 
         Topmost="True"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        PreviewKeyDown="SettingsWindow_PreviewKeyDown">
 
     <Window.Resources>
         <!-- Unified button style -->
@@ -384,22 +385,41 @@
                                                             Tag="{Binding Id}"
                                                             Click="BoxDisplay_Click"/>
                                                 </Grid>
-                                                <Button HorizontalAlignment="Left"
-                                                        Padding="10,2"
-                                                        Tag="{Binding Id}"
-                                                        Click="DesignateVoicePrimary_Click">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button">
-                                                            <Setter Property="Content" Value="{DynamicResource Btn_SetVoicePrimary}"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsVoicePrimary}" Value="True">
-                                                                    <Setter Property="Content" Value="{DynamicResource Btn_VoicePrimaryOn}"/>
-                                                                    <Setter Property="IsEnabled" Value="False"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                </Button>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Padding="10,2"
+                                                            Tag="{Binding Id}"
+                                                            Click="AdjustDisplay_Click"
+                                                            Margin="0,0,8,0">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Content" Value="{DynamicResource Btn_AdjustDisplay}"/>
+                                                                <Setter Property="IsEnabled" Value="{Binding CanAdjustDisplay}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAdjustArmed}" Value="True">
+                                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                                        <Setter Property="BorderBrush" Value="#D4B44A"/>
+                                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Padding="10,2"
+                                                            Tag="{Binding Id}"
+                                                            Click="DesignateVoicePrimary_Click">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Content" Value="{DynamicResource Btn_SetVoicePrimary}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsVoicePrimary}" Value="True">
+                                                                        <Setter Property="Content" Value="{DynamicResource Btn_VoicePrimaryOn}"/>
+                                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>

@@ -89,6 +89,19 @@ namespace GI_Subtitles.Views
         {
             Interval = TimeSpan.FromMilliseconds(100)
         };
+        private readonly List<UIElement> _outlineElements = new List<UIElement>();
+        private bool _displayDragging;
+        private OverlayRect _dragStartRect = OverlayRect.Invalid;
+        private System.Windows.Point _dragStartMouse;
+        private int _dragPairIndex = -1;
+        private int _lastPreviewCount;
+        private int _lastArmedPairId = -1;
+        private bool _escHotkeyRegistered;
+        private const int HotkeyIdAdjustEsc = 9006;
+        private const uint VkEscape = 0x1B;
+        private static readonly SolidColorBrush CaptureOutlineBrush = CreateFrozenBrush(0x3E, 0xE0, 0x5A);
+        private static readonly SolidColorBrush DisplayOutlineBrush = CreateFrozenBrush(0xE6, 0xC3, 0x5C);
+        private static readonly SolidColorBrush AdjustHitFill = CreateFrozenBrush(1, 255, 255, 255);
         string ocrText = "";
         private NotifyIcon notifyIcon;
         string lastHeader = null;
@@ -219,16 +232,24 @@ namespace GI_Subtitles.Views
             {
                 _overlaySession.Tick();
                 TryStartBusyPairOcr();
-                if (!_overlaySession.HintVisible)
+                ApplyHintChrome();
+                ApplyOutlineChromeIfChanged();
+                if (!_overlaySession.HintVisible && _overlaySession.PreviewOutlines.Count == 0)
                 {
                     _hintTimer.Stop();
                 }
-
-                ApplyHintChrome();
             };
             _overlaySession.HintChanged += (sender, args) =>
             {
                 Dispatcher.BeginInvoke(new Action(OnHintChanged));
+            };
+            _overlaySession.PreviewChanged += (sender, args) =>
+            {
+                Dispatcher.BeginInvoke(new Action(OnPreviewChanged));
+            };
+            _overlaySession.AdjustChanged += (sender, args) =>
+            {
+                Dispatcher.BeginInvoke(new Action(OnAdjustChanged));
             };
             // Start with the main window fully transparent to avoid showing incomplete UI during heavy startup work.
             // Using Opacity instead of Visibility to ensure Loaded is still raised and initialization runs as usual.
@@ -440,13 +461,47 @@ namespace GI_Subtitles.Views
 
         private void ApplyOverlayClickThrough()
         {
+            ApplyOverlayHitMode();
+        }
+
+        private void ApplyOverlayHitMode()
+        {
             SizeOverlayToVirtualScreen();
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
             int exStyle = GetWindowLong(hwnd, GwlExStyle);
-            SetWindowLong(
-                hwnd,
-                GwlExStyle,
-                exStyle | WsExTransparent | WsExLayered | WsExToolWindow | WsExNoActivate);
+            if (_overlaySession.IsClickThrough)
+            {
+                SetWindowLong(
+                    hwnd,
+                    GwlExStyle,
+                    exStyle | WsExTransparent | WsExLayered | WsExToolWindow | WsExNoActivate);
+                Background = System.Windows.Media.Brushes.Transparent;
+                IsHitTestVisible = false;
+                if (OverlayCanvas != null)
+                {
+                    OverlayCanvas.Background = System.Windows.Media.Brushes.Transparent;
+                    OverlayCanvas.IsHitTestVisible = false;
+                }
+            }
+            else
+            {
+                SetWindowLong(
+                    hwnd,
+                    GwlExStyle,
+                    (exStyle | WsExLayered | WsExToolWindow | WsExNoActivate) & ~WsExTransparent);
+                Background = null;
+                IsHitTestVisible = true;
+                if (OverlayCanvas != null)
+                {
+                    OverlayCanvas.Background = null;
+                    OverlayCanvas.IsHitTestVisible = true;
+                }
+            }
         }
 
         public void UpdateText(object sender, EventArgs e)
@@ -1647,6 +1702,11 @@ namespace GI_Subtitles.Views
             StopAudio();
             _hintTimer.Stop();
             _hintChrome.Close();
+            if (_escHotkeyRegistered)
+            {
+                UnregisterHotKey(new WindowInteropHelper(this).Handle, HotkeyIdAdjustEsc);
+                _escHotkeyRegistered = false;
+            }
             DisposePairBuffers();
             notifyIcon.Dispose();
             notifyIcon = null;
@@ -1680,26 +1740,267 @@ namespace GI_Subtitles.Views
 
         private void PreviewCaptureRegion()
         {
-            bool hasRegion = _overlaySession.HasValidCapture;
-            _overlaySession.PreviewCaptureRegion(hasRegion);
-            if (hasRegion)
-            {
-                notify.ShowRegionOverlay();
-            }
+            _overlaySession.PreviewCaptureRegion(_overlaySession.HasValidCapture);
         }
 
         private void OnHintChanged()
         {
-            if (_overlaySession.HintVisible)
+            EnsureChromeTimer();
+            ApplyHintChrome();
+        }
+
+        private void OnPreviewChanged()
+        {
+            EnsureChromeTimer();
+            ApplyOutlines();
+        }
+
+        private void OnAdjustChanged()
+        {
+            ApplyOverlayHitMode();
+            UpdateAdjustEscHotkey();
+            if (!_displayDragging)
+            {
+                ApplyOutlines();
+            }
+        }
+
+        private void EnsureChromeTimer()
+        {
+            if (_overlaySession.HintVisible || _overlaySession.PreviewOutlines.Count > 0)
             {
                 _hintTimer.Start();
             }
-            else
+            else if (!_overlaySession.HintVisible)
             {
                 _hintTimer.Stop();
             }
+        }
 
-            ApplyHintChrome();
+        private void ApplyOutlineChromeIfChanged()
+        {
+            if (_displayDragging)
+            {
+                return;
+            }
+
+            if (_overlaySession.PreviewOutlines.Count == _lastPreviewCount &&
+                _overlaySession.ArmedPairId == _lastArmedPairId)
+            {
+                return;
+            }
+
+            ApplyOutlines();
+        }
+
+        private void ApplyOutlines()
+        {
+            if (OverlayCanvas == null)
+            {
+                return;
+            }
+
+            ClearOutlineElements();
+            foreach (RegionOutline outline in _overlaySession.PreviewOutlines)
+            {
+                AddOutlineElement(outline, takesMouse: false);
+            }
+
+            foreach (RegionOutline outline in _overlaySession.AdjustOutlines)
+            {
+                AddOutlineElement(outline, takesMouse: outline.IsDisplay);
+            }
+
+            _lastPreviewCount = _overlaySession.PreviewOutlines.Count;
+            _lastArmedPairId = _overlaySession.ArmedPairId;
+        }
+
+        private void ClearOutlineElements()
+        {
+            for (int i = 0; i < _outlineElements.Count; i++)
+            {
+                OverlayCanvas.Children.Remove(_outlineElements[i]);
+            }
+
+            _outlineElements.Clear();
+        }
+
+        private void AddOutlineElement(RegionOutline outline, bool takesMouse)
+        {
+            if (outline == null || outline.Rect == null || !outline.Rect.IsValid)
+            {
+                return;
+            }
+
+            OverlayRect rect = outline.Rect;
+            System.Windows.Point canvasPoint = DisplayToCanvas(rect);
+            double width = rect.Width / Scale;
+            double height = rect.Height / Scale;
+            SolidColorBrush stroke = outline.IsDisplay ? DisplayOutlineBrush : CaptureOutlineBrush;
+
+            var box = new System.Windows.Shapes.Rectangle
+            {
+                Width = width,
+                Height = height,
+                Stroke = stroke,
+                StrokeThickness = 3,
+                Fill = takesMouse ? AdjustHitFill : null,
+                IsHitTestVisible = takesMouse,
+                Cursor = takesMouse ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Arrow
+            };
+            Canvas.SetLeft(box, canvasPoint.X);
+            Canvas.SetTop(box, canvasPoint.Y);
+            System.Windows.Controls.Panel.SetZIndex(box, 40);
+            OverlayCanvas.Children.Add(box);
+            _outlineElements.Add(box);
+
+            if (takesMouse)
+            {
+                box.MouseLeftButtonDown += DisplayAdjust_MouseLeftButtonDown;
+                box.MouseMove += DisplayAdjust_MouseMove;
+                box.MouseLeftButtonUp += DisplayAdjust_MouseLeftButtonUp;
+            }
+
+            var label = new System.Windows.Controls.TextBlock
+            {
+                Text = FormatPairOutlineLabel(outline.PairOrdinal),
+                Foreground = stroke,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(label, canvasPoint.X);
+            Canvas.SetTop(label, canvasPoint.Y - 20);
+            System.Windows.Controls.Panel.SetZIndex(label, 41);
+            OverlayCanvas.Children.Add(label);
+            _outlineElements.Add(label);
+        }
+
+        private string FormatPairOutlineLabel(int ordinal)
+        {
+            string format = TryFindResource("Overlay_PairOutlineLabel") as string;
+            if (string.IsNullOrEmpty(format))
+            {
+                return "对 " + ordinal;
+            }
+
+            try
+            {
+                return string.Format(format, ordinal);
+            }
+            catch (FormatException)
+            {
+                return format;
+            }
+        }
+
+        private void DisplayAdjust_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_overlaySession.IsClickThrough)
+            {
+                return;
+            }
+
+            int index = _overlaySession.ArmedPairIndex;
+            if (index < 0)
+            {
+                return;
+            }
+
+            var box = sender as System.Windows.Shapes.Rectangle;
+            if (box == null)
+            {
+                return;
+            }
+
+            _displayDragging = true;
+            _dragPairIndex = index;
+            _dragStartRect = _overlaySession.GetDisplay(index);
+            _dragStartMouse = e.GetPosition(OverlayCanvas);
+            box.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void DisplayAdjust_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_displayDragging || e.LeftButton != MouseButtonState.Pressed || _dragPairIndex < 0)
+            {
+                return;
+            }
+
+            System.Windows.Point now = e.GetPosition(OverlayCanvas);
+            double deltaX = now.X - _dragStartMouse.X;
+            double deltaY = now.Y - _dragStartMouse.Y;
+            var moved = new OverlayRect(
+                (int)Math.Round(_dragStartRect.X + deltaX * Scale),
+                (int)Math.Round(_dragStartRect.Y + deltaY * Scale),
+                _dragStartRect.Width,
+                _dragStartRect.Height);
+            _overlaySession.SetDisplay(_dragPairIndex, moved);
+
+            var box = sender as System.Windows.Shapes.Rectangle;
+            if (box != null)
+            {
+                System.Windows.Point canvasPoint = DisplayToCanvas(moved);
+                Canvas.SetLeft(box, canvasPoint.X);
+                Canvas.SetTop(box, canvasPoint.Y);
+            }
+
+            ApplyPairOverlay();
+            e.Handled = true;
+        }
+
+        private void DisplayAdjust_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_displayDragging)
+            {
+                return;
+            }
+
+            var box = sender as System.Windows.Shapes.Rectangle;
+            box?.ReleaseMouseCapture();
+            _displayDragging = false;
+            _dragPairIndex = -1;
+            ApplyOutlines();
+            data?.RefreshPairPage();
+            e.Handled = true;
+        }
+
+        private void UpdateAdjustEscHotkey()
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            bool shouldRegister = !_overlaySession.IsClickThrough;
+            if (shouldRegister == _escHotkeyRegistered)
+            {
+                return;
+            }
+
+            if (shouldRegister)
+            {
+                _escHotkeyRegistered = RegisterHotKey(hwnd, HotkeyIdAdjustEsc, 0, VkEscape);
+            }
+            else
+            {
+                UnregisterHotKey(hwnd, HotkeyIdAdjustEsc);
+                _escHotkeyRegistered = false;
+            }
+        }
+
+        private static SolidColorBrush CreateFrozenBrush(byte r, byte g, byte b)
+        {
+            return CreateFrozenBrush(255, r, g, b);
+        }
+
+        private static SolidColorBrush CreateFrozenBrush(byte a, byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(a, r, g, b));
+            brush.Freeze();
+            return brush;
         }
 
         private void ApplyHintChrome()
@@ -1816,6 +2117,11 @@ namespace GI_Subtitles.Views
                 else if (wParam.ToInt32() == HOTKEY_ID_4)
                 {
                     PreviewCaptureRegion();
+                    handled = true;
+                }
+                else if (wParam.ToInt32() == HotkeyIdAdjustEsc)
+                {
+                    _overlaySession.CancelDisplayAdjust();
                     handled = true;
                 }
                 else if (wParam.ToInt32() == HOTKEY_ID_REFRESH)

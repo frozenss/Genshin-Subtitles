@@ -52,7 +52,7 @@
     <sys:String x:Key="Help_Instructions" xmlns:sys="clr-namespace:System;assembly=mscorlib">Usage Instructions</sys:String>
     <sys:String x:Key="Help_Step1" xmlns:sys="clr-namespace:System;assembly=mscorlib">1. Workflow: In the Language Pack Manager, download the required files, then in-game select the dialogue area and use the hotkey to start recognition and display.</sys:String>
     <sys:String x:Key="Help_Step2" xmlns:sys="clr-namespace:System;assembly=mscorlib">2. You can use Ctrl+Shift+S to start/pause, Ctrl+Shift+R to select the recognition area, and Ctrl+Shift+H to hide subtitles. If there is a conflict, you can modify them in the "Hotkeys" tab.</sys:String>
-    <sys:String x:Key="Help_Step3" xmlns:sys="clr-namespace:System;assembly=mscorlib">3. When the cursor becomes a hand over the subtitles, you can drag to adjust the position (it is recommended to use "borderless windowed" instead of exclusive fullscreen in-game).</sys:String>
+    <sys:String x:Key="Help_Step3" xmlns:sys="clr-namespace:System;assembly=mscorlib">3. On the Region pairs page, click Adjust display, then drag that pair's display region to place the subtitle. Preview all and the show-regions hotkey outline each pair's capture (green) and display (gold). Use borderless windowed mode rather than exclusive fullscreen.</sys:String>
 
     <sys:String x:Key="Tab_Config" xmlns:sys="clr-namespace:System;assembly=mscorlib">Other Settings</sys:String>
     <sys:String x:Key="Tab_RegionPairs" xmlns:sys="clr-namespace:System;assembly=mscorlib">Region pairs</sys:String>
@@ -66,6 +66,8 @@
     <sys:String x:Key="RegionPair_Unset" xmlns:sys="clr-namespace:System;assembly=mscorlib">Not set</sys:String>
     <sys:String x:Key="Btn_BoxRegion" xmlns:sys="clr-namespace:System;assembly=mscorlib">Box</sys:String>
     <sys:String x:Key="Btn_DeletePair" xmlns:sys="clr-namespace:System;assembly=mscorlib">Delete</sys:String>
+    <sys:String x:Key="Btn_AdjustDisplay" xmlns:sys="clr-namespace:System;assembly=mscorlib">Adjust display</sys:String>
+    <sys:String x:Key="Overlay_PairOutlineLabel" xmlns:sys="clr-namespace:System;assembly=mscorlib">Pair {0}</sys:String>
     <sys:String x:Key="Btn_SetVoicePrimary" xmlns:sys="clr-namespace:System;assembly=mscorlib">Set as voice-primary</sys:String>
     <sys:String x:Key="Btn_VoicePrimaryOn" xmlns:sys="clr-namespace:System;assembly=mscorlib">Voice-primary</sys:String>
     <sys:String x:Key="RegionPair_VoicePrimaryCurrent" xmlns:sys="clr-namespace:System;assembly=mscorlib">Voice-primary is set on the Region pairs page; current is pair {0}.</sys:String>

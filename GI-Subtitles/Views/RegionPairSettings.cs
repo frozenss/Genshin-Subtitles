@@ -162,6 +162,16 @@ namespace GI_Subtitles.Views
             return true;
         }
 
+        public bool TryToggleDisplayAdjust(int pairId)
+        {
+            return _session.TryToggleDisplayAdjust(pairId);
+        }
+
+        public void CancelDisplayAdjust()
+        {
+            _session.CancelDisplayAdjust();
+        }
+
         public bool TryGetHotkeyTarget(out int pairIndex, out int pairId, out int ordinal)
         {
             pairIndex = -1;
@@ -217,6 +227,7 @@ namespace GI_Subtitles.Views
                     pair.Display,
                     pair.Id == _selectedPairId,
                     pair.Id == _session.VoicePrimaryId,
+                    pair.Id == _session.ArmedPairId,
                     i >= LiveOverlaySession.SettingsPairCap));
             }
 
@@ -251,6 +262,7 @@ namespace GI_Subtitles.Views
             OverlayRect display,
             bool isSelected,
             bool isVoicePrimary,
+            bool isAdjustArmed,
             bool isOverAddCap)
         {
             Id = id;
@@ -259,6 +271,7 @@ namespace GI_Subtitles.Views
             Display = display ?? OverlayRect.Invalid;
             IsSelected = isSelected;
             IsVoicePrimary = isVoicePrimary;
+            IsAdjustArmed = isAdjustArmed;
             IsOverAddCap = isOverAddCap;
         }
 
@@ -273,6 +286,13 @@ namespace GI_Subtitles.Views
         public bool IsSelected { get; }
 
         public bool IsVoicePrimary { get; }
+
+        public bool IsAdjustArmed { get; }
+
+        public bool CanAdjustDisplay
+        {
+            get { return Display.IsValid; }
+        }
 
         public bool IsOverAddCap { get; }
 

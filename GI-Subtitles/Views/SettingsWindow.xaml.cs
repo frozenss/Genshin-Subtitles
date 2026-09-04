@@ -157,6 +157,10 @@ namespace GI_Subtitles.Views
             _version = version;
             _overlaySession = overlaySession;
             _pairSettings = new RegionPairSettings(overlaySession);
+            _overlaySession.AdjustChanged += (sender, args) =>
+            {
+                Dispatcher.BeginInvoke(new Action(RefreshPairPage));
+            };
             InitializeComponent();
             SourceInitialized += (sender, args) => FitWindowToWorkingArea();
             Scale = scale;
@@ -395,12 +399,31 @@ namespace GI_Subtitles.Views
 
         private void PreviewAll_Click(object sender, RoutedEventArgs e)
         {
-            bool hasRegion = _overlaySession.HasValidCapture;
-            _overlaySession.PreviewCaptureRegion(hasRegion);
-            if (hasRegion)
+            _overlaySession.PreviewCaptureRegion(_overlaySession.HasValidCapture);
+        }
+
+        private void AdjustDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            int pairId = PairIdFromSender(sender);
+            if (pairId <= 0)
             {
-                notifyIcon.ShowRegionOverlay();
+                return;
             }
+
+            _pairSettings.TryToggleDisplayAdjust(pairId);
+            RefreshPairPage();
+        }
+
+        private void SettingsWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Escape || _overlaySession.ArmedPairId == 0)
+            {
+                return;
+            }
+
+            _pairSettings.CancelDisplayAdjust();
+            RefreshPairPage();
+            e.Handled = true;
         }
 
         private void RegionPairCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

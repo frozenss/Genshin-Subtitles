@@ -59,7 +59,7 @@
     <sys:String x:Key="Help_Instructions" xmlns:sys="clr-namespace:System;assembly=mscorlib">使用步骤</sys:String>
     <sys:String x:Key="Help_Step1" xmlns:sys="clr-namespace:System;assembly=mscorlib">1. 使用流程：语言包管理界面下载对应文件，打开游戏选择对话区域，使用快捷键开始识别和展示。</sys:String>
     <sys:String x:Key="Help_Step2" xmlns:sys="clr-namespace:System;assembly=mscorlib">2. 可通过快捷键 Ctrl+Shift+S 启动/暂停；Ctrl+Shift+R 选择识别区域；Ctrl+Shift+H 隐藏字幕。若冲突，可在「快捷键」标签修改。</sys:String>
-    <sys:String x:Key="Help_Step3" xmlns:sys="clr-namespace:System;assembly=mscorlib">3. 鼠标悬停字幕变为手形时，可拖动调整位置（建议游戏使用「无边框窗口」模式而非独占全屏）。</sys:String>
+    <sys:String x:Key="Help_Step3" xmlns:sys="clr-namespace:System;assembly=mscorlib">3. 在「区域对」页点击「调整显示区」，再拖动该对的显示区来摆放字幕。预览全部与显示识别区热键会画出每对的识别区（绿）和显示区（金）。建议游戏使用「无边框窗口」模式而非独占全屏。</sys:String>
 
     <!-- Config Tab -->
     <sys:String x:Key="Tab_Config" xmlns:sys="clr-namespace:System;assembly=mscorlib">其他配置选项</sys:String>
@@ -74,6 +74,8 @@
     <sys:String x:Key="RegionPair_Unset" xmlns:sys="clr-namespace:System;assembly=mscorlib">未设</sys:String>
     <sys:String x:Key="Btn_BoxRegion" xmlns:sys="clr-namespace:System;assembly=mscorlib">框选</sys:String>
     <sys:String x:Key="Btn_DeletePair" xmlns:sys="clr-namespace:System;assembly=mscorlib">删除</sys:String>
+    <sys:String x:Key="Btn_AdjustDisplay" xmlns:sys="clr-namespace:System;assembly=mscorlib">调整显示区</sys:String>
+    <sys:String x:Key="Overlay_PairOutlineLabel" xmlns:sys="clr-namespace:System;assembly=mscorlib">对 {0}</sys:String>
     <sys:String x:Key="Btn_SetVoicePrimary" xmlns:sys="clr-namespace:System;assembly=mscorlib">设为配音主区</sys:String>
     <sys:String x:Key="Btn_VoicePrimaryOn" xmlns:sys="clr-namespace:System;assembly=mscorlib">配音主区</sys:String>
     <sys:String x:Key="RegionPair_VoicePrimaryCurrent" xmlns:sys="clr-namespace:System;assembly=mscorlib">配音主区在「区域对」页指定，当前对 {0}。</sys:String>

@@ -12,6 +12,7 @@ namespace GI_Subtitles.Core.Overlay
         public const int EngineFloorOcrIntervalMs = 1;
         public const string OcrIntervalConfigKey = "OCRInterval";
         public const int HintDurationMs = 2000;
+        public const int PreviewDurationMs = 10000;
         public const int EnginePairCap = 8;
         public const int SettingsPairCap = 4;
 
@@ -33,8 +34,11 @@ namespace GI_Subtitles.Core.Overlay
         private readonly List<string> _contents = new List<string>();
         private readonly List<int> _recognitionOrders = new List<int>();
         private readonly List<int> _ocrQueue = new List<int>();
+        private readonly List<RegionOutline> _previewOutlines = new List<RegionOutline>();
+        private readonly List<RegionOutline> _adjustOutlines = new List<RegionOutline>();
         private int _storedMs;
         private DateTime? _hintExpiresAt;
+        private DateTime? _previewExpiresAt;
         private DateTime _lastOcrTime = DateTime.MinValue;
         private int? _busyPairIndex;
         private int _recognitionSequence;
@@ -125,6 +129,32 @@ namespace GI_Subtitles.Core.Overlay
 
         public event EventHandler HintChanged;
 
+        public event EventHandler PreviewChanged;
+
+        public event EventHandler AdjustChanged;
+
+        public IReadOnlyList<RegionOutline> PreviewOutlines
+        {
+            get { return _previewOutlines; }
+        }
+
+        public IReadOnlyList<RegionOutline> AdjustOutlines
+        {
+            get { return _adjustOutlines; }
+        }
+
+        public int ArmedPairId { get; private set; }
+
+        public bool IsClickThrough
+        {
+            get { return ArmedPairId == 0; }
+        }
+
+        public int ArmedPairIndex
+        {
+            get { return IndexOfPair(ArmedPairId); }
+        }
+
         public bool HintVisible { get; private set; }
 
         public string HintResourceKey { get; private set; }
@@ -195,7 +225,40 @@ namespace GI_Subtitles.Core.Overlay
             if (!hasCaptureRegion)
             {
                 ShowHint(HintResourceCaptureRegionMissing);
+                ClearPreview();
+                return;
             }
+
+            BuildPreviewOutlines();
+            _previewExpiresAt = _utcNow().AddMilliseconds(PreviewDurationMs);
+            PreviewChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public bool TryToggleDisplayAdjust(int pairId)
+        {
+            Tick();
+            int index = IndexOfPair(pairId);
+            if (index < 0 || !_pairs[index].Display.IsValid)
+            {
+                return false;
+            }
+
+            if (ArmedPairId == pairId)
+            {
+                ClearArm();
+                return true;
+            }
+
+            ArmedPairId = pairId;
+            RebuildAdjustOutlines();
+            AdjustChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        public void CancelDisplayAdjust()
+        {
+            Tick();
+            ClearArm();
         }
 
         public void Refresh(bool hasCaptureRegion, bool foundText)
@@ -237,6 +300,7 @@ namespace GI_Subtitles.Core.Overlay
         public void Tick()
         {
             ExpireHintIfNeeded();
+            ExpirePreviewIfNeeded();
             TryStartNextOcr();
         }
 
@@ -251,6 +315,10 @@ namespace GI_Subtitles.Core.Overlay
             OverlayRect nextCapture = capture ?? OverlayRect.Invalid;
             _pairs[pairIndex] = new RegionPair(_pairs[pairIndex].Id, nextCapture, _pairs[pairIndex].Display);
             PersistPairs();
+            if (ArmedPairId == _pairs[pairIndex].Id)
+            {
+                RebuildAdjustOutlines();
+            }
         }
 
         public void SetDisplay(int pairIndex, OverlayRect display)
@@ -264,6 +332,17 @@ namespace GI_Subtitles.Core.Overlay
             RegionPair current = _pairs[pairIndex];
             _pairs[pairIndex] = new RegionPair(current.Id, current.Capture, nextDisplay);
             PersistPairs();
+            if (ArmedPairId == current.Id)
+            {
+                if (!nextDisplay.IsValid)
+                {
+                    ClearArm();
+                }
+                else
+                {
+                    RebuildAdjustOutlines();
+                }
+            }
         }
 
         public bool TryStartAdd()
@@ -333,6 +412,7 @@ namespace GI_Subtitles.Core.Overlay
             }
 
             bool wasPrimary = VoicePrimaryId == id;
+            bool wasArmed = ArmedPairId == id;
             RemovePairAt(index);
             if (wasPrimary)
             {
@@ -340,6 +420,15 @@ namespace GI_Subtitles.Core.Overlay
             }
 
             PersistPairs();
+            if (wasArmed)
+            {
+                ClearArm();
+            }
+            else if (ArmedPairId != 0)
+            {
+                RebuildAdjustOutlines();
+                AdjustChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         public void SetVoicePrimary(int id)
@@ -407,6 +496,7 @@ namespace GI_Subtitles.Core.Overlay
         public void Beat(params PairFrameSample[] samples)
         {
             ExpireHintIfNeeded();
+            ExpirePreviewIfNeeded();
             int engineCount = Math.Min(EnginePairCap, _pairs.Count);
             for (int i = 0; i < engineCount; i++)
             {
@@ -440,6 +530,7 @@ namespace GI_Subtitles.Core.Overlay
         public void CompleteOcr(bool miss, string content = null, string header = null)
         {
             ExpireHintIfNeeded();
+            ExpirePreviewIfNeeded();
             if (!_busyPairIndex.HasValue)
             {
                 return;
@@ -820,15 +911,78 @@ namespace GI_Subtitles.Core.Overlay
 
         private void ExpireHintIfNeeded()
         {
-            if (!HintVisible || !_hintExpiresAt.HasValue)
+            if (HintVisible && _hintExpiresAt.HasValue && _utcNow() >= _hintExpiresAt.Value)
+            {
+                ClearHint();
+            }
+        }
+
+        private void ExpirePreviewIfNeeded()
+        {
+            if (_previewExpiresAt.HasValue && _utcNow() >= _previewExpiresAt.Value)
+            {
+                ClearPreview();
+            }
+        }
+
+        private void BuildPreviewOutlines()
+        {
+            _previewOutlines.Clear();
+            for (int i = 0; i < _pairs.Count; i++)
+            {
+                AddPairOutlines(_previewOutlines, i);
+            }
+        }
+
+        private void AddPairOutlines(List<RegionOutline> outlines, int pairIndex)
+        {
+            RegionPair pair = _pairs[pairIndex];
+            int ordinal = pairIndex + 1;
+            if (pair.Capture.IsValid)
+            {
+                outlines.Add(new RegionOutline(ordinal, pair.Capture, false));
+            }
+
+            if (pair.Display.IsValid)
+            {
+                outlines.Add(new RegionOutline(ordinal, pair.Display, true));
+            }
+        }
+
+        private void ClearPreview()
+        {
+            if (_previewOutlines.Count == 0 && !_previewExpiresAt.HasValue)
             {
                 return;
             }
 
-            if (_utcNow() >= _hintExpiresAt.Value)
+            _previewOutlines.Clear();
+            _previewExpiresAt = null;
+            PreviewChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void RebuildAdjustOutlines()
+        {
+            _adjustOutlines.Clear();
+            int index = IndexOfPair(ArmedPairId);
+            if (index < 0)
             {
-                ClearHint();
+                return;
             }
+
+            AddPairOutlines(_adjustOutlines, index);
+        }
+
+        private void ClearArm()
+        {
+            if (ArmedPairId == 0 && _adjustOutlines.Count == 0)
+            {
+                return;
+            }
+
+            ArmedPairId = 0;
+            _adjustOutlines.Clear();
+            AdjustChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void ShowHint(string resourceKey, params object[] formatArguments)
