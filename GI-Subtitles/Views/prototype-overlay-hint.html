@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE · 叠加层按键提示外观</title>
+  <!--
+    Three variants of the overlay hint, switchable via ?variant=,
+    on a simulated live overlay over a game dialogue scene.
+    Throwaway. Do not ship.
+  -->
+  <style>
+    :root {
+      --gold: #e6c35c;
+      --lime: #3ee05a;
+      --ink: #0c1018;
+      --panel: #161b27;
+      --muted: #8b93a7;
+      --fail: #ff8b7a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      background: #07090e;
+      color: #e8ecf4;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+    }
+    header.chrome {
+      grid-column: 1 / -1;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid #252b3a;
+      background: #0e121b;
+    }
+    header.chrome .kicker {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #d7a84b;
+      font-weight: 700;
+    }
+    header.chrome h1 {
+      margin: 2px 0 4px;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    header.chrome p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 78ch;
+    }
+    .stage-wrap { position: relative; min-height: 0; }
+    .stage {
+      position: relative;
+      margin: 12px;
+      height: calc(100% - 24px);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 500px at 20% 10%, #2a3d6a 0%, transparent 55%),
+        radial-gradient(900px 400px at 90% 20%, #3a2a1c 0%, transparent 50%),
+        linear-gradient(180deg, #1a2744 0%, #0e1524 45%, #0a0e16 100%);
+      box-shadow: inset 0 0 0 1px #2a3144;
+    }
+    .skyline {
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(180deg, transparent 58%, rgba(8,10,16,0.55) 100%);
+      pointer-events: none;
+    }
+    .char {
+      position: absolute;
+      bottom: 38%;
+      width: 180px; height: 260px;
+      filter: blur(0.2px);
+      opacity: 0.92;
+    }
+    .char-l {
+      left: 16%;
+      background: linear-gradient(180deg, #f4c4b0 0 18%, #e07a6a 18% 42%, #f2eee8 42% 100%);
+      clip-path: polygon(40% 0, 68% 6%, 72% 28%, 90% 48%, 70% 100%, 28% 100%, 18% 52%, 32% 30%);
+    }
+    .char-r {
+      right: 18%;
+      background: linear-gradient(180deg, #f8e6c8 0 16%, #3d6ad9 16% 48%, #e8e4dc 48% 100%);
+      clip-path: polygon(35% 0, 62% 4%, 78% 36%, 88% 100%, 22% 100%, 18% 46%);
+    }
+    .game-click-flash {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background: rgba(230,195,92,0.0);
+      transition: background 120ms;
+    }
+    .game-click-flash.on { background: rgba(230,195,92,0.12); }
+
+    /* In-game dialogue + capture region */
+    .capture {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      bottom: 22%;
+      height: 118px;
+      border: 0 solid var(--lime);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    .stage.preview-on .capture {
+      border-width: 6px;
+      box-shadow: 0 0 0 1px rgba(62,224,90,0.25), inset 0 0 24px rgba(62,224,90,0.08);
+    }
+    .game-dialogue {
+      position: absolute;
+      left: 4%; right: 4%;
+      top: 8px; bottom: 8px;
+      background: linear-gradient(180deg, rgba(16,20,32,0.55), rgba(10,12,20,0.72));
+      border-top: 1px solid rgba(230,195,92,0.35);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 10px 28px 14px;
+    }
+    .game-dialogue .who {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 15px;
+      text-align: center;
+      text-shadow: 0 1px 2px #000;
+    }
+    .game-dialogue .rule {
+      height: 1px;
+      margin: 6px auto 8px;
+      width: 46%;
+      background: linear-gradient(90deg, transparent, #d7b056, transparent);
+    }
+    .game-dialogue .line {
+      color: #f4f1ea;
+      font-size: 15px;
+      line-height: 1.45;
+      text-align: center;
+      text-shadow: 0 1px 3px #000;
+    }
+
+    /* Overlay subtitle cluster (display region) */
+    .display {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 11%;
+      width: 70%;
+      text-align: center;
+      pointer-events: none;
+    }
+    .display .head {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+    .display .speaker {
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .display .speed {
+      color: #fff;
+      font-size: 11px;
+      font-weight: 400;
+      opacity: 0.72;
+    }
+    .display .sub {
+      color: #fff;
+      font-weight: 700;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+    .stage.subs-off .display .head,
+    .stage.subs-off .display .sub { display: none; }
+    .stage.speed-off .display .speed { display: none; }
+
+    /* Hints */
+    .hint {
+      display: none;
+      pointer-events: none; /* 必须点穿 */
+      white-space: nowrap;
+      letter-spacing: 0.04em;
+    }
+    .hint.show { display: block; }
+    .hint .life {
+      display: block;
+      height: 2px;
+      margin-top: 5px;
+      background: rgba(255,255,255,0.22);
+      overflow: hidden;
+    }
+    .hint .life > i {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: #fff;
+      transform-origin: left center;
+    }
+
+    /* A: docked pill above the subtitle cluster */
+    .hint-a {
+      position: absolute;
+      left: 50%;
+      bottom: 100%;
+      transform: translateX(-50%);
+      margin-bottom: 8px;
+      background: rgba(8,10,16,0.78);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 6px 16px 5px;
+      border-radius: 999px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    }
+    .hint-a .life { margin: 4px -4px 0; border-radius: 1px; }
+
+    /* B: independent top-center toast */
+    .hint-b {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 220px;
+      background: rgba(10,12,18,0.92);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      padding: 10px 28px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(230,195,92,0.55);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      opacity: 0;
+    }
+    .hint-b.show {
+      display: block;
+      animation: fade-b 160ms ease-out forwards;
+    }
+    @keyframes fade-b { from { opacity: 0; } to { opacity: 1; } }
+    .hint-b.hide-anim {
+      display: block;
+      animation: fade-b-out 160ms ease-in forwards;
+    }
+    @keyframes fade-b-out { from { opacity: 1; } to { opacity: 0; } }
+
+    /* C: chip on the capture-region corner */
+    .hint-c {
+      position: absolute;
+      right: -8px;
+      top: -14px;
+      background: rgba(6,18,8,0.82);
+      color: #f3fff4;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 10px 3px;
+      border-radius: 3px;
+      border: 1px solid var(--lime);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+      opacity: 0;
+    }
+    .hint-c.show {
+      display: block;
+      animation: pop-c 180ms ease-out forwards;
+    }
+    @keyframes pop-c {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .hint-c.hide-anim {
+      display: block;
+      animation: pop-c-out 160ms ease-in forwards;
+    }
+    @keyframes pop-c-out {
+      from { opacity: 1; transform: scale(1); }
+      to   { opacity: 0; transform: scale(0.9); }
+    }
+    .hint-c.is-fail { border-color: var(--fail); color: #ffe8e4; }
+
+    aside.chrome {
+      border-left: 1px solid #252b3a;
+      background: var(--panel);
+      padding: 12px 14px 16px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .state {
+      background: #0e121b;
+      border: 1px solid #252b3a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .state dl { margin: 0; display: grid; grid-template-columns: 7.5em 1fr; gap: 4px 8px; }
+    .state dt { color: var(--muted); }
+    .state dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .state dd.fail { color: var(--fail); }
+    fieldset {
+      border: 1px solid #2a3144;
+      border-radius: 6px;
+      margin: 0 0 12px;
+      padding: 8px 8px 10px;
+    }
+    legend { color: var(--muted); padding: 0 4px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+    button:hover { background: #2c354a; }
+    button.warn { border-color: #6a3a34; background: #2a1b1a; }
+    .note {
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+    .switcher {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #111;
+      color: #f5f5f5;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      z-index: 20;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .switcher button {
+      width: 32px; height: 28px;
+      border-radius: 999px;
+      background: #222;
+      color: #fff;
+      border: 1px solid #666;
+      font-size: 16px;
+      padding: 0;
+    }
+    .switcher .label { min-width: 168px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="kicker">PROTOTYPE · 非产品代码</div>
+    <h1>叠加层按键提示长什么样、放在哪</h1>
+    <p>
+      内容与消失规则已锁定：短词结果状态、单槽 2 秒顶替、藏字幕不藏提示、必须点穿。
+      这里只比外观：位置（相对字幕 / 识别区预览 / 倍速角标）、字号与衬底、切显隐还是动效。
+      点提示所在位置应点到「游戏」而不是提示。
+    </p>
+  </header>
+
+  <div class="stage-wrap">
+    <div id="stage" class="stage preview-on">
+      <div class="skyline"></div>
+      <div class="char char-l"></div>
+      <div class="char char-r"></div>
+      <div id="flash" class="game-click-flash"></div>
+
+      <div class="capture" id="capture">
+        <div class="game-dialogue">
+          <div class="who">派蒙</div>
+          <div class="rule"></div>
+          <div class="line">…所以嘛，每次我们前往下一个国家的时候，路上总有那么一个分界点，让我感觉到「啊，前面就是新的国度了」。</div>
+        </div>
+        <div id="hintC" class="hint hint-c" aria-hidden="true">
+          <span class="txt"></span>
+          <span class="life"><i></i></span>
+        </div>
+      </div>
+
+      <div class="display" id="display">
+        <div id="hintA" class="hint hint-a" aria-hidden="true">
+          <span class="txt"></span>
+          <span class="life"><i></i></span>
+        </div>
+        <div class="head">
+          <span class="speaker">Paimon</span>
+          <span class="speed" id="speed">1.5×</span>
+        </div>
+        <div class="sub">…So every time we head for the next country, there’s always this boundary on the road that makes me go, “Ah, a new nation lies ahead.”</div>
+      </div>
+
+      <div id="hintB" class="hint hint-b" aria-hidden="true">
+        <span class="txt"></span>
+        <span class="life"><i></i></span>
+      </div>
+    </div>
+
+    <div class="switcher" id="switcher">
+      <button type="button" id="prev" aria-label="上一变体">←</button>
+      <div class="label" id="switcherLabel">A (贴字幕胶囊)</div>
+      <button type="button" id="next" aria-label="下一变体">→</button>
+    </div>
+  </div>
+
+  <aside class="chrome">
+    <h2>当前状态</h2>
+    <div class="state">
+      <dl>
+        <dt>变体</dt><dd id="stVariant">A</dd>
+        <dt>提示文案</dt><dd id="stText">（无）</dd>
+        <dt>提示可见</dt><dd id="stHint">否</dd>
+        <dt>剩余寿命</dt><dd id="stLife">—</dd>
+        <dt>字幕</dt><dd id="stSub">显示</dd>
+        <dt>识别区预览</dt><dd id="stPreview">开</dd>
+        <dt>倍速角标</dt><dd id="stSpeed">1.5×</dd>
+        <dt>点穿</dt><dd>是（提示不接收点击）</dd>
+      </dl>
+    </div>
+
+    <p class="note" id="variantNote"></p>
+
+    <fieldset>
+      <legend>场景（不是提示）</legend>
+      <div class="btns">
+        <button type="button" id="togSub">藏/显字幕</button>
+        <button type="button" id="togPreview">识别区预览</button>
+        <button type="button" id="togSpeed">倍速角标</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>打出提示（2 秒，新的顶掉旧的）</legend>
+      <div class="btns">
+        <button type="button" data-hint="识别中">识别中</button>
+        <button type="button" data-hint="已停止">已停止</button>
+        <button type="button" data-hint="已选识别区">已选识别区</button>
+        <button type="button" data-hint="字幕已隐藏">字幕已隐藏</button>
+        <button type="button" data-hint="字幕已显示">字幕已显示</button>
+        <button type="button" data-hint="已刷新">已刷新</button>
+        <button type="button" data-hint="倍速 1.5×">倍速 1.5×</button>
+        <button type="button" data-hint="未识别到文本" class="warn">未识别到文本</button>
+        <button type="button" data-hint="未设置识别区" class="warn">未设置识别区</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>对照</legend>
+      <div class="btns">
+        <button type="button" id="showPreviewOnly">展示识别区（无文字提示）</button>
+      </div>
+      <p class="note" style="margin:8px 0 0">成功「展示识别区」只画框，不叠短词。识别区预览 10 秒，不和提示时钟混用。</p>
+    </fieldset>
+  </aside>
+
+  <script>
+    const VARIANTS = [
+      {
+        key: "A",
+        name: "贴字幕胶囊",
+        note: "提示贴在显示区字幕簇正上方，和说话人、倍速角标同一锚点。藏字幕时胶囊仍停在原处。深色胶囊衬底、16px、切显隐、无动效。会挤进识别区预览下沿。"
+      },
+      {
+        key: "B",
+        name: "顶栏吐司",
+        note: "提示离开字幕和识别区，停在屏幕顶中。不跟倍速角标抢位。近实心深底 + 金边、18px、160ms 淡入淡出。眼睛在对话上时可能看漏。"
+      },
+      {
+        key: "C",
+        name: "识别区角标",
+        note: "提示钉在识别区预览右上角（预览关着也用同一坐标）。13px、绿描边、短促弹出。全局只有一条提示，多区域对时仍只钉这一块识别区。"
+      }
+    ];
+
+    const HINT_MS = 2000;
+    const PREVIEW_MS = 10000;
+    const params = new URLSearchParams(location.search);
+    let variantIndex = Math.max(0, VARIANTS.findIndex(v => v.key === (params.get("variant") || "A").toUpperCase()));
+    if (variantIndex < 0) variantIndex = 0;
+
+    const stage = document.getElementById("stage");
+    const hints = { A: document.getElementById("hintA"), B: document.getElementById("hintB"), C: document.getElementById("hintC") };
+    const els = {
+      label: document.getElementById("switcherLabel"),
+      note: document.getElementById("variantNote"),
+      stVariant: document.getElementById("stVariant"),
+      stText: document.getElementById("stText"),
+      stHint: document.getElementById("stHint"),
+      stLife: document.getElementById("stLife"),
+      stSub: document.getElementById("stSub"),
+      stPreview: document.getElementById("stPreview"),
+      stSpeed: document.getElementById("stSpeed"),
+      flash: document.getElementById("flash")
+    };
+
+    let hintText = "";
+    let hintUntil = 0;
+    let hideTimer = 0;
+    let raf = 0;
+    let previewUntil = 0;
+    let previewTimer = 0;
+
+    function current() { return VARIANTS[variantIndex]; }
+
+    function setVariant(i, push) {
+      variantIndex = (i + VARIANTS.length) % VARIANTS.length;
+      const v = current();
+      const url = new URL(location.href);
+      url.searchParams.set("variant", v.key);
+      if (push !== false) history.replaceState(null, "", url);
+      els.label.textContent = v.key + " (" + v.name + ")";
+      els.note.textContent = v.note;
+      Object.keys(hints).forEach(k => {
+        hints[k].classList.remove("show", "hide-anim");
+      });
+      renderHint(true);
+      renderState();
+    }
+
+    function isFail(text) {
+      return text === "未识别到文本" || text === "未设置识别区";
+    }
+
+    function renderHint(cut) {
+      const v = current();
+      const visible = hintUntil > Date.now();
+      Object.keys(hints).forEach(k => {
+        const node = hints[k];
+        const on = visible && k === v.key;
+        node.querySelector(".txt").textContent = hintText;
+        node.classList.toggle("is-fail", isFail(hintText));
+        if (on) {
+          node.classList.remove("hide-anim");
+          node.classList.add("show");
+        } else if (node.classList.contains("show") && !cut && (k === "B" || k === "C")) {
+          node.classList.remove("show");
+          node.classList.add("hide-anim");
+          setTimeout(() => node.classList.remove("hide-anim"), 180);
+        } else {
+          node.classList.remove("show", "hide-anim");
+        }
+      });
+    }
+
+    function tickLife() {
+      const left = Math.max(0, hintUntil - Date.now());
+      const p = left / HINT_MS;
+      document.querySelectorAll(".hint .life > i").forEach(bar => {
+        bar.style.transform = "scaleX(" + p + ")";
+      });
+      els.stLife.textContent = left ? (left / 1000).toFixed(1) + "s" : "—";
+      els.stHint.textContent = left ? "是" : "否";
+      if (left > 0) raf = requestAnimationFrame(tickLife);
+    }
+
+    function fireHint(text) {
+      hintText = text;
+      const hold = params.get("hold") === "1";
+      hintUntil = hold ? Date.now() + 86400000 : Date.now() + HINT_MS;
+      clearTimeout(hideTimer);
+      if (!hold) {
+        hideTimer = setTimeout(() => {
+          hintUntil = 0;
+          renderHint(false);
+          renderState();
+        }, HINT_MS);
+      }
+      if (text === "字幕已隐藏") stage.classList.add("subs-off");
+      if (text === "字幕已显示") stage.classList.remove("subs-off");
+      if (text === "倍速 1.5×") stage.classList.remove("speed-off");
+      renderHint(true);
+      cancelAnimationFrame(raf);
+      tickLife();
+      renderState();
+    }
+
+    function renderState() {
+      const v = current();
+      els.stVariant.textContent = v.key + " · " + v.name;
+      els.stText.textContent = hintUntil > Date.now() ? hintText : "（无）";
+      els.stSub.textContent = stage.classList.contains("subs-off") ? "已隐藏" : "显示";
+      els.stPreview.textContent = stage.classList.contains("preview-on") ? "开" : "关";
+      els.stSpeed.textContent = stage.classList.contains("speed-off") ? "关（1×）" : "1.5×";
+    }
+
+    function togglePreview(forceOn, timed) {
+      if (forceOn === true) stage.classList.add("preview-on");
+      else if (forceOn === false) stage.classList.remove("preview-on");
+      else stage.classList.toggle("preview-on");
+      clearTimeout(previewTimer);
+      if (timed && stage.classList.contains("preview-on")) {
+        previewUntil = Date.now() + PREVIEW_MS;
+        previewTimer = setTimeout(() => {
+          stage.classList.remove("preview-on");
+          renderState();
+        }, PREVIEW_MS);
+      }
+      renderState();
+    }
+
+    document.getElementById("prev").onclick = () => setVariant(variantIndex - 1);
+    document.getElementById("next").onclick = () => setVariant(variantIndex + 1);
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") setVariant(variantIndex - 1);
+      if (e.key === "ArrowRight") setVariant(variantIndex + 1);
+    });
+
+    document.getElementById("togSub").onclick = () => {
+      stage.classList.toggle("subs-off");
+      renderState();
+    };
+    document.getElementById("togPreview").onclick = () => togglePreview();
+    document.getElementById("togSpeed").onclick = () => {
+      stage.classList.toggle("speed-off");
+      renderState();
+    };
+    document.getElementById("showPreviewOnly").onclick = () => togglePreview(true, true);
+
+    document.querySelectorAll("[data-hint]").forEach(btn => {
+      btn.onclick = () => fireHint(btn.getAttribute("data-hint"));
+    });
+
+    stage.addEventListener("click", () => {
+      els.flash.classList.add("on");
+      setTimeout(() => els.flash.classList.remove("on"), 140);
+    });
+
+    setVariant(variantIndex, false);
+    const demoHint = params.get("hint");
+    if (demoHint) fireHint(demoHint);
+  </script>
+</body>
+</html>
