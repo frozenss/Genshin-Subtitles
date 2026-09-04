@@ -182,6 +182,7 @@
       <DependentUpon>Views\MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Views\OverlayHintChrome.cs" />
     <Page Include="Resources\Strings.en-US.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

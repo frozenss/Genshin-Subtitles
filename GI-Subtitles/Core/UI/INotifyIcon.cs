@@ -239,7 +239,7 @@ namespace GI_Subtitles.Core.UI
             data.ShowDialog();
         }
 
-        public void ChooseRegion()
+        public bool ChooseRegion()
         {
             try
             {
@@ -248,15 +248,18 @@ namespace GI_Subtitles.Core.UI
                 {
                     Config.Config.Set("Region", $"{Convert.ToInt32(rect.TopLeft.X)},{Convert.ToInt32(rect.TopLeft.Y)},{Convert.ToInt32(rect.Width)},{Convert.ToInt32(rect.Height)}");
                     Region = Config.Config.Get<string>("Region").ToString().Split(',');
+                    return true;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }
+
+            return false;
         }
 
-        public void ChooseRegion2()
+        public bool ChooseRegion2()
         {
             try
             {
@@ -265,12 +268,15 @@ namespace GI_Subtitles.Core.UI
                 {
                     Config.Config.Set("Region2", $"{Convert.ToInt32(rect.TopLeft.X)},{Convert.ToInt32(rect.TopLeft.Y)},{Convert.ToInt32(rect.Width)},{Convert.ToInt32(rect.Height)}");
                     Region2 = Config.Config.Get<string>("Region2").ToString().Split(',');
+                    return true;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }
+
+            return false;
         }
 
         public void ClearRegion2()

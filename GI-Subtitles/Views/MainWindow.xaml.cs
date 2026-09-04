@@ -80,6 +80,11 @@ namespace GI_Subtitles.Views
         private readonly double ChangeThreshold = Math.Max(0, Math.Min(1, Config.Get<double>("OCRThreshold", 0.01)));
         private DateTime _lastOcrTime = DateTime.MinValue;
         private readonly LiveOverlaySession _overlaySession = new LiveOverlaySession(new ConfigOcrIntervalStore());
+        private readonly OverlayHintChrome _hintChrome = new OverlayHintChrome();
+        private readonly DispatcherTimer _hintTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(100)
+        };
         string ocrText = "";
         private NotifyIcon notifyIcon;
         string lastHeader = null;
@@ -198,6 +203,20 @@ namespace GI_Subtitles.Views
                 ForceRefreshCurrentSubtitle();
             };
             UpdatePlaybackSpeedIndicator();
+            _hintTimer.Tick += (sender, args) =>
+            {
+                _overlaySession.Tick();
+                if (!_overlaySession.HintVisible)
+                {
+                    _hintTimer.Stop();
+                }
+
+                ApplyHintChrome();
+            };
+            _overlaySession.HintChanged += (sender, args) =>
+            {
+                Dispatcher.BeginInvoke(new Action(OnHintChanged));
+            };
             // Start with the main window fully transparent to avoid showing incomplete UI during heavy startup work.
             // Using Opacity instead of Visibility to ensure Loaded is still raised and initialization runs as usual.
             this.Opacity = 0;
@@ -640,6 +659,11 @@ namespace GI_Subtitles.Views
                                 resDict[ocrText] = res;
                                 resDict[res] = key;
                             }
+
+                            if (string.IsNullOrEmpty(header) && string.IsNullOrEmpty(content))
+                            {
+                                _overlaySession.NoteMatchMiss();
+                            }
                         }
                     }
 
@@ -947,10 +971,16 @@ namespace GI_Subtitles.Views
                         {
                             _forceVoiceReplayRequested = true;
                             UpdateText(null, EventArgs.Empty);
+                            _overlaySession.Refresh(hasCaptureRegion: true, foundText: true);
                         }
                         else if (forceRefresh)
                         {
                             Logger.Log.Warn("Forced OCR refresh produced no usable text; keeping the current subtitle without replay.");
+                            _overlaySession.Refresh(hasCaptureRegion: true, foundText: false);
+                        }
+                        else if (!recognitionCompleted || recognizedText == null || recognizedText.Length < 2)
+                        {
+                            _overlaySession.NoteOcrMiss();
                         }
                     }
                     catch (Exception ex)
@@ -994,7 +1024,7 @@ namespace GI_Subtitles.Views
 
                 if (!IsValidRegion(region))
                 {
-                    notify.ChooseRegion();
+                    _overlaySession.Refresh(hasCaptureRegion: false, foundText: false);
                     return;
                 }
 
@@ -1566,10 +1596,77 @@ namespace GI_Subtitles.Views
         private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             StopAudio();
+            _hintTimer.Stop();
+            _hintChrome.Close();
             notifyIcon.Dispose();
             notifyIcon = null;
             data.UnregisterAllHotkeys();
             data.RealClose();
+        }
+
+        private void PreviewCaptureRegion()
+        {
+            bool hasRegion = IsValidRegion(notify.Region);
+            _overlaySession.PreviewCaptureRegion(hasRegion);
+            if (hasRegion)
+            {
+                notify.ShowRegionOverlay();
+            }
+        }
+
+        private void OnHintChanged()
+        {
+            if (_overlaySession.HintVisible)
+            {
+                _hintTimer.Start();
+            }
+            else
+            {
+                _hintTimer.Stop();
+            }
+
+            ApplyHintChrome();
+        }
+
+        private void ApplyHintChrome()
+        {
+            if (_overlaySession.HintVisible)
+            {
+                _hintChrome.Show(ResolveHintText());
+            }
+            else
+            {
+                _hintChrome.Hide();
+            }
+        }
+
+        private string ResolveHintText()
+        {
+            if (string.IsNullOrEmpty(_overlaySession.HintResourceKey))
+            {
+                return _overlaySession.HintText;
+            }
+
+            string format = TryFindResource(_overlaySession.HintResourceKey) as string;
+            if (string.IsNullOrEmpty(format))
+            {
+                return _overlaySession.HintText;
+            }
+
+            object[] args = _overlaySession.HintFormatArguments;
+            if (args == null || args.Length == 0)
+            {
+                return format;
+            }
+
+            try
+            {
+                return string.Format(format, args);
+            }
+            catch (FormatException)
+            {
+                return _overlaySession.HintText;
+            }
         }
 
         private void MainWindow_LocationChanged(object sender, EventArgs e)
@@ -1641,17 +1738,20 @@ namespace GI_Subtitles.Views
                 {
                     if (OCRTimer.IsEnabled)
                     {
+                        _overlaySession.StopRecognition();
                         OCRTimer.Stop();
                         UITimer.Stop();
-                        SystemSounds.Hand.Play();
                         SwitchIcon("mask.ico");
                     }
                     else
                     {
-                        OCRTimer.Start();
-                        UITimer.Start();
-                        SystemSounds.Exclamation.Play();
-                        SwitchIcon("running.ico");
+                        _overlaySession.StartRecognition(IsValidRegion(notify.Region));
+                        if (_overlaySession.RecognitionRunning)
+                        {
+                            OCRTimer.Start();
+                            UITimer.Start();
+                            SwitchIcon("running.ico");
+                        }
                     }
                     handled = true;
                 }
@@ -1660,28 +1760,37 @@ namespace GI_Subtitles.Views
                     if (!ChooseRegion)
                     {
                         ChooseRegion = true;
-                        notify.ChooseRegion();
+                        bool selected = notify.ChooseRegion();
+                        if (selected)
+                        {
+                            _overlaySession.CaptureRegionSelected();
+                        }
+                        else
+                        {
+                            _overlaySession.CaptureRegionSelectionCancelled();
+                        }
                         ChooseRegion = false;
                     }
                 }
                 else if (wParam.ToInt32() == HOTKEY_ID_3)
                 {
-                    ShowText = !ShowText;
-                    SubtitleText.Visibility = ShowText ? Visibility.Visible : Visibility.Collapsed;
-                    HeaderText.Visibility = ShowText ? Visibility.Visible : Visibility.Collapsed;
-                    HeaderPanel.Visibility = ShowText ? Visibility.Visible : Visibility.Collapsed;
                     if (ShowText)
                     {
-                        SystemSounds.Hand.Play();
+                        _overlaySession.HideSubtitles();
                     }
                     else
                     {
-                        SystemSounds.Exclamation.Play();
+                        _overlaySession.ShowSubtitles();
                     }
+
+                    ShowText = _overlaySession.SubtitlesVisible;
+                    SubtitleText.Visibility = ShowText ? Visibility.Visible : Visibility.Collapsed;
+                    HeaderText.Visibility = ShowText ? Visibility.Visible : Visibility.Collapsed;
+                    HeaderPanel.Visibility = ShowText ? Visibility.Visible : Visibility.Collapsed;
                 }
                 else if (wParam.ToInt32() == HOTKEY_ID_4)
                 {
-                    notify.ShowRegionOverlay();
+                    PreviewCaptureRegion();
                     handled = true;
                 }
                 else if (wParam.ToInt32() == HOTKEY_ID_REFRESH)
@@ -2004,11 +2113,7 @@ namespace GI_Subtitles.Views
                 StartAudioPlayback(tempFilePath, generation);
             }
 
-            notifyIcon?.ShowBalloonTip(
-                1200,
-                "GI-Subtitles",
-                $"Voice playback speed: {_voicePlaybackSpeed:0.##}x",
-                ToolTipIcon.Info);
+            _overlaySession.ChangeVoiceSpeed(_voicePlaybackSpeed);
         }
 
         private void UpdatePlaybackSpeedIndicator()

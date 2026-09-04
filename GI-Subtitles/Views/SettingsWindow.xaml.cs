@@ -2018,7 +2018,19 @@ namespace GI_Subtitles.Views
 
         private void PreviewRegion_Click(object sender, RoutedEventArgs e)
         {
-            notifyIcon.ShowRegionOverlay();
+            bool hasRegion = HasCaptureRegion(notifyIcon.Region);
+            _overlaySession.PreviewCaptureRegion(hasRegion);
+            if (hasRegion)
+            {
+                notifyIcon.ShowRegionOverlay();
+            }
+        }
+
+        private static bool HasCaptureRegion(string[] region)
+        {
+            return region != null && region.Length == 4 &&
+                   int.TryParse(region[2], out int width) && width > 0 &&
+                   int.TryParse(region[3], out int height) && height > 0;
         }
 
         private void PadTextBox_LostFocus(object sender, RoutedEventArgs e)
