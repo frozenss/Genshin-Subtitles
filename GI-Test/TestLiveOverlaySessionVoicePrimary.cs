@@ -118,7 +118,7 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void SetCaptureOnPairZero_StillCopiesDisplayWhenInvalid()
+        public void SetCaptureOnPairZero_DoesNotCopyDisplayWhenInvalid()
         {
             var pairs = new MemoryRegionPairStore();
             var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), pairs);
@@ -127,9 +127,8 @@ namespace GI_Test
 
             Assert.AreEqual(1, session.Pairs[0].Id);
             Assert.AreEqual(1, session.VoicePrimaryId);
-            Assert.IsTrue(session.Pairs[0].Display.IsValid);
-            Assert.AreEqual(100, session.Pairs[0].Display.X);
-            Assert.AreEqual(200, session.Pairs[0].Display.Y);
+            Assert.IsTrue(session.Pairs[0].Capture.IsValid);
+            Assert.IsFalse(session.Pairs[0].Display.IsValid);
         }
 
         [TestMethod]

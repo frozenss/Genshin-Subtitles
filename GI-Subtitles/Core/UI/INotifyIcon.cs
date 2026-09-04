@@ -272,32 +272,107 @@ namespace GI_Subtitles.Core.UI
 
         public bool ChooseRegion()
         {
-            return ChoosePairCapture(0);
+            Views.RegionPairSettings settings = data != null ? data.PairSettings : null;
+            if (settings == null || !settings.TryGetHotkeyTarget(out _, out _, out int ordinal))
+            {
+                return false;
+            }
+
+            OverlayRect capture = PromptRect("RegionPair_BoxCaptureMask", "框选识别区（对 {0}）", ordinal);
+            if (!capture.IsValid)
+            {
+                return false;
+            }
+
+            OverlayRect display = PromptRect("RegionPair_BoxDisplayMask", "框选显示区（对 {0}）", ordinal);
+            if (!display.IsValid)
+            {
+                return false;
+            }
+
+            bool boxed = settings.TryBoxHotkeyPair(capture, display);
+            data.RefreshPairPage();
+            return boxed;
         }
 
-        public bool ChooseRegion2()
+        public bool AddRegionPair()
         {
-            return ChoosePairCapture(1);
+            Views.RegionPairSettings settings = data != null ? data.PairSettings : null;
+            if (settings == null || !settings.TryStartAdd())
+            {
+                return false;
+            }
+
+            int ordinal = settings.NextAddOrdinal;
+            OverlayRect capture = PromptRect("RegionPair_BoxCaptureMask", "框选识别区（对 {0}）", ordinal);
+            if (!capture.IsValid)
+            {
+                settings.AbortAdd();
+                return false;
+            }
+
+            settings.SetAddCapture(capture);
+            OverlayRect display = PromptRect("RegionPair_BoxDisplayMask", "框选显示区（对 {0}）", ordinal);
+            if (!display.IsValid)
+            {
+                settings.AbortAdd();
+                return false;
+            }
+
+            settings.SetAddDisplay(display);
+            return settings.TryCommitAdd();
         }
 
-        public void ClearRegion2()
+        public bool BoxCapture(int pairId)
         {
-            _overlaySession?.ClearCapture(1);
+            Views.RegionPairSettings settings = data != null ? data.PairSettings : null;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            int ordinal = settings.OrdinalOf(pairId);
+            if (ordinal <= 0)
+            {
+                return false;
+            }
+
+            OverlayRect capture = PromptRect("RegionPair_BoxCaptureMask", "框选识别区（对 {0}）", ordinal);
+            return capture.IsValid && settings.TrySetCapture(pairId, capture);
         }
 
-        private bool ChoosePairCapture(int pairIndex)
+        public bool BoxDisplay(int pairId)
+        {
+            Views.RegionPairSettings settings = data != null ? data.PairSettings : null;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            int ordinal = settings.OrdinalOf(pairId);
+            if (ordinal <= 0)
+            {
+                return false;
+            }
+
+            OverlayRect display = PromptRect("RegionPair_BoxDisplayMask", "框选显示区（对 {0}）", ordinal);
+            return display.IsValid && settings.TrySetDisplay(pairId, display);
+        }
+
+        private OverlayRect PromptRect(string resourceKey, string fallback, int ordinal)
         {
             try
             {
-                var rect = Screenshot.Screenshot.GetRegion();
+                string format = GetLocalizedString(resourceKey, fallback);
+                string prompt = string.Format(format, ordinal);
+                var rect = Screenshot.Screenshot.GetRegion(prompt);
                 if (Convert.ToInt32(rect.Width) > 0 && Convert.ToInt32(rect.Height) > 0)
                 {
-                    _overlaySession?.SetCapture(pairIndex, new OverlayRect(
+                    return new OverlayRect(
                         Convert.ToInt32(rect.TopLeft.X),
                         Convert.ToInt32(rect.TopLeft.Y),
                         Convert.ToInt32(rect.Width),
-                        Convert.ToInt32(rect.Height)));
-                    return true;
+                        Convert.ToInt32(rect.Height));
                 }
             }
             catch (Exception ex)
@@ -305,7 +380,7 @@ namespace GI_Subtitles.Core.UI
                 Console.WriteLine(ex);
             }
 
-            return false;
+            return OverlayRect.Invalid;
         }
 
         private ToolStripMenuItem CreateSizeItem(string code)

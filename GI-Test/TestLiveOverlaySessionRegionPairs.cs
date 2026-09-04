@@ -92,7 +92,7 @@ namespace GI_Test
 
             Assert.AreEqual(2, session.Pairs.Count);
             Assert.AreEqual(100, session.Pairs[0].Capture.X);
-            Assert.IsTrue(session.Pairs[0].Display.IsValid);
+            Assert.IsFalse(session.Pairs[0].Display.IsValid);
             Assert.AreEqual(50, session.Pairs[1].Capture.X);
             Assert.IsFalse(session.Pairs[1].Display.IsValid);
 

@@ -83,8 +83,15 @@ namespace GI_Subtitles.Views
         INotifyIcon notifyIcon;
         private readonly string _version;
         private readonly LiveOverlaySession _overlaySession;
+        private readonly RegionPairSettings _pairSettings;
+        private readonly ObservableCollection<RegionPairCard> _pairCards = new ObservableCollection<RegionPairCard>();
         private OcrIntervalSettingsView _ocrIntervalView;
         private bool _ocrIntervalBinding;
+
+        public RegionPairSettings PairSettings
+        {
+            get { return _pairSettings; }
+        }
         // Windows API functions for registering and unregistering hotkeys
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -149,6 +156,7 @@ namespace GI_Subtitles.Views
 
             _version = version;
             _overlaySession = overlaySession;
+            _pairSettings = new RegionPairSettings(overlaySession);
             InitializeComponent();
             SourceInitialized += (sender, args) => FitWindowToWorkingArea();
             Scale = scale;
@@ -235,27 +243,14 @@ namespace GI_Subtitles.Views
             // Bind button events
             saveButton.Click += SaveButton_Click;
             resetButton.Click += ResetButton_Click;
-            // Pad
-            int pad = Config.GetPad(86);
-            int padHorizontal = Config.GetPadHorizontal(0);
-            PadTextBox.Text = pad.ToString();
-            PadHorizontalTextBox.Text = padHorizontal.ToString();
-
-            OverlayRect capture = _overlaySession.GetCapture(0);
-            if (capture.IsValid)
-            {
-                RegionX.Text = capture.X.ToString();
-                RegionY.Text = capture.Y.ToString();
-                RegionWidth.Text = capture.Width.ToString();
-                RegionHeight.Text = capture.Height.ToString();
-            }
+            RegionPairCards.ItemsSource = _pairCards;
 
             // Boolean flags
             AutoStartCheckBox.IsChecked = Config.Get("AutoStart", false);
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
             RecognizeDialogueOptionsCheckBox.IsChecked = Config.Get("RecognizeDialogueOptions", false);
-            UpdateSecondRegionDeleteButtonState();
             BindOcrIntervalSettings();
+            RefreshPairPage();
             IsVisibleChanged += SettingsWindow_IsVisibleChanged;
         }
 
@@ -264,6 +259,7 @@ namespace GI_Subtitles.Views
             if (IsVisible)
             {
                 BindOcrIntervalSettings();
+                RefreshPairPage();
             }
         }
 
@@ -343,30 +339,145 @@ namespace GI_Subtitles.Views
             Height = Math.Min(Height, availableHeight);
         }
 
-        private void ResetLocation_Click(object sender, RoutedEventArgs e)
+        public void RefreshPairPage()
         {
-            Config.Set("Pad", new int[] { 86, 0 });
-            PadTextBox.Text = "86";
-            PadHorizontalTextBox.Text = "0";
-            UpdateMainWindowPosition();
+            if (RegionPairCards == null)
+            {
+                return;
+            }
+
+            _pairCards.Clear();
+            foreach (RegionPairCard card in _pairSettings.Cards)
+            {
+                _pairCards.Add(card);
+            }
+
+            if (RegionPairEmptyState != null)
+            {
+                RegionPairEmptyState.Visibility = _pairSettings.IsEmpty
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+
+            if (AddRegionPairButton != null)
+            {
+                AddRegionPairButton.IsEnabled = _pairSettings.CanAdd;
+            }
+
+            UpdateVoicePrimaryHint();
         }
 
-        private void SecondRegion_Click(object sender, RoutedEventArgs e)
+        private void UpdateVoicePrimaryHint()
         {
-            notifyIcon.ChooseRegion2();
-            UpdateSecondRegionDeleteButtonState();
+            if (VoicePrimaryHint == null)
+            {
+                return;
+            }
+
+            int ordinal = _pairSettings.VoicePrimaryOrdinal;
+            if (ordinal <= 0)
+            {
+                VoicePrimaryHint.Text = TryFindResource("RegionPair_VoicePrimaryNone") as string ?? string.Empty;
+                return;
+            }
+
+            string format = TryFindResource("RegionPair_VoicePrimaryCurrent") as string;
+            VoicePrimaryHint.Text = string.IsNullOrEmpty(format)
+                ? string.Empty
+                : string.Format(format, ordinal);
         }
 
-        private void DeleteSecondRegion_Click(object sender, RoutedEventArgs e)
+        private void AddRegionPair_Click(object sender, RoutedEventArgs e)
         {
-            notifyIcon.ClearRegion2();
-            UpdateSecondRegionDeleteButtonState();
+            notifyIcon.AddRegionPair();
+            RefreshPairPage();
         }
 
-        private void UpdateSecondRegionDeleteButtonState()
+        private void PreviewAll_Click(object sender, RoutedEventArgs e)
         {
-            OverlayRect capture = _overlaySession != null ? _overlaySession.GetCapture(1) : OverlayRect.Invalid;
-            DeleteSecondRegionButton.IsEnabled = capture.IsValid;
+            bool hasRegion = _overlaySession.HasValidCapture;
+            _overlaySession.PreviewCaptureRegion(hasRegion);
+            if (hasRegion)
+            {
+                notifyIcon.ShowRegionOverlay();
+            }
+        }
+
+        private void RegionPairCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            var card = (sender as FrameworkElement)?.DataContext as RegionPairCard;
+            if (card == null)
+            {
+                return;
+            }
+
+            _pairSettings.Select(card.Id);
+            RefreshPairPage();
+        }
+
+        private void DeleteRegionPair_Click(object sender, RoutedEventArgs e)
+        {
+            int pairId = PairIdFromSender(sender);
+            if (pairId <= 0)
+            {
+                return;
+            }
+
+            _pairSettings.Delete(pairId);
+            RefreshPairPage();
+        }
+
+        private void BoxCapture_Click(object sender, RoutedEventArgs e)
+        {
+            int pairId = PairIdFromSender(sender);
+            if (pairId <= 0)
+            {
+                return;
+            }
+
+            notifyIcon.BoxCapture(pairId);
+            RefreshPairPage();
+        }
+
+        private void BoxDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            int pairId = PairIdFromSender(sender);
+            if (pairId <= 0)
+            {
+                return;
+            }
+
+            notifyIcon.BoxDisplay(pairId);
+            RefreshPairPage();
+        }
+
+        private void DesignateVoicePrimary_Click(object sender, RoutedEventArgs e)
+        {
+            int pairId = PairIdFromSender(sender);
+            if (pairId <= 0)
+            {
+                return;
+            }
+
+            _pairSettings.TryDesignate(pairId);
+            RefreshPairPage();
+        }
+
+        private static int PairIdFromSender(object sender)
+        {
+            var element = sender as FrameworkElement;
+            if (element == null)
+            {
+                return 0;
+            }
+
+            if (element.Tag is int id)
+            {
+                return id;
+            }
+
+            int parsed;
+            return int.TryParse(element.Tag as string, out parsed) ? parsed : 0;
         }
 
         private void UILangSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -425,6 +536,7 @@ namespace GI_Subtitles.Views
                 // Update window title so that it reflects the new language
                 UpdateWindowTitle();
                 UpdateOcrIntervalWarning();
+                RefreshPairPage();
             }
             finally
             {
@@ -2010,103 +2122,6 @@ namespace GI_Subtitles.Views
         {
             base.OnClosed(e);
 
-        }
-
-        private void PreviewRegion_Click(object sender, RoutedEventArgs e)
-        {
-            bool hasRegion = _overlaySession.HasValidCapture;
-            _overlaySession.PreviewCaptureRegion(hasRegion);
-            if (hasRegion)
-            {
-                notifyIcon.ShowRegionOverlay();
-            }
-        }
-
-        private void PadTextBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(PadTextBox.Text, out int pad))
-            {
-                int padHorizontal = Config.GetPadHorizontal(0);
-                Config.Set("Pad", new int[] { pad, padHorizontal });
-                UpdateMainWindowPosition();
-            }
-        }
-
-        private void PadHorizontalTextBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(PadHorizontalTextBox.Text, out int padHorizontal))
-            {
-                int pad = Config.GetPad(86);
-                Config.Set("Pad", new int[] { pad, padHorizontal });
-                UpdateMainWindowPosition();
-            }
-        }
-
-        private void PadVerticalIncrease_Click(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(PadTextBox.Text, out int pad))
-            {
-                pad++;
-                PadTextBox.Text = pad.ToString();
-                int padHorizontal = int.TryParse(PadHorizontalTextBox.Text, out int ph) ? ph : 0;
-                Config.Set("Pad", new int[] { pad, padHorizontal });
-                UpdateMainWindowPosition();
-            }
-        }
-
-        private void PadVerticalDecrease_Click(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(PadTextBox.Text, out int pad))
-            {
-                pad--;
-                PadTextBox.Text = pad.ToString();
-                int padHorizontal = int.TryParse(PadHorizontalTextBox.Text, out int ph) ? ph : 0;
-                Config.Set("Pad", new int[] { pad, padHorizontal });
-                UpdateMainWindowPosition();
-            }
-        }
-
-        private void PadHorizontalIncrease_Click(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(PadHorizontalTextBox.Text, out int padHorizontal))
-            {
-                padHorizontal++;
-                PadHorizontalTextBox.Text = padHorizontal.ToString();
-                int pad = int.TryParse(PadTextBox.Text, out int p) ? p : 86;
-                Config.Set("Pad", new int[] { pad, padHorizontal });
-                UpdateMainWindowPosition();
-            }
-        }
-
-        private void PadHorizontalDecrease_Click(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(PadHorizontalTextBox.Text, out int padHorizontal))
-            {
-                padHorizontal--;
-                PadHorizontalTextBox.Text = padHorizontal.ToString();
-                int pad = int.TryParse(PadTextBox.Text, out int p) ? p : 86;
-                Config.Set("Pad", new int[] { pad, padHorizontal });
-                UpdateMainWindowPosition();
-            }
-        }
-
-        private void UpdateMainWindowPosition()
-        {
-            if (System.Windows.Application.Current.MainWindow is MainWindow mainWindow)
-            {
-                mainWindow.UpdateWindowPosition();
-            }
-        }
-
-        private void RegionField_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (int.TryParse(RegionX.Text, out int x) &&
-                int.TryParse(RegionY.Text, out int y) &&
-                int.TryParse(RegionWidth.Text, out int width) &&
-                int.TryParse(RegionHeight.Text, out int height))
-            {
-                _overlaySession.SetCapture(0, new OverlayRect(x, y, width, height));
-            }
         }
 
         private void AutoStartCheckBox_Checked(object sender, RoutedEventArgs e)

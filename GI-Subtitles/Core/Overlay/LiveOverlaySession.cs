@@ -249,13 +249,7 @@ namespace GI_Subtitles.Core.Overlay
 
             EnsurePairSlot(pairIndex);
             OverlayRect nextCapture = capture ?? OverlayRect.Invalid;
-            OverlayRect display = _pairs[pairIndex].Display;
-            if (pairIndex == 0 && nextCapture.IsValid && !display.IsValid)
-            {
-                display = new OverlayRect(nextCapture.X, nextCapture.Y, nextCapture.Width, nextCapture.Height);
-            }
-
-            _pairs[pairIndex] = new RegionPair(_pairs[pairIndex].Id, nextCapture, display);
+            _pairs[pairIndex] = new RegionPair(_pairs[pairIndex].Id, nextCapture, _pairs[pairIndex].Display);
             PersistPairs();
         }
 
