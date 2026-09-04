@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE · 设置窗里最小识图间隔长什么样、放在哪</title>
+  <!--
+    Three variants of the OCR-interval control in the settings window,
+    switchable via ?variant=. Hosted next to SettingsWindow.xaml.
+    Throwaway. Do not ship.
+  -->
+  <style>
+    :root {
+      --gold: #e6c35c;
+      --lime: #3ee05a;
+      --ink: #0c1018;
+      --panel: #161b27;
+      --muted: #8b93a7;
+      --warn: #d7a84b;
+      --fail: #ff8b7a;
+      --wpf: #f0f0f0;
+      --wpf-edge: #d0d0d0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      background: #07090e;
+      color: #e8ecf4;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto auto 1fr;
+      height: 100%;
+    }
+    header.chrome {
+      grid-column: 1 / -1;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid #252b3a;
+      background: #0e121b;
+    }
+    header.chrome .kicker {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #d7a84b;
+      font-weight: 700;
+    }
+    header.chrome h1 {
+      margin: 2px 0 4px;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    header.chrome p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 96ch;
+    }
+    .scenes {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #0e121b;
+      border-bottom: 1px solid #252b3a;
+      align-items: center;
+    }
+    .scenes .lab {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      margin-right: 4px;
+    }
+    .scenes button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .scenes button.on {
+      background: #3a2f14;
+      border-color: var(--gold);
+      color: #ffe9a8;
+    }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #root {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .desk {
+      margin: 12px;
+      flex: 1;
+      min-height: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #3a3a3a;
+      box-shadow: inset 0 0 0 1px #2a3144;
+      position: relative;
+    }
+
+    .win {
+      position: absolute;
+      inset: 18px 24px 36px;
+      background: var(--wpf);
+      color: #222;
+      border: 1px solid #7a7a7a;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      min-width: 0;
+    }
+    .win-title {
+      height: 28px;
+      background: linear-gradient(#fff, #ececec);
+      border-bottom: 1px solid #c8c8c8;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    .win-title .dot {
+      width: 14px; height: 14px;
+      background: #5b8def;
+      border-radius: 2px;
+    }
+    .tabs {
+      display: flex;
+      gap: 1px;
+      padding: 8px 10px 0;
+      background: var(--wpf);
+      flex: 0 0 auto;
+    }
+    .tabs button {
+      font: inherit;
+      background: #e6e6e6;
+      border: 1px solid #bdbdbd;
+      border-bottom: none;
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: 3px 3px 0 0;
+      color: #444;
+      cursor: pointer;
+    }
+    .tabs button.on {
+      background: #fff;
+      color: #111;
+      font-weight: 650;
+    }
+    .tab-body {
+      flex: 1;
+      min-height: 0;
+      margin: 0 10px 10px;
+      background: #fff;
+      border: 1px solid #bdbdbd;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    .placeholder {
+      color: #888;
+      font-style: italic;
+      padding: 24px 8px;
+    }
+    .row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+    .muted { color: #666; font-style: italic; }
+    .btn {
+      font: inherit;
+      background: #f8f8f8;
+      border: 1px solid #adadad;
+      border-radius: 2px;
+      padding: 3px 10px;
+      cursor: pointer;
+      color: #222;
+    }
+    .btn:hover { background: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #e8f0ff;
+      color: #1e4a8c;
+      border: 1px solid #9bb6e0;
+    }
+    .card {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin: 0 0 8px;
+      background: #fafafa;
+    }
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .kv { display: grid; grid-template-columns: 4.5em 1fr auto auto; gap: 4px 8px; align-items: center; }
+    .kv .coords { font-variant-numeric: tabular-nums; color: #333; }
+    label.check { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+
+    .warn-banner {
+      background: #fff4ce;
+      border: 1px solid #ffba00;
+      color: #333;
+      padding: 8px 10px;
+      border-radius: 4px;
+      margin: 0 0 10px;
+      display: none;
+    }
+    .warn-banner.on { display: block; }
+    .warn-banner strong { color: #7a5a00; }
+
+    .num {
+      width: 64px;
+      height: 24px;
+      text-align: center;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      border: 1px solid #adadad;
+    }
+    .num.oob {
+      border-color: #c0392b;
+      background: #fff0ee;
+      color: #8a1f1f;
+      font-weight: 700;
+    }
+    .step {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      font: inherit;
+      background: #f8f8f8;
+      border: 1px solid #adadad;
+      cursor: pointer;
+    }
+
+    /* A: compact Pad-like row on leftover config */
+    .a-interval {
+      display: grid;
+      grid-template-columns: 7.5em 1fr auto;
+      gap: 8px 12px;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 0 0 12px;
+      border-bottom: 1px solid #ececec;
+    }
+    .a-interval .label { font-weight: 650; }
+    .a-interval .ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #666;
+      font-variant-numeric: tabular-nums;
+      margin-top: 2px;
+    }
+    .a-interval .ticks .def { color: #1e4a8c; font-weight: 700; }
+    .a-interval input[type=range] { width: 100%; }
+    .a-interval .hint { grid-column: 2 / -1; color: #666; font-style: italic; font-size: 11px; }
+    .a-interval .clamp-note { color: #7a5a00; font-style: italic; }
+
+    /* B: dedicated 识图 tab, big number, named scale */
+    .b-hero {
+      max-width: 520px;
+      margin: 8px auto;
+      text-align: center;
+      padding: 18px 16px 14px;
+      border: 1px solid #d8d8d8;
+      background: #fafafa;
+    }
+    .b-hero .value {
+      font-size: 42px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .b-hero .value span { font-size: 16px; font-weight: 600; color: #555; margin-left: 4px; }
+    .b-hero .name { margin: 8px 0 4px; font-weight: 650; }
+    .b-hero .desc { color: #555; font-size: 12px; line-height: 1.45; max-width: 42ch; margin: 0 auto 16px; }
+    .b-hero input[type=range] { width: 100%; }
+    .b-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin-top: 4px;
+      color: #444;
+    }
+    .b-scale .mid { color: #1e4a8c; font-weight: 700; }
+    .b-hero .foot { margin-top: 12px; color: #666; font-style: italic; font-size: 11px; }
+
+    /* C: toolbar on 区域对 page */
+    .c-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 6px 8px;
+      margin: 0 0 10px;
+      background: #f3f6fb;
+      border: 1px solid #c5d2e8;
+    }
+    .c-bar .label { font-weight: 650; }
+    .c-bar .hint { color: #555; font-size: 11px; }
+    .c-bar .hint.oob { color: #8a1f1f; font-style: italic; font-weight: 650; }
+
+    aside.chrome {
+      border-left: 1px solid #252b3a;
+      background: var(--panel);
+      padding: 12px 14px 72px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .state {
+      background: #0e121b;
+      border: 1px solid #252b3a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .state dl { margin: 0; display: grid; grid-template-columns: 7.8em 1fr; gap: 4px 8px; }
+    .state dt { color: var(--muted); }
+    .state dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .state dd.fail { color: var(--fail); }
+    .state dd.warn { color: var(--warn); }
+    .state dd.flash { animation: flash 500ms ease; }
+    @keyframes flash { from { color: #ffe9a8; } to { color: inherit; } }
+    fieldset {
+      border: 1px solid #2a3144;
+      border-radius: 6px;
+      margin: 0 0 12px;
+      padding: 8px 8px 10px;
+    }
+    legend { color: var(--muted); padding: 0 4px; }
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+    .switcher {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f4e7c3;
+      color: #1a1408;
+      border: 2px solid #d7a84b;
+      border-radius: 999px;
+      padding: 6px 10px;
+      z-index: 50;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .switcher button {
+      font: inherit;
+      font-weight: 800;
+      width: 32px;
+      height: 28px;
+      border: 1px solid #b8892c;
+      background: #ffe9a8;
+      border-radius: 999px;
+      cursor: pointer;
+      color: #1a1408;
+    }
+    .switcher .label { min-width: 220px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="kicker">PROTOTYPE · THROW AWAY · 不要进产品</div>
+    <h1>设置窗里最小识图间隔长什么样、放在哪</h1>
+    <p>
+      已锁定：设置窗只给最小识图间隔（200–1000ms，默认 400，立刻生效）。采样时钟、变化门槛、刷新防抖不进设置。
+      三套稿结构不同：控件形态、所在页、JSON 越界怎么呈现。底栏或 ←/→ 切换。不要叫识图频率。
+    </p>
+  </header>
+
+  <div class="scenes">
+    <span class="lab">打开设置时 JSON 里是</span>
+    <button type="button" data-json="400" class="on">400（默认）</button>
+    <button type="button" data-json="750">750（范围内）</button>
+    <button type="button" data-json="50">50（低于 200）</button>
+    <button type="button" data-json="2000">2000（高于 1000）</button>
+  </div>
+
+  <div class="stage-wrap">
+    <div id="root">
+      <div class="desk">
+        <div class="win" id="win">
+          <div class="win-title">
+            <span class="dot"></span>
+            程序设置
+          </div>
+          <div class="tabs" id="tabs"></div>
+          <div class="tab-body" id="tabBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="chrome">
+    <h2>这一变体</h2>
+    <p class="note" id="variantNote"></p>
+    <h2>当前状态</h2>
+    <div class="state">
+      <dl>
+        <dt>变体</dt><dd id="stVariant">A</dd>
+        <dt>所在页</dt><dd id="stPage">—</dd>
+        <dt>控件</dt><dd id="stWidget">—</dd>
+        <dt>JSON 文件</dt><dd id="stJson">400</dd>
+        <dt>界面显示</dt><dd id="stUi">400</dd>
+        <dt>引擎门闸</dt><dd id="stEngine">400</dd>
+        <dt>越界呈现</dt><dd id="stOob">—</dd>
+        <dt>已改未关窗</dt><dd id="stDirty">否</dd>
+      </dl>
+    </div>
+    <fieldset>
+      <legend>锁死、这张票不动</legend>
+      <p class="note" style="margin:0">范围 200–1000，默认 400，写回夹范围，立刻生效。采样 100ms 硬编码。不要设计区域对列表或行为记录窗。暗屏/选项开关皮肤归另一张票，这里只占位。</p>
+    </fieldset>
+  </aside>
+
+  <div class="switcher" id="switcher">
+    <button type="button" id="prev" aria-label="上一变体">←</button>
+    <div class="label" id="switcherLabel">A (配置页滑杆+数字)</div>
+    <button type="button" id="next" aria-label="下一变体">→</button>
+  </div>
+
+  <script>
+    const MIN = 200, MAX = 1000, DEFAULT = 400, STEP = 50;
+    const VARIANTS = [
+      {
+        key: "A",
+        name: "配置页滑杆+数字",
+        page: "其他配置选项",
+        widget: "滑杆 + −/数字/+ ，刻度 200/400/600/800/1000",
+        oob: "夹到边上，不打黄条。引擎仍用 JSON，直到拖动或改数字才写回。",
+        note: "最小识图间隔落在「其他配置选项」，Pad 拿掉后的第一行：滑杆加数字框，刻度标毫秒。开机启动、配音、暗屏、对话选项在下面。越界不报警，滑杆停在 200 或 1000；引擎继续跑 JSON，直到你动这一格。",
+        defaultTab: "config"
+      },
+      {
+        key: "B",
+        name: "识图专页刻度尺",
+        page: "识图（新页）",
+        widget: "大号毫秒 + 连续滑杆，刻度写 快/默认/稳，不能打字",
+        oob: "黄条写明 JSON 与引擎仍用越界值；拖动后夹进范围并写回。",
+        note: "单独一页「识图」，夹在区域对和其他配置之间。大号数字、命名刻度（快 200 / 默认 400 / 稳 1000），没有数字框。越界用和缺数据一样的黄条：引擎仍按 JSON 跑，动了才夹。",
+        defaultTab: "ocr"
+      },
+      {
+        key: "C",
+        name: "区域对页顶步进器",
+        page: "区域对（页顶工具条）",
+        widget: "只有 −/数字/+ ，无滑杆",
+        oob: "框里显示越界原数，红框；加减先跳到最近端点。",
+        note: "最小识图间隔跟区域对同一页，因为这是它们共用的时钟。页顶一条步进器，没有滑杆。越界时框里仍是 50 或 2000，红框说明引擎在用这个数。加减从越界跳到 200 或 1000。",
+        defaultTab: "pairs"
+      }
+    ];
+
+    const TABS = [
+      { id: "lang", label: "语言包管理" },
+      { id: "keys", label: "快捷键设置" },
+      { id: "pairs", label: "区域对" },
+      { id: "ocr", label: "识图", only: "B" },
+      { id: "config", label: "其他配置选项" },
+      { id: "help", label: "帮助" }
+    ];
+
+    const params = new URLSearchParams(location.search);
+    let variantIndex = VARIANTS.findIndex(v => v.key === (params.get("variant") || "A").toUpperCase());
+    if (variantIndex < 0) variantIndex = 0;
+    let jsonMs = Number(params.get("json"));
+    if (!Number.isFinite(jsonMs)) jsonMs = DEFAULT;
+    let dirty = false;
+    let uiMs = DEFAULT;
+    let activeTab = current().defaultTab;
+    jsonMs = Math.max(1, Math.round(jsonMs));
+
+    function current() { return VARIANTS[variantIndex]; }
+    function clamp(n) { return Math.min(MAX, Math.max(MIN, n)); }
+    function oob(n) { return n < MIN || n > MAX; }
+
+    function displayMs() {
+      const v = current().key;
+      if (dirty) return uiMs;
+      if (v === "C") return jsonMs;
+      return clamp(jsonMs);
+    }
+    function engineMs() {
+      if (dirty) return uiMs;
+      return Math.max(1, jsonMs);
+    }
+
+    function commit(n) {
+      uiMs = clamp(n);
+      dirty = true;
+      jsonMs = uiMs;
+      render();
+    }
+
+    function stepFrom(display, dir) {
+      if (!dirty && oob(jsonMs) && current().key === "C") {
+        commit(dir > 0 ? MIN : MAX);
+        return;
+      }
+      commit(clamp(display + dir * STEP));
+    }
+
+    function setJsonScene(n) {
+      jsonMs = Math.max(1, n);
+      dirty = false;
+      uiMs = clamp(jsonMs);
+      const url = new URL(location.href);
+      url.searchParams.set("json", String(jsonMs));
+      history.replaceState(null, "", url);
+      render();
+    }
+
+    function setVariant(i, push) {
+      variantIndex = (i + VARIANTS.length) % VARIANTS.length;
+      const v = current();
+      const url = new URL(location.href);
+      url.searchParams.set("variant", v.key);
+      if (push !== false) history.replaceState(null, "", url);
+      activeTab = v.defaultTab;
+      document.getElementById("switcherLabel").textContent = v.key + " (" + v.name + ")";
+      document.getElementById("variantNote").textContent = v.note;
+      render();
+    }
+
+    function visibleTabs() {
+      const key = current().key;
+      return TABS.filter(t => !t.only || t.only === key);
+    }
+
+    function pairCards() {
+      return [
+        '<div class="card"><h3>对 1 <span class="chip">配音主区</span></h3>',
+        '<div class="kv">',
+        '<span>识别区</span><span class="coords">763, 1797 · 2226×110</span><button class="btn" type="button">框选</button><span></span>',
+        '<span>显示区</span><span class="coords">780, 1880 · 2180×72</span><button class="btn" type="button">框选</button><button class="btn" type="button">调整显示区</button>',
+        '</div></div>',
+        '<div class="card"><h3>对 2</h3>',
+        '<div class="kv">',
+        '<span>识别区</span><span class="coords">80, 420 · 640×90</span><button class="btn" type="button">框选</button><span></span>',
+        '<span>显示区</span><span class="coords">80, 530 · 640×64</span><button class="btn" type="button">框选</button><button class="btn" type="button">调整显示区</button>',
+        '</div></div>',
+        '<div class="row"><button class="btn" type="button">添加区域对</button><button class="btn" type="button">预览全部</button></div>'
+      ].join("");
+    }
+
+    function leftoverFlags() {
+      return [
+        '<label class="check"><input type="checkbox"> 开机自动启动</label>',
+        '<div class="row"><label class="check" style="margin:0"><input type="checkbox"> 启用支线配音</label><button class="btn" type="button">测试配音</button></div>',
+        '<label class="check"><input type="checkbox" checked> 识别暗屏字幕</label>',
+        '<label class="check"><input type="checkbox"> 识别对话选项</label>',
+        '<div class="row" style="margin-top:14px"><button class="btn" type="button">打开程序文件夹</button></div>'
+      ].join("");
+    }
+
+    function sliderHtml(id, value, ticks) {
+      return '<input id="' + id + '" type="range" min="' + MIN + '" max="' + MAX + '" step="' + STEP + '" value="' + clamp(value) + '">' +
+        (ticks || "");
+    }
+
+    function stepperHtml(value, oobClass) {
+      return '<button class="step" type="button" data-dir="-1">−</button>' +
+        '<input class="num' + (oobClass ? " oob" : "") + '" id="numBox" type="text" value="' + value + '">' +
+        '<button class="step" type="button" data-dir="1">+</button>' +
+        '<span>ms</span>';
+    }
+
+    function intervalA() {
+      const shown = displayMs();
+      const lying = !dirty && oob(jsonMs);
+      return '<div class="a-interval">' +
+        '<div class="label">最小识图间隔</div>' +
+        '<div>' + sliderHtml("rangeA", shown,
+          '<div class="ticks"><span>200</span><span class="def">400</span><span>600</span><span>800</span><span>1000</span></div>') +
+        '</div>' +
+        '<div class="row" style="margin:0">' + stepperHtml(shown, false) + '</div>' +
+        '<div class="hint' + (lying ? " clamp-note" : "") + '">' +
+          (lying
+            ? "已按界面范围显示。JSON 是 " + jsonMs + "ms，引擎仍用它，直到改这一格。"
+            : "改完立刻生效。采样时钟 100ms 不在这里调。") +
+        '</div></div>';
+    }
+
+    function intervalB() {
+      const shown = displayMs();
+      const lying = !dirty && oob(jsonMs);
+      const banner = '<div class="warn-banner' + (lying ? " on" : "") + '">' +
+        "⚠ JSON 里是 <strong>" + jsonMs + "ms</strong>，超出界面 200–1000。引擎仍按 " + jsonMs +
+        "ms 跑。拖动后会写成 " + clamp(jsonMs) + "ms。" +
+        "</div>";
+      return banner +
+        '<div class="b-hero">' +
+        '<div class="value">' + shown + '<span>ms</span></div>' +
+        '<div class="name">最小识图间隔</div>' +
+        '<p class="desc">OCR 引擎两次运行之间的最短等待。全局一条队列，区域对、暗屏、对话选项都要过这一格。</p>' +
+        sliderHtml("rangeB", shown) +
+        '<div class="b-scale"><span>快 200</span><span class="mid">默认 400</span><span>稳 1000</span></div>' +
+        '<div class="foot">改完立刻生效。采样时钟 100ms 硬编码，不在这一页。</div>' +
+        "</div>";
+    }
+
+    function intervalC() {
+      const shown = displayMs();
+      const showOob = !dirty && oob(jsonMs);
+      return '<div class="c-bar">' +
+        '<span class="label">最小识图间隔</span>' +
+        stepperHtml(shown, showOob) +
+        '<span class="hint' + (showOob ? " oob" : "") + '">' +
+          (showOob
+            ? "超出 200–1000，引擎仍用 " + jsonMs + "。改动后夹进范围。"
+            : "200–1000，立刻生效") +
+        "</span></div>";
+    }
+
+    function bodyFor(tab) {
+      const v = current().key;
+      if (tab === "lang") return '<div class="placeholder">语言包管理（这页未改）</div>';
+      if (tab === "keys") return '<div class="placeholder">快捷键设置（这页未改）</div>';
+      if (tab === "help") return '<div class="placeholder">帮助（这页未改）</div>';
+      if (tab === "ocr") {
+        if (v !== "B") return '<div class="placeholder">这一变体没有识图页</div>';
+        return intervalB();
+      }
+      if (tab === "pairs") {
+        return (v === "C" ? intervalC() : "") + pairCards();
+      }
+      if (tab === "config") {
+        return (v === "A" ? intervalA() : "") + leftoverFlags();
+      }
+      return "";
+    }
+
+    function bindControls() {
+      const range = document.getElementById("rangeA") || document.getElementById("rangeB");
+      if (range) {
+        range.addEventListener("input", () => commit(Number(range.value)));
+      }
+      document.querySelectorAll(".step").forEach(btn => {
+        btn.addEventListener("click", () => stepFrom(displayMs(), Number(btn.getAttribute("data-dir"))));
+      });
+      const num = document.getElementById("numBox");
+      if (num) {
+        num.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") num.blur();
+        });
+        num.addEventListener("blur", () => {
+          const n = parseInt(num.value, 10);
+          if (!Number.isFinite(n)) { render(); return; }
+          commit(n);
+        });
+      }
+    }
+
+    function render() {
+      const v = current();
+      const tabs = visibleTabs();
+      if (!tabs.some(t => t.id === activeTab)) activeTab = v.defaultTab;
+      document.getElementById("tabs").innerHTML = tabs.map(t =>
+        '<button type="button" data-tab="' + t.id + '" class="' + (t.id === activeTab ? "on" : "") + '">' + t.label + "</button>"
+      ).join("");
+      document.getElementById("tabBody").innerHTML = bodyFor(activeTab);
+      document.querySelectorAll("#tabs button").forEach(btn => {
+        btn.onclick = () => { activeTab = btn.getAttribute("data-tab"); render(); };
+      });
+      bindControls();
+
+      const shown = displayMs();
+      const eng = engineMs();
+      const isOobJson = oob(jsonMs);
+      document.getElementById("stVariant").textContent = v.key + " · " + v.name;
+      document.getElementById("stPage").textContent = v.page;
+      document.getElementById("stWidget").textContent = v.widget;
+      document.getElementById("stJson").textContent = jsonMs + " ms";
+      document.getElementById("stUi").textContent = shown + " ms";
+      const engEl = document.getElementById("stEngine");
+      engEl.textContent = eng + " ms";
+      engEl.classList.remove("fail", "warn");
+      if (eng < MIN || eng > MAX) engEl.classList.add("fail");
+      document.getElementById("stOob").textContent = isOobJson ? v.oob : "范围内，无特殊呈现";
+      document.getElementById("stOob").className = isOobJson ? "warn" : "";
+      document.getElementById("stDirty").textContent = dirty ? "是（已写回夹过的值）" : "否";
+      document.getElementById("stJson").className = isOobJson && !dirty ? "fail" : "";
+      document.getElementById("stUi").className = (shown !== jsonMs && !dirty) ? "warn" : "";
+
+      document.querySelectorAll(".scenes button[data-json]").forEach(btn => {
+        btn.classList.toggle("on", Number(btn.getAttribute("data-json")) === jsonMs && !dirty);
+      });
+    }
+
+    document.getElementById("prev").onclick = () => setVariant(variantIndex - 1);
+    document.getElementById("next").onclick = () => setVariant(variantIndex + 1);
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") setVariant(variantIndex - 1);
+      if (e.key === "ArrowRight") setVariant(variantIndex + 1);
+    });
+    document.querySelectorAll(".scenes button[data-json]").forEach(btn => {
+      btn.onclick = () => setJsonScene(Number(btn.getAttribute("data-json")));
+    });
+
+    setVariant(variantIndex, false);
+  </script>
+</body>
+</html>
