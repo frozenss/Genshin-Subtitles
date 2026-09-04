@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
 using GI_Subtitles.Common;
+using GI_Subtitles.Core.Overlay;
 using System.Drawing;
 
 namespace GI_Subtitles.Core.UI
@@ -31,8 +32,7 @@ namespace GI_Subtitles.Core.UI
         private object[] availableUpdateTextArguments = Array.Empty<object>();
         private int Size = Config.Config.Get<int>("Size");
         private bool AutoStart = Config.Config.Get("AutoStart", false);
-        public string[] Region = Config.Config.Get<string>("Region", "").Split(',');
-        public string[] Region2 = Config.Config.Get<string>("Region2", "").Split(',');
+        private LiveOverlaySession _overlaySession;
         string version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
         double Scale = 1;
         public bool isContextMenuOpen = false;
@@ -125,6 +125,37 @@ namespace GI_Subtitles.Core.UI
         public void SetData(Views.SettingsWindow data)
         {
             this.data = data;
+        }
+
+        public void SetSession(LiveOverlaySession session)
+        {
+            _overlaySession = session;
+        }
+
+        public string[] Region
+        {
+            get { return ToRegionParts(_overlaySession != null ? _overlaySession.GetCapture(0) : OverlayRect.Invalid); }
+        }
+
+        public string[] Region2
+        {
+            get { return ToRegionParts(_overlaySession != null ? _overlaySession.GetCapture(1) : OverlayRect.Invalid); }
+        }
+
+        private static string[] ToRegionParts(OverlayRect rect)
+        {
+            if (rect == null || !rect.IsValid)
+            {
+                return new[] { "0", "0", "0", "0" };
+            }
+
+            return new[]
+            {
+                rect.X.ToString(),
+                rect.Y.ToString(),
+                rect.Width.ToString(),
+                rect.Height.ToString()
+            };
         }
 
         public void ShowAvailableUpdate(string updateVersion, EventHandler clickHandler)
@@ -241,33 +272,31 @@ namespace GI_Subtitles.Core.UI
 
         public bool ChooseRegion()
         {
-            try
-            {
-                var rect = Screenshot.Screenshot.GetRegion();
-                if (Convert.ToInt32(rect.Width) > 0 && Convert.ToInt32(rect.Height) > 0)
-                {
-                    Config.Config.Set("Region", $"{Convert.ToInt32(rect.TopLeft.X)},{Convert.ToInt32(rect.TopLeft.Y)},{Convert.ToInt32(rect.Width)},{Convert.ToInt32(rect.Height)}");
-                    Region = Config.Config.Get<string>("Region").ToString().Split(',');
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
-
-            return false;
+            return ChoosePairCapture(0);
         }
 
         public bool ChooseRegion2()
         {
+            return ChoosePairCapture(1);
+        }
+
+        public void ClearRegion2()
+        {
+            _overlaySession?.ClearCapture(1);
+        }
+
+        private bool ChoosePairCapture(int pairIndex)
+        {
             try
             {
                 var rect = Screenshot.Screenshot.GetRegion();
                 if (Convert.ToInt32(rect.Width) > 0 && Convert.ToInt32(rect.Height) > 0)
                 {
-                    Config.Config.Set("Region2", $"{Convert.ToInt32(rect.TopLeft.X)},{Convert.ToInt32(rect.TopLeft.Y)},{Convert.ToInt32(rect.Width)},{Convert.ToInt32(rect.Height)}");
-                    Region2 = Config.Config.Get<string>("Region2").ToString().Split(',');
+                    _overlaySession?.SetCapture(pairIndex, new OverlayRect(
+                        Convert.ToInt32(rect.TopLeft.X),
+                        Convert.ToInt32(rect.TopLeft.Y),
+                        Convert.ToInt32(rect.Width),
+                        Convert.ToInt32(rect.Height)));
                     return true;
                 }
             }
@@ -277,12 +306,6 @@ namespace GI_Subtitles.Core.UI
             }
 
             return false;
-        }
-
-        public void ClearRegion2()
-        {
-            Config.Config.Set("Region2", string.Empty);
-            Region2 = Array.Empty<string>();
         }
 
         private ToolStripMenuItem CreateSizeItem(string code)

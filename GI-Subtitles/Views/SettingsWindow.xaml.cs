@@ -241,15 +241,13 @@ namespace GI_Subtitles.Views
             PadTextBox.Text = pad.ToString();
             PadHorizontalTextBox.Text = padHorizontal.ToString();
 
-            // Region: parse the string "x,y,w,h"
-            var regionStr = Config.Get("Region", "763,1797,2226,110");
-            var parts = regionStr.Split(',');
-            if (parts.Length == 4)
+            OverlayRect capture = _overlaySession.GetCapture(0);
+            if (capture.IsValid)
             {
-                RegionX.Text = parts[0];
-                RegionY.Text = parts[1];
-                RegionWidth.Text = parts[2];
-                RegionHeight.Text = parts[3];
+                RegionX.Text = capture.X.ToString();
+                RegionY.Text = capture.Y.ToString();
+                RegionWidth.Text = capture.Width.ToString();
+                RegionHeight.Text = capture.Height.ToString();
             }
 
             // Boolean flags
@@ -367,10 +365,8 @@ namespace GI_Subtitles.Views
 
         private void UpdateSecondRegionDeleteButtonState()
         {
-            string[] region = notifyIcon?.Region2;
-            DeleteSecondRegionButton.IsEnabled = region != null && region.Length == 4 &&
-                int.TryParse(region[2], out int width) && width > 0 &&
-                int.TryParse(region[3], out int height) && height > 0;
+            OverlayRect capture = _overlaySession != null ? _overlaySession.GetCapture(1) : OverlayRect.Invalid;
+            DeleteSecondRegionButton.IsEnabled = capture.IsValid;
         }
 
         private void UILangSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2018,19 +2014,12 @@ namespace GI_Subtitles.Views
 
         private void PreviewRegion_Click(object sender, RoutedEventArgs e)
         {
-            bool hasRegion = HasCaptureRegion(notifyIcon.Region);
+            bool hasRegion = _overlaySession.HasValidCapture;
             _overlaySession.PreviewCaptureRegion(hasRegion);
             if (hasRegion)
             {
                 notifyIcon.ShowRegionOverlay();
             }
-        }
-
-        private static bool HasCaptureRegion(string[] region)
-        {
-            return region != null && region.Length == 4 &&
-                   int.TryParse(region[2], out int width) && width > 0 &&
-                   int.TryParse(region[3], out int height) && height > 0;
         }
 
         private void PadTextBox_LostFocus(object sender, RoutedEventArgs e)
@@ -2111,13 +2100,12 @@ namespace GI_Subtitles.Views
 
         private void RegionField_LostFocus(object sender, RoutedEventArgs e)
         {
-            if (int.TryParse(RegionX.Text, out _) &&
-                int.TryParse(RegionY.Text, out _) &&
-                int.TryParse(RegionWidth.Text, out _) &&
-                int.TryParse(RegionHeight.Text, out _))
+            if (int.TryParse(RegionX.Text, out int x) &&
+                int.TryParse(RegionY.Text, out int y) &&
+                int.TryParse(RegionWidth.Text, out int width) &&
+                int.TryParse(RegionHeight.Text, out int height))
             {
-                string region = $"{RegionX.Text},{RegionY.Text},{RegionWidth.Text},{RegionHeight.Text}";
-                Config.Set("Region", region);
+                _overlaySession.SetCapture(0, new OverlayRect(x, y, width, height));
             }
         }
 
