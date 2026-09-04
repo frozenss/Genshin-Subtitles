@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE · 设置里配音主区怎么点选、长什么样</title>
+  <!--
+    Three variants of the voice-primary picker in the settings window,
+    switchable via ?variant=. Hosted next to SettingsWindow.xaml.
+    Throwaway. Do not ship.
+  -->
+  <style>
+    :root {
+      --gold: #e6c35c;
+      --lime: #3ee05a;
+      --ink: #0c1018;
+      --panel: #161b27;
+      --muted: #8b93a7;
+      --warn: #d7a84b;
+      --fail: #ff8b7a;
+      --wpf: #f0f0f0;
+      --wpf-edge: #d0d0d0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      background: #07090e;
+      color: #e8ecf4;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto auto 1fr;
+      height: 100%;
+    }
+    header.chrome {
+      grid-column: 1 / -1;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid #252b3a;
+      background: #0e121b;
+    }
+    header.chrome .kicker {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #d7a84b;
+      font-weight: 700;
+    }
+    header.chrome h1 {
+      margin: 2px 0 4px;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    header.chrome p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 96ch;
+    }
+    .scenes {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #0e121b;
+      border-bottom: 1px solid #252b3a;
+      align-items: center;
+    }
+    .scenes .lab {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      margin-right: 4px;
+    }
+    .scenes button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .scenes button.on {
+      background: #3a2f14;
+      border-color: var(--gold);
+      color: #ffe9a8;
+    }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #root {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .desk {
+      margin: 12px;
+      flex: 1;
+      min-height: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #3a3a3a;
+      box-shadow: inset 0 0 0 1px #2a3144;
+      position: relative;
+    }
+    .win {
+      position: absolute;
+      inset: 12px 20px 40px;
+      background: var(--wpf);
+      color: #222;
+      border: 1px solid #7a7a7a;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      min-width: 0;
+    }
+    .win-title {
+      height: 28px;
+      background: linear-gradient(#fff, #ececec);
+      border-bottom: 1px solid #c8c8c8;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    .win-title .dot {
+      width: 14px; height: 14px;
+      background: #5b8def;
+      border-radius: 2px;
+    }
+    .tabs {
+      display: flex;
+      gap: 1px;
+      padding: 8px 10px 0;
+      background: var(--wpf);
+      flex: 0 0 auto;
+    }
+    .tabs button {
+      font: inherit;
+      background: #e6e6e6;
+      border: 1px solid #bdbdbd;
+      border-bottom: none;
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: 3px 3px 0 0;
+      color: #444;
+      cursor: pointer;
+    }
+    .tabs button.on {
+      background: #fff;
+      color: #111;
+      font-weight: 650;
+    }
+    .tab-body {
+      flex: 1;
+      min-height: 0;
+      margin: 0 10px 10px;
+      background: #fff;
+      border: 1px solid #bdbdbd;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    .placeholder {
+      color: #888;
+      font-style: italic;
+      padding: 24px 8px;
+    }
+    .row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+    .muted { color: #666; font-style: italic; }
+    .btn {
+      font: inherit;
+      background: #f8f8f8;
+      border: 1px solid #adadad;
+      border-radius: 2px;
+      padding: 3px 10px;
+      cursor: pointer;
+      color: #222;
+    }
+    .btn:hover { background: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.danger { color: #8a1f1f; }
+    .btn.voice {
+      min-width: 7.5em;
+    }
+    .btn.voice.on {
+      background: #fff6d8;
+      border-color: #c9a227;
+      color: #6a4b00;
+      font-weight: 700;
+    }
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fff4ce;
+      color: #7a5a00;
+      border: 1px solid #e0c060;
+    }
+    .chip.over {
+      background: #fff4ce;
+      color: #7a5a00;
+    }
+    .card {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin: 0 0 6px;
+      background: #fafafa;
+    }
+    .card.voice {
+      border-color: #d4b44a;
+      background: #fffdf6;
+    }
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .kv { display: grid; grid-template-columns: 4.5em 1fr auto auto; gap: 4px 8px; align-items: center; }
+    .kv .coords { font-variant-numeric: tabular-nums; color: #333; }
+    .card-foot {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      align-items: center;
+    }
+    label.check { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+    .empty {
+      border: 1px dashed #c8c8c8;
+      background: #fafafa;
+      padding: 18px 12px;
+      color: #555;
+      margin: 0 0 10px;
+    }
+    .empty strong { color: #333; }
+    select.combo {
+      font: inherit;
+      min-width: 9em;
+      height: 24px;
+    }
+    select.combo:disabled { color: #888; }
+    .voice-expand {
+      margin: 0 0 10px 22px;
+      padding: 8px 10px;
+      background: #f7f4ea;
+      border: 1px solid #e0d2a0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .c-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 6px 8px;
+      margin: 0 0 10px;
+      background: #f3f6fb;
+      border: 1px solid #c5d2e8;
+    }
+    .c-bar .grow { flex: 1; }
+    .hint { color: #666; font-size: 11px; }
+    .flash {
+      background: #fff4ce;
+      border: 1px solid #e0c060;
+      color: #5a4300;
+      padding: 4px 8px;
+      margin: 0 0 8px;
+      border-radius: 2px;
+    }
+    aside.chrome {
+      border-left: 1px solid #252b3a;
+      background: var(--panel);
+      padding: 12px 14px 72px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .state {
+      background: #0e121b;
+      border: 1px solid #252b3a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .state dl { margin: 0; display: grid; grid-template-columns: 7em 1fr; gap: 4px 8px; }
+    .state dt { color: var(--muted); }
+    .state dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .state dd.flash-dd { animation: flash 600ms ease; }
+    @keyframes flash { from { color: #ffe9a8; } to { color: inherit; } }
+    fieldset {
+      border: 1px solid #2a3144;
+      border-radius: 6px;
+      margin: 0 0 12px;
+      padding: 8px 8px 10px;
+    }
+    legend { color: var(--muted); padding: 0 4px; }
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+    aside button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+    aside button:hover { background: #2c354a; }
+    aside button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .switcher {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #111;
+      color: #f5f5f5;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      z-index: 20;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .switcher button {
+      width: 32px; height: 28px;
+      border-radius: 999px;
+      background: #222;
+      color: #fff;
+      border: 1px solid #666;
+      font-size: 16px;
+      padding: 0;
+      cursor: pointer;
+    }
+    .switcher .label { min-width: 210px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="kicker">PROTOTYPE · 非产品代码</div>
+    <h1>设置里配音主区怎么点选、长什么样</h1>
+    <p>
+      指定规则已锁定：设置里点选哪一对是配音主区，默认第一对；删掉当前配音主区则落到剩下的第一对；
+      非配音主区只更新字幕、不配音、不临时接管。区域对卡片的框选/拖动/预览全部已定，这里不重做。
+      这里只比点选控件的样子、放哪一页、空列表和刚删掉主区时怎么呈现。
+    </p>
+  </header>
+
+  <div class="scenes" id="scenes">
+    <span class="lab">场景</span>
+    <button type="button" data-scene="two">两对 · 默认对 1</button>
+    <button type="button" data-scene="empty">空列表</button>
+    <button type="button" data-scene="three">三对 · 主区是对 3</button>
+    <button type="button" data-scene="afterDelete">刚删掉对 3，落到对 1</button>
+    <button type="button" data-scene="voiceOff">两对 · 配音关着</button>
+  </div>
+
+  <div class="stage-wrap">
+    <div id="root"></div>
+    <div class="switcher" id="switcher">
+      <button type="button" id="prev" aria-label="上一变体">←</button>
+      <div class="label" id="switcherLabel">A</div>
+      <button type="button" id="next" aria-label="下一变体">→</button>
+    </div>
+  </div>
+
+  <aside class="chrome">
+    <h2>当前状态</h2>
+    <div class="state">
+      <dl>
+        <dt>变体</dt><dd id="stVariant">A</dd>
+        <dt>当前页</dt><dd id="stTab">区域对</dd>
+        <dt>启用配音</dt><dd id="stVoice">开</dd>
+        <dt>配音主区</dt><dd id="stPrimary">对 1</dd>
+        <dt>区域对</dt><dd id="stPairs">2</dd>
+        <dt>刚才</dt><dd id="stLast">（无）</dd>
+      </dl>
+    </div>
+    <p class="note" id="variantNote"></p>
+    <fieldset>
+      <legend>设置窗里点</legend>
+      <p class="note">框选 / 调整显示区 / 预览全部是已定外观的占位，这张票不比它们。</p>
+    </fieldset>
+    <fieldset>
+      <legend>塞数据</legend>
+      <div class="btns">
+        <button type="button" id="addPair">添加区域对</button>
+        <button type="button" id="delPrimary">删除当前配音主区</button>
+        <button type="button" id="delOther">删除非主区（对 2）</button>
+        <button type="button" id="toggleVoice">开关启用配音</button>
+      </div>
+    </fieldset>
+  </aside>
+
+  <script>
+    const VARIANTS = [
+      {
+        key: "A",
+        name: "卡片按钮",
+        note: "区域对页：每一对一张卡，一个「设为配音主区」按钮；当前那对按下显示「配音主区」。启用配音仍在其他配置，旁边只有测试配音，不带选择器。空列表时卡片区写明没有配音主区。"
+      },
+      {
+        key: "B",
+        name: "启用页展开下拉",
+        note: "其他配置：勾上「启用支线配音」后展开下拉选哪一对。区域对卡片只挂「配音主区」徽章，没有按钮。配音关掉则收起下拉，指定仍留着。空列表时下拉禁用。"
+      },
+      {
+        key: "C",
+        name: "页顶下拉",
+        note: "区域对页顶、列表外面一个下拉。卡片只挂徽章。启用配音仍在其他配置，不带选择器。空列表时下拉禁用并写「没有区域对」。"
+      }
+    ];
+
+    const TABS = [
+      { id: "lang", label: "语言" },
+      { id: "keys", label: "热键" },
+      { id: "pairs", label: "区域对" },
+      { id: "config", label: "其他配置" },
+      { id: "help", label: "帮助" }
+    ];
+
+    const SAMPLE = [
+      { cap: "763, 1797 · 2226×110", dis: "780, 1880 · 2180×72" },
+      { cap: "80, 420 · 640×90", dis: "80, 530 · 640×64" },
+      { cap: "1540, 420 · 640×90", dis: "1540, 530 · 640×64" },
+      { cap: "400, 1600 · 1200×80", dis: "400, 1700 · 1200×56" }
+    ];
+
+    const params = new URLSearchParams(location.search);
+    let variantIndex = VARIANTS.findIndex(v => v.key === (params.get("variant") || "A").toUpperCase());
+    if (variantIndex < 0) variantIndex = 0;
+
+    let tab = params.get("tab") || defaultTab();
+    let scene = params.get("scene") || "two";
+    let playVoice = true;
+    let pairs = [];
+    let voicePrimaryId = null;
+    let nextId = 1;
+    let last = "（无）";
+    let flash = "";
+
+    function current() { return VARIANTS[variantIndex]; }
+    function defaultTab() {
+      return current().key === "B" ? "config" : "pairs";
+    }
+    function pairIndex(id) {
+      return pairs.findIndex(p => p.id === id);
+    }
+    function primaryLabel() {
+      const i = pairIndex(voicePrimaryId);
+      return i < 0 ? "没有" : ("对 " + (i + 1));
+    }
+    function makePair() {
+      const sample = SAMPLE[(nextId - 1) % SAMPLE.length];
+      return { id: nextId++, cap: sample.cap, dis: sample.dis };
+    }
+    function loadScene(name, announce) {
+      scene = name;
+      nextId = 1;
+      flash = "";
+      if (name === "empty") {
+        pairs = [];
+        voicePrimaryId = null;
+        playVoice = true;
+        last = announce || "空列表：没有配音主区";
+      } else if (name === "three") {
+        pairs = [makePair(), makePair(), makePair()];
+        voicePrimaryId = pairs[2].id;
+        playVoice = true;
+        last = announce || "三对，配音主区是对 3";
+      } else if (name === "afterDelete") {
+        pairs = [makePair(), makePair(), makePair()];
+        voicePrimaryId = pairs[2].id;
+        playVoice = true;
+        deletePair(pairs[2].id, true);
+        scene = "afterDelete";
+        last = announce || "删了对 3，配音主区落到对 1";
+        flash = "刚删掉配音主区那一对，指定落到剩下的第一对。";
+      } else if (name === "voiceOff") {
+        pairs = [makePair(), makePair()];
+        voicePrimaryId = pairs[0].id;
+        playVoice = false;
+        last = announce || "两对，启用配音关着；指定仍是对 1";
+      } else {
+        scene = "two";
+        pairs = [makePair(), makePair()];
+        voicePrimaryId = pairs[0].id;
+        playVoice = true;
+        last = announce || "两对，默认第一对是配音主区";
+      }
+      tab = defaultTab();
+      render();
+    }
+    function addPair() {
+      if (pairs.length >= 4) {
+        last = "添加上限 4，停";
+        render();
+        return;
+      }
+      const p = makePair();
+      const wasEmpty = pairs.length === 0;
+      pairs.push(p);
+      if (wasEmpty) {
+        voicePrimaryId = p.id;
+        last = "添加对 1，默认成为配音主区";
+        flash = "列表从空到有：默认第一对是配音主区。";
+      } else {
+        last = "添加对 " + pairs.length;
+        flash = "";
+      }
+      scene = "custom";
+      render();
+    }
+    function deletePair(id, quiet) {
+      const i = pairIndex(id);
+      if (i < 0) return;
+      const label = i + 1;
+      const wasPrimary = id === voicePrimaryId;
+      pairs = pairs.filter(p => p.id !== id);
+      if (pairs.length === 0) {
+        voicePrimaryId = null;
+        flash = "列表空了，没有配音主区。";
+        last = "删了对 " + label + "，列表空";
+      } else if (wasPrimary) {
+        voicePrimaryId = pairs[0].id;
+        flash = "删掉的是配音主区，指定落到剩下的第一对（对 1）。";
+        last = "删了对 " + label + "，配音主区落到对 1";
+      } else {
+        flash = "删的不是配音主区，指定跟着原来那一对走。";
+        last = "删了对 " + label + "，配音主区仍是 " + primaryLabel();
+      }
+      scene = "custom";
+      if (!quiet) render();
+    }
+    function setPrimary(id) {
+      const i = pairIndex(id);
+      if (i < 0 || id === voicePrimaryId) return;
+      voicePrimaryId = id;
+      flash = "";
+      last = "指定配音主区 → 对 " + (i + 1);
+      scene = "custom";
+      render();
+    }
+    function setTab(id) {
+      tab = id;
+      const url = new URL(location.href);
+      url.searchParams.set("tab", tab);
+      history.replaceState(null, "", url);
+      render();
+    }
+    function setVariant(i, push, keepTab) {
+      variantIndex = (i + VARIANTS.length) % VARIANTS.length;
+      const v = current();
+      if (!keepTab) tab = defaultTab();
+      const url = new URL(location.href);
+      url.searchParams.set("variant", v.key);
+      url.searchParams.set("tab", tab);
+      url.searchParams.set("scene", scene);
+      if (push !== false) history.replaceState(null, "", url);
+      document.getElementById("variantNote").textContent = v.note;
+      document.getElementById("switcherLabel").textContent = v.key + " · " + v.name;
+      render();
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function comboOptions() {
+      if (pairs.length === 0) {
+        return '<option value="">没有区域对</option>';
+      }
+      return pairs.map((p, i) => {
+        const sel = p.id === voicePrimaryId ? " selected" : "";
+        return '<option value="' + p.id + '"' + sel + ">对 " + (i + 1) + "</option>";
+      }).join("");
+    }
+
+    function pairCards(mode, hideToolbar) {
+      const empty = '<div class="empty"><strong>还没有区域对。</strong><br>添加一对之后，默认第一对是配音主区。没有区域对时没有配音主区。</div>';
+      const toolbar = function () {
+        const addDisabled = pairs.length >= 4 ? " disabled" : "";
+        return '<div class="row"><button class="btn" type="button" data-act="add"' + addDisabled + '>添加区域对</button><button class="btn" type="button" disabled>预览全部</button></div>';
+      };
+      if (pairs.length === 0) {
+        return hideToolbar ? empty : empty + toolbar();
+      }
+      const cards = pairs.map((p, i) => {
+        const n = i + 1;
+        const isP = p.id === voicePrimaryId;
+        const over = n > 4 ? '<span class="chip over">超出添加上限</span>' : "";
+        const chip = (mode !== "button" && isP) ? '<span class="chip">配音主区</span>' : "";
+        let pick = "";
+        if (mode === "button") {
+          pick = isP
+            ? '<button class="btn voice on" type="button" disabled>配音主区</button>'
+            : '<button class="btn voice" type="button" data-act="primary" data-id="' + p.id + '">设为配音主区</button>';
+        }
+        return '<div class="card' + (isP ? " voice" : "") + '">' +
+          "<h3>对 " + n + " " + chip + " " + over + "</h3>" +
+          '<div class="kv">' +
+          '<span>识别区</span><span class="coords">' + escapeHtml(p.cap) + '</span><button class="btn" type="button" disabled>框选</button><span></span>' +
+          '<span>显示区</span><span class="coords">' + escapeHtml(p.dis) + '</span><button class="btn" type="button" disabled>框选</button><button class="btn" type="button" disabled>调整显示区</button>' +
+          "</div>" +
+          '<div class="card-foot">' +
+          '<button class="btn danger" type="button" data-act="del" data-id="' + p.id + '">删除</button>' +
+          pick +
+          "</div></div>";
+      }).join("");
+      return hideToolbar ? cards : cards + toolbar();
+    }
+
+    function leftoverFlags(mode) {
+      const checked = playVoice ? " checked" : "";
+      let extra = "";
+      if (mode === "expand") {
+        if (playVoice) {
+          const dis = pairs.length === 0 ? " disabled" : "";
+          extra = '<div class="voice-expand">' +
+            "<span>配音主区</span>" +
+            '<select class="combo" id="voiceSelect"' + dis + ">" + comboOptions() + "</select>" +
+            (pairs.length === 0 ? '<span class="hint">没有区域对，没有配音主区</span>' : '<span class="hint">改指定不打断正在播的那一句</span>') +
+            "</div>";
+        }
+      } else {
+        extra = '<div class="hint" style="margin:-4px 0 10px 22px">配音主区在「区域对」页指定，当前 ' + primaryLabel() + "。</div>";
+      }
+      return [
+        '<div class="row"><span style="width:7.5em;font-weight:650">最小识图间隔</span><input class="combo" style="width:64px;text-align:center" value="400" disabled> <span>ms</span><span class="muted">（已定，这张票不比）</span></div>',
+        '<label class="check"><input type="checkbox"> 开机自动启动</label>',
+        '<div class="row"><label class="check" style="margin:0"><input type="checkbox" id="playVoice"' + checked + '> 启用支线配音</label><button class="btn" type="button">测试配音</button></div>',
+        extra,
+        '<label class="check"><input type="checkbox" checked> 识别暗屏字幕</label>',
+        '<label class="check"><input type="checkbox"> 识别对话选项</label>',
+        '<div class="row" style="margin-top:14px"><button class="btn" type="button">打开程序文件夹</button></div>'
+      ].join("");
+    }
+
+    function pairsPage() {
+      const v = current().key;
+      let bar = "";
+      if (flash) bar += '<div class="flash">' + escapeHtml(flash) + "</div>";
+      if (v === "C") {
+        const dis = pairs.length === 0 ? " disabled" : "";
+        bar += '<div class="c-bar">' +
+          '<button class="btn" type="button" data-act="add"' + (pairs.length >= 4 ? " disabled" : "") + ">添加区域对</button>" +
+          '<button class="btn" type="button" disabled>预览全部</button>' +
+          '<span class="grow"></span>' +
+          "<span>配音主区</span>" +
+          '<select class="combo" id="voiceSelect"' + dis + ">" + comboOptions() + "</select>" +
+          "</div>";
+        return bar + pairCards("badge", true);
+      }
+      return bar + pairCards(v === "A" ? "button" : "badge", false);
+    }
+
+    function configPage() {
+      const v = current().key;
+      let html = "";
+      if (flash && v === "B") html += '<div class="flash">' + escapeHtml(flash) + "</div>";
+      html += leftoverFlags(v === "B" ? "expand" : "hint");
+      return html;
+    }
+
+    function bodyFor() {
+      if (tab === "lang") return '<div class="placeholder">语言包管理（这页未改）</div>';
+      if (tab === "keys") return '<div class="placeholder">快捷键设置（这页未改）</div>';
+      if (tab === "help") return '<div class="placeholder">帮助（这页未改）</div>';
+      if (tab === "pairs") return pairsPage();
+      if (tab === "config") return configPage();
+      return "";
+    }
+
+    function bind() {
+      document.querySelectorAll(".tabs button").forEach(btn => {
+        btn.onclick = () => setTab(btn.getAttribute("data-tab"));
+      });
+      document.querySelectorAll("[data-act=add]").forEach(btn => {
+        btn.onclick = addPair;
+      });
+      document.querySelectorAll("[data-act=del]").forEach(btn => {
+        btn.onclick = () => deletePair(Number(btn.getAttribute("data-id")));
+      });
+      document.querySelectorAll("[data-act=primary]").forEach(btn => {
+        btn.onclick = () => setPrimary(Number(btn.getAttribute("data-id")));
+      });
+      const sel = document.getElementById("voiceSelect");
+      if (sel) {
+        sel.onchange = () => {
+          const id = Number(sel.value);
+          if (Number.isFinite(id) && id) setPrimary(id);
+        };
+      }
+      const pv = document.getElementById("playVoice");
+      if (pv) {
+        pv.onchange = () => {
+          playVoice = pv.checked;
+          last = playVoice ? "启用配音开" : "启用配音关";
+          flash = "";
+          scene = "custom";
+          render();
+        };
+      }
+    }
+
+    function render() {
+      const v = current();
+      const tabLabel = (TABS.find(t => t.id === tab) || {}).label || tab;
+      document.getElementById("root").innerHTML =
+        '<div class="desk"><div class="win">' +
+        '<div class="win-title"><span class="dot"></span> 设置</div>' +
+        '<div class="tabs">' +
+          TABS.map(t => '<button type="button" data-tab="' + t.id + '"' + (t.id === tab ? ' class="on"' : "") + ">" + t.label + "</button>").join("") +
+        "</div>" +
+        '<div class="tab-body">' + bodyFor() + "</div>" +
+        "</div></div>";
+      bind();
+      document.getElementById("stVariant").textContent = v.key + " · " + v.name;
+      document.getElementById("stTab").textContent = tabLabel;
+      document.getElementById("stVoice").textContent = playVoice ? "开" : "关";
+      document.getElementById("stPrimary").textContent = primaryLabel();
+      document.getElementById("stPairs").textContent = String(pairs.length);
+      const lastEl = document.getElementById("stLast");
+      lastEl.textContent = last;
+      lastEl.classList.remove("flash-dd");
+      void lastEl.offsetWidth;
+      lastEl.classList.add("flash-dd");
+      document.querySelectorAll(".scenes button").forEach(btn => {
+        btn.classList.toggle("on", btn.getAttribute("data-scene") === scene);
+      });
+      document.getElementById("addPair").disabled = pairs.length >= 4;
+      document.getElementById("delPrimary").disabled = voicePrimaryId == null;
+      document.getElementById("delOther").disabled = !pairs.find(p => p.id !== voicePrimaryId);
+    }
+
+    document.getElementById("prev").onclick = () => setVariant(variantIndex - 1);
+    document.getElementById("next").onclick = () => setVariant(variantIndex + 1);
+    document.getElementById("addPair").onclick = addPair;
+    document.getElementById("delPrimary").onclick = () => {
+      if (voicePrimaryId != null) deletePair(voicePrimaryId);
+    };
+    document.getElementById("delOther").onclick = () => {
+      const other = pairs.find(p => p.id !== voicePrimaryId);
+      if (other) deletePair(other.id);
+    };
+    document.getElementById("toggleVoice").onclick = () => {
+      playVoice = !playVoice;
+      last = playVoice ? "启用配音开" : "启用配音关";
+      flash = "";
+      scene = "custom";
+      if (current().key === "B") tab = "config";
+      render();
+    };
+    document.querySelectorAll(".scenes button").forEach(btn => {
+      btn.onclick = () => loadScene(btn.getAttribute("data-scene"));
+    });
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") setVariant(variantIndex - 1);
+      if (e.key === "ArrowRight") setVariant(variantIndex + 1);
+    });
+
+    loadScene(scene, null);
+    const initialTab = params.get("tab");
+    if (initialTab && TABS.some(t => t.id === initialTab)) tab = initialTab;
+    setVariant(variantIndex, false, true);
+  </script>
+</body>
+</html>
