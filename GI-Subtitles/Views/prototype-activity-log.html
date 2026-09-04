@@ -211,7 +211,15 @@
     table.grid tr.miss td { color: #666; }
     table.grid .pair { white-space: nowrap; }
     table.grid .jobs { white-space: nowrap; color: #333; }
-    table.grid .res { line-height: 1.35; }
+    table.grid .res { line-height: 1.4; }
+    table.grid .res .top { margin: 0 0 2px; }
+    table.grid .res .kvline {
+      display: grid;
+      grid-template-columns: 4em 1fr;
+      gap: 0 4px;
+      align-items: start;
+    }
+    table.grid .res .kvline .lab { color: #666; }
     .list-scroll { flex: 1; min-height: 0; overflow: auto; background: #fff; }
     .empty {
       margin: 24px 16px;
@@ -468,7 +476,7 @@
         key: "A",
         name: "普通列表",
         size: "720 × 480",
-        note: "WPF ListView 四列：时间、区域对、作业、结果。首次屏幕居中、任务栏可见、不置顶。关窗是藏起来，位置这会话还在，不写进配置。已经在底部就钉住；往上翻就停，底下一根「有新记录」。空记录一行说明。实现最简单：现成 ListView + 是否贴底判断。"
+        note: "WPF ListView 四列：时间、区域对、作业、结果。结果列换行：第一行 OCR/miss/失败等，下面两行「原文：」「译文：」标签对齐。首次屏幕居中、任务栏可见、不置顶。关窗是藏起来，位置这会话还在，不写进配置。已经在底部就钉住；往上翻就停，底下一根「有新记录」。空记录一行说明。"
       },
       {
         key: "B",
@@ -568,6 +576,13 @@
       });
       tick(400);
       rec({ pair: "区域对 2", jobs: ["截屏", "OCR"], ocr: "", miss: "ocr" });
+      tick(400);
+      rec({
+        pair: "区域对 2",
+        jobs: ["截屏", "OCR", "匹配"],
+        ocr: "????",
+        miss: "match"
+      });
       tick(1600);
       rec({ jobs: ["语言包加载"], ocr: "开始 日文" });
       tick(2100);
@@ -579,6 +594,14 @@
         ocr: "夜空下的 impromptu",
         orig: "An impromptu under the night sky",
         trans: "夜空下的即兴"
+      });
+      tick(500);
+      rec({
+        pair: "区域对 1（配音主区）",
+        jobs: ["截屏", "OCR", "匹配", "配音"],
+        ocr: "那是什么声音？我们先去看看吧。",
+        orig: "What was that sound? Let's go take a look.",
+        trans: "那是什么声音？我们先去看看吧。"
       });
       tick(700);
       rec({ jobs: ["切倍速"], ocr: "1.5×" });
@@ -709,15 +732,24 @@
       return r.jobs.join(" · ") || "—";
     }
 
-    function resultText(r) {
+    function resultTop(r) {
       if (r.fail) return "失败：" + (r.ocr || "动作失败");
       if (r.miss === "ocr") return "检测 miss";
-      if (r.miss === "match") return "OCR「" + r.ocr + "」  匹配 miss";
-      const bits = [];
-      if (r.ocr) bits.push("OCR「" + r.ocr + "」");
-      if (r.orig) bits.push("原文 " + r.orig);
-      if (r.trans) bits.push("译文 " + r.trans);
-      return bits.join("  ") || "—";
+      if (r.ocr) return "OCR「" + r.ocr + "」";
+      return "";
+    }
+
+    function resultHtml(r) {
+      const parts = [];
+      const top = resultTop(r);
+      if (top) parts.push("<div class=\"top\">" + escapeHtml(top) + "</div>");
+      if (r.miss === "match") {
+        parts.push("<div class=\"kvline\"><span class=\"lab\">原文：</span><span>匹配 miss</span></div>");
+      } else {
+        if (r.orig) parts.push("<div class=\"kvline\"><span class=\"lab\">原文：</span><span>" + escapeHtml(r.orig) + "</span></div>");
+        if (r.trans) parts.push("<div class=\"kvline\"><span class=\"lab\">译文：</span><span>" + escapeHtml(r.trans) + "</span></div>");
+      }
+      return parts.join("") || "—";
     }
 
     function renderLogA() {
@@ -726,7 +758,7 @@
         return "<tr class=\"" + cls + "\"><td>" + escapeHtml(r.t) + "</td>" +
           "<td class=\"pair\">" + escapeHtml(r.pair) + "</td>" +
           "<td class=\"jobs\">" + escapeHtml(jobsText(r)) + "</td>" +
-          "<td class=\"res\">" + escapeHtml(resultText(r)) + "</td></tr>";
+          "<td class=\"res\">" + resultHtml(r) + "</td></tr>";
       }).join("");
       const body = records.length === 0
         ? "<div class=\"empty\"><strong>本会话还没有记录。</strong><br>开始识别、框选或加载语言包后会出现在这里。关掉这扇窗也不会停记。</div>"
