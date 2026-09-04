@@ -9,10 +9,20 @@ namespace GI_Subtitles.Core.Overlay
         LegacyRegionSlots ReadLegacy();
 
         void WritePairs(IReadOnlyList<RegionPairRecord> pairs);
+
+        int ReadVoicePrimaryId();
+
+        void WriteVoicePrimaryId(int id);
+
+        int ReadNextPairId();
+
+        void WriteNextPairId(int id);
     }
 
     public sealed class RegionPairRecord
     {
+        public int Id { get; set; }
+
         public OverlayRect Capture { get; set; }
 
         public OverlayRect Display { get; set; }

@@ -7,6 +7,8 @@ namespace GI_Subtitles.Core.Overlay
     public sealed class ConfigRegionPairStore : IRegionPairStore
     {
         public const string PairsConfigKey = "RegionPairs";
+        public const string VoicePrimaryIdConfigKey = "VoicePrimaryId";
+        public const string NextPairIdConfigKey = "NextPairId";
 
         public IReadOnlyList<RegionPairRecord> ReadPairs()
         {
@@ -33,6 +35,26 @@ namespace GI_Subtitles.Core.Overlay
         public void WritePairs(IReadOnlyList<RegionPairRecord> pairs)
         {
             AppConfig.Set(PairsConfigKey, pairs);
+        }
+
+        public int ReadVoicePrimaryId()
+        {
+            return AppConfig.Get(VoicePrimaryIdConfigKey, 0);
+        }
+
+        public void WriteVoicePrimaryId(int id)
+        {
+            AppConfig.Set(VoicePrimaryIdConfigKey, id);
+        }
+
+        public int ReadNextPairId()
+        {
+            return AppConfig.Get(NextPairIdConfigKey, 0);
+        }
+
+        public void WriteNextPairId(int id)
+        {
+            AppConfig.Set(NextPairIdConfigKey, id);
         }
     }
 }

@@ -13,6 +13,7 @@ namespace GI_Subtitles.Core.Overlay
         public const string OcrIntervalConfigKey = "OCRInterval";
         public const int HintDurationMs = 2000;
         public const int EnginePairCap = 8;
+        public const int SettingsPairCap = 4;
 
         private const string HintResourceRecognitionRunning = "Hint_RecognitionRunning";
         private const string HintResourceRecognitionStopped = "Hint_RecognitionStopped";
@@ -37,6 +38,10 @@ namespace GI_Subtitles.Core.Overlay
         private DateTime _lastOcrTime = DateTime.MinValue;
         private int? _busyPairIndex;
         private int _recognitionSequence;
+        private int _nextPairId = 1;
+        private OverlayRect _addCapture = OverlayRect.Invalid;
+        private OverlayRect _addDisplay = OverlayRect.Invalid;
+        private VoicePlayRequest _pendingVoicePlay;
 
         public LiveOverlaySession(IOcrIntervalStore store)
             : this(store, null, null)
@@ -129,6 +134,14 @@ namespace GI_Subtitles.Core.Overlay
         public bool RecognitionRunning { get; private set; }
 
         public bool SubtitlesVisible { get; private set; }
+
+        public int VoicePrimaryId { get; private set; }
+
+        public bool AddInProgress { get; private set; }
+
+        public bool VoicePlaybackActive { get; private set; }
+
+        public int VoicePlaybackToken { get; private set; }
 
         public void StartRecognition(bool hasCaptureRegion)
         {
@@ -242,8 +255,128 @@ namespace GI_Subtitles.Core.Overlay
                 display = new OverlayRect(nextCapture.X, nextCapture.Y, nextCapture.Width, nextCapture.Height);
             }
 
-            _pairs[pairIndex] = new RegionPair(nextCapture, display);
+            _pairs[pairIndex] = new RegionPair(_pairs[pairIndex].Id, nextCapture, display);
             PersistPairs();
+        }
+
+        public void SetDisplay(int pairIndex, OverlayRect display)
+        {
+            if (pairIndex < 0 || pairIndex >= _pairs.Count)
+            {
+                return;
+            }
+
+            OverlayRect nextDisplay = display ?? OverlayRect.Invalid;
+            RegionPair current = _pairs[pairIndex];
+            _pairs[pairIndex] = new RegionPair(current.Id, current.Capture, nextDisplay);
+            PersistPairs();
+        }
+
+        public bool TryStartAdd()
+        {
+            if (AddInProgress || _pairs.Count >= SettingsPairCap)
+            {
+                return false;
+            }
+
+            AddInProgress = true;
+            _addCapture = OverlayRect.Invalid;
+            _addDisplay = OverlayRect.Invalid;
+            return true;
+        }
+
+        public void SetAddCapture(OverlayRect capture)
+        {
+            if (!AddInProgress)
+            {
+                return;
+            }
+
+            _addCapture = capture ?? OverlayRect.Invalid;
+        }
+
+        public void SetAddDisplay(OverlayRect display)
+        {
+            if (!AddInProgress)
+            {
+                return;
+            }
+
+            _addDisplay = display ?? OverlayRect.Invalid;
+        }
+
+        public void AbortAdd()
+        {
+            ClearAddState();
+        }
+
+        public bool TryCommitAdd()
+        {
+            if (!AddInProgress || _pairs.Count >= SettingsPairCap)
+            {
+                return false;
+            }
+
+            int id = AllocateId();
+            _pairs.Add(new RegionPair(id, _addCapture, _addDisplay));
+            if (VoicePrimaryId == 0)
+            {
+                VoicePrimaryId = id;
+            }
+
+            SyncPairRuntime();
+            ClearAddState();
+            PersistPairs();
+            return true;
+        }
+
+        public void DeletePair(int id)
+        {
+            int index = IndexOfPair(id);
+            if (index < 0)
+            {
+                return;
+            }
+
+            bool wasPrimary = VoicePrimaryId == id;
+            RemovePairAt(index);
+            if (wasPrimary)
+            {
+                VoicePrimaryId = _pairs.Count == 0 ? 0 : _pairs[0].Id;
+            }
+
+            PersistPairs();
+        }
+
+        public void SetVoicePrimary(int id)
+        {
+            if (IndexOfPair(id) < 0)
+            {
+                return;
+            }
+
+            VoicePrimaryId = id;
+            PersistPairs();
+        }
+
+        public bool TryGetVoicePrimaryCapture(out int pairIndex, out OverlayRect capture)
+        {
+            pairIndex = IndexOfPair(VoicePrimaryId);
+            if (pairIndex < 0)
+            {
+                capture = OverlayRect.Invalid;
+                return false;
+            }
+
+            capture = _pairs[pairIndex].Capture;
+            return capture.IsValid;
+        }
+
+        public VoicePlayRequest TakeVoicePlayRequest()
+        {
+            VoicePlayRequest request = _pendingVoicePlay;
+            _pendingVoicePlay = null;
+            return request;
         }
 
         public void ClearCapture(int pairIndex)
@@ -253,7 +386,7 @@ namespace GI_Subtitles.Core.Overlay
                 return;
             }
 
-            _pairs[pairIndex] = new RegionPair(OverlayRect.Invalid, _pairs[pairIndex].Display);
+            _pairs[pairIndex] = new RegionPair(_pairs[pairIndex].Id, OverlayRect.Invalid, _pairs[pairIndex].Display);
             PersistPairs();
         }
 
@@ -334,6 +467,10 @@ namespace GI_Subtitles.Core.Overlay
                 _contents[pairIndex] = content ?? string.Empty;
                 _recognitionSequence++;
                 _recognitionOrders[pairIndex] = _recognitionSequence;
+                if (_pairs[pairIndex].Id == VoicePrimaryId)
+                {
+                    EmitVoicePlayRequest(pairIndex);
+                }
             }
 
             if (_busyPairIndex == pairIndex)
@@ -364,30 +501,39 @@ namespace GI_Subtitles.Core.Overlay
             _pairs.Clear();
             if (_pairStore == null)
             {
+                _nextPairId = 1;
+                VoicePrimaryId = 0;
                 return;
             }
 
+            _nextPairId = _pairStore.ReadNextPairId();
+            VoicePrimaryId = _pairStore.ReadVoicePrimaryId();
+
             IReadOnlyList<RegionPairRecord> stored = _pairStore.ReadPairs();
+            bool wroteLegacy = false;
             if (stored != null && stored.Count > 0)
             {
                 foreach (RegionPairRecord record in stored)
                 {
                     _pairs.Add(FromRecord(record));
                 }
-
-                SyncPairRuntime();
-                return;
             }
-
-            List<RegionPair> migrated = MigrateLegacy(_pairStore.ReadLegacy());
-            if (migrated.Count == 0)
+            else
             {
-                return;
+                List<RegionPair> migrated = MigrateLegacy(_pairStore.ReadLegacy());
+                if (migrated.Count > 0)
+                {
+                    _pairs.AddRange(migrated);
+                    wroteLegacy = true;
+                }
             }
 
-            _pairs.AddRange(migrated);
-            PersistPairs();
             SyncPairRuntime();
+            bool identitiesChanged = EnsureIdentities();
+            if (wroteLegacy || identitiesChanged)
+            {
+                PersistPairs();
+            }
         }
 
         private void PersistPairs()
@@ -404,6 +550,8 @@ namespace GI_Subtitles.Core.Overlay
             }
 
             _pairStore.WritePairs(records);
+            _pairStore.WriteVoicePrimaryId(VoicePrimaryId);
+            _pairStore.WriteNextPairId(_nextPairId);
         }
 
         private static List<RegionPair> MigrateLegacy(LegacyRegionSlots legacy)
@@ -422,16 +570,16 @@ namespace GI_Subtitles.Core.Overlay
             if (hasPrimary)
             {
                 OverlayRect display = primaryCapture.Offset(legacy.PadHorizontal, legacy.PadVertical);
-                pairs.Add(new RegionPair(primaryCapture, display));
+                pairs.Add(new RegionPair(0, primaryCapture, display));
             }
             else if (hasSecond)
             {
-                pairs.Add(new RegionPair(OverlayRect.Invalid, OverlayRect.Invalid));
+                pairs.Add(new RegionPair(0, OverlayRect.Invalid, OverlayRect.Invalid));
             }
 
             if (hasSecond)
             {
-                pairs.Add(new RegionPair(secondCapture, OverlayRect.Invalid));
+                pairs.Add(new RegionPair(0, secondCapture, OverlayRect.Invalid));
             }
 
             return pairs;
@@ -441,10 +589,11 @@ namespace GI_Subtitles.Core.Overlay
         {
             if (record == null)
             {
-                return new RegionPair(OverlayRect.Invalid, OverlayRect.Invalid);
+                return new RegionPair(0, OverlayRect.Invalid, OverlayRect.Invalid);
             }
 
             return new RegionPair(
+                record.Id,
                 record.Capture ?? OverlayRect.Invalid,
                 record.Display ?? OverlayRect.Invalid);
         }
@@ -453,6 +602,7 @@ namespace GI_Subtitles.Core.Overlay
         {
             return new RegionPairRecord
             {
+                Id = pair.Id,
                 Capture = pair.Capture,
                 Display = pair.Display
             };
@@ -462,10 +612,151 @@ namespace GI_Subtitles.Core.Overlay
         {
             while (_pairs.Count <= pairIndex)
             {
-                _pairs.Add(new RegionPair(OverlayRect.Invalid, OverlayRect.Invalid));
+                int id = AllocateId();
+                _pairs.Add(new RegionPair(id, OverlayRect.Invalid, OverlayRect.Invalid));
+                if (VoicePrimaryId == 0)
+                {
+                    VoicePrimaryId = id;
+                }
             }
 
             SyncPairRuntime();
+        }
+
+        private bool EnsureIdentities()
+        {
+            bool dirty = false;
+            int maxId = 0;
+            for (int i = 0; i < _pairs.Count; i++)
+            {
+                if (_pairs[i].Id > maxId)
+                {
+                    maxId = _pairs[i].Id;
+                }
+            }
+
+            if (_nextPairId < maxId + 1)
+            {
+                _nextPairId = maxId + 1;
+                if (maxId > 0)
+                {
+                    dirty = true;
+                }
+            }
+
+            if (_nextPairId < 1)
+            {
+                _nextPairId = 1;
+            }
+
+            for (int i = 0; i < _pairs.Count; i++)
+            {
+                if (_pairs[i].Id > 0)
+                {
+                    continue;
+                }
+
+                RegionPair current = _pairs[i];
+                _pairs[i] = new RegionPair(AllocateId(), current.Capture, current.Display);
+                dirty = true;
+            }
+
+            if (VoicePrimaryId != 0 && IndexOfPair(VoicePrimaryId) < 0)
+            {
+                VoicePrimaryId = _pairs.Count == 0 ? 0 : _pairs[0].Id;
+                dirty = true;
+            }
+
+            if (VoicePrimaryId == 0 && _pairs.Count > 0)
+            {
+                VoicePrimaryId = _pairs[0].Id;
+                dirty = true;
+            }
+
+            return dirty;
+        }
+
+        private int AllocateId()
+        {
+            if (_nextPairId < 1)
+            {
+                _nextPairId = 1;
+            }
+
+            int id = _nextPairId;
+            _nextPairId++;
+            return id;
+        }
+
+        private int IndexOfPair(int id)
+        {
+            if (id <= 0)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < _pairs.Count; i++)
+            {
+                if (_pairs[i].Id == id)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private void ClearAddState()
+        {
+            AddInProgress = false;
+            _addCapture = OverlayRect.Invalid;
+            _addDisplay = OverlayRect.Invalid;
+        }
+
+        private void RemovePairAt(int index)
+        {
+            _pairs.RemoveAt(index);
+            if (index < _headers.Count)
+            {
+                _headers.RemoveAt(index);
+                _contents.RemoveAt(index);
+                _recognitionOrders.RemoveAt(index);
+            }
+
+            if (_busyPairIndex.HasValue)
+            {
+                if (_busyPairIndex.Value == index)
+                {
+                    _busyPairIndex = null;
+                }
+                else if (_busyPairIndex.Value > index)
+                {
+                    _busyPairIndex = _busyPairIndex.Value - 1;
+                }
+            }
+
+            for (int i = _ocrQueue.Count - 1; i >= 0; i--)
+            {
+                if (_ocrQueue[i] == index)
+                {
+                    _ocrQueue.RemoveAt(i);
+                }
+                else if (_ocrQueue[i] > index)
+                {
+                    _ocrQueue[i]--;
+                }
+            }
+        }
+
+        private void EmitVoicePlayRequest(int pairIndex)
+        {
+            VoicePlaybackToken++;
+            VoicePlaybackActive = true;
+            _pendingVoicePlay = new VoicePlayRequest(
+                _pairs[pairIndex].Id,
+                _headers[pairIndex],
+                _contents[pairIndex],
+                VoicePlaybackToken);
         }
 
         private void SyncPairRuntime()
@@ -611,5 +902,24 @@ namespace GI_Subtitles.Core.Overlay
             IsOutOfRange = rawMs < LiveOverlaySession.UiMinOcrIntervalMs
                 || rawMs > LiveOverlaySession.UiMaxOcrIntervalMs;
         }
+    }
+
+    public sealed class VoicePlayRequest
+    {
+        public VoicePlayRequest(int pairId, string header, string content, int token)
+        {
+            PairId = pairId;
+            Header = header ?? string.Empty;
+            Content = content ?? string.Empty;
+            Token = token;
+        }
+
+        public int PairId { get; }
+
+        public string Header { get; }
+
+        public string Content { get; }
+
+        public int Token { get; }
     }
 }

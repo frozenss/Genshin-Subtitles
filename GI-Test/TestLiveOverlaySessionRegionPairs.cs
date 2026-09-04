@@ -58,10 +58,13 @@ namespace GI_Test
                     Region2 = "5,6,7,8",
                     PadVertical = 99
                 },
+                VoicePrimaryId = 1,
+                NextPairId = 2,
                 StoredPairs =
                 {
                     new RegionPairRecord
                     {
+                        Id = 1,
                         Capture = new OverlayRect(10, 20, 30, 40),
                         Display = new OverlayRect(11, 21, 30, 40)
                     }
@@ -73,6 +76,8 @@ namespace GI_Test
             Assert.AreEqual(1, session.Pairs.Count);
             Assert.AreEqual(10, session.Pairs[0].Capture.X);
             Assert.AreEqual(11, session.Pairs[0].Display.X);
+            Assert.AreEqual(1, session.Pairs[0].Id);
+            Assert.AreEqual(1, session.VoicePrimaryId);
             Assert.AreEqual(0, pairs.WriteCount);
         }
 
@@ -287,6 +292,8 @@ namespace GI_Test
             public LegacyRegionSlots Legacy = new LegacyRegionSlots();
             public System.Collections.Generic.List<RegionPairRecord> StoredPairs =
                 new System.Collections.Generic.List<RegionPairRecord>();
+            public int VoicePrimaryId;
+            public int NextPairId;
             public int WriteCount;
 
             public System.Collections.Generic.IReadOnlyList<RegionPairRecord> ReadPairs()
@@ -303,6 +310,26 @@ namespace GI_Test
             {
                 StoredPairs = new System.Collections.Generic.List<RegionPairRecord>(pairs);
                 WriteCount++;
+            }
+
+            public int ReadVoicePrimaryId()
+            {
+                return VoicePrimaryId;
+            }
+
+            public void WriteVoicePrimaryId(int id)
+            {
+                VoicePrimaryId = id;
+            }
+
+            public int ReadNextPairId()
+            {
+                return NextPairId;
+            }
+
+            public void WriteNextPairId(int id)
+            {
+                NextPairId = id;
             }
         }
     }

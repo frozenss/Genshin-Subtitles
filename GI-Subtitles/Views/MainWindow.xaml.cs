@@ -972,7 +972,7 @@ namespace GI_Subtitles.Views
                 {
                     _forceVoiceReplayRequested = true;
                     _overlaySession.ApplyPairResult(appliedPair, miss: false, content, header);
-                    MaybePlayPairVoice(appliedPair, key, content, header);
+                    MaybePlayPairVoice(key, content, header);
                     ApplyPairOverlay();
                     _overlaySession.Refresh(hasCaptureRegion: true, foundText: true);
                 }
@@ -995,7 +995,7 @@ namespace GI_Subtitles.Views
                 }
 
                 _overlaySession.CompleteOcr(miss: false, content, header);
-                MaybePlayPairVoice(pairIndex.Value, key, content, header);
+                MaybePlayPairVoice(key, content, header);
                 ApplyPairOverlay();
                 return;
             }
@@ -1007,7 +1007,7 @@ namespace GI_Subtitles.Views
             }
 
             _overlaySession.ApplyPairResult(0, miss: false, content, header);
-            MaybePlayPairVoice(0, key, content, header);
+            MaybePlayPairVoice(key, content, header);
             ApplyPairOverlay();
         }
 
@@ -1054,9 +1054,9 @@ namespace GI_Subtitles.Views
             }
         }
 
-        private void MaybePlayPairVoice(int pairIndex, string key, string content, string header)
+        private void MaybePlayPairVoice(string key, string content, string header)
         {
-            if (pairIndex != 0)
+            if (_overlaySession.TakeVoicePlayRequest() == null)
             {
                 return;
             }
@@ -1101,8 +1101,7 @@ namespace GI_Subtitles.Views
 
             try
             {
-                OverlayRect capture = _overlaySession.GetCapture(0);
-                if (!capture.IsValid)
+                if (!_overlaySession.TryGetVoicePrimaryCapture(out int pairIndex, out OverlayRect capture))
                 {
                     _overlaySession.Refresh(hasCaptureRegion: false, foundText: false);
                     return;
@@ -1110,17 +1109,17 @@ namespace GI_Subtitles.Views
 
                 Bitmap target = CaptureRect(capture);
                 Mat frame = target.ToMat();
-                EnsurePairBuffers(1);
+                EnsurePairBuffers(pairIndex + 1);
                 Mat binary = PreprocessToBinary(frame);
                 if (binary != null)
                 {
-                    _pairLastBinary[0]?.Dispose();
-                    _pairLastOcrBinary[0]?.Dispose();
-                    _pairLastBinary[0] = binary.Clone();
-                    _pairLastOcrBinary[0] = binary;
+                    _pairLastBinary[pairIndex]?.Dispose();
+                    _pairLastOcrBinary[pairIndex]?.Dispose();
+                    _pairLastBinary[pairIndex] = binary.Clone();
+                    _pairLastOcrBinary[pairIndex] = binary;
                 }
                 _overlaySession.ResetOcrInterval();
-                _ = TriggerOcrAsync(frame, target, forceRefresh: true, pairIndex: 0);
+                _ = TriggerOcrAsync(frame, target, forceRefresh: true, pairIndex: pairIndex);
             }
             catch (Exception ex)
             {
