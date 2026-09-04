@@ -47,6 +47,8 @@ namespace GI_Subtitles.Core.Overlay
         private DateTime? _previewExpiresAt;
         private DateTime? _echoExpiresAt;
         private OverlayRect _darkScreenBand = OverlayRect.Invalid;
+        private OverlayRect _darkScreenDisplay = OverlayRect.Invalid;
+        private OverlayRect _dialogueOptionDisplay = OverlayRect.Invalid;
         private string _darkScreenHeader = string.Empty;
         private string _darkScreenContent = string.Empty;
         private int _darkScreenRecognitionOrder;
@@ -118,11 +120,12 @@ namespace GI_Subtitles.Core.Overlay
         {
             get
             {
+                OverlayRect display = ResolveDarkScreenDisplay();
                 bool visible = SubtitlesVisible
-                    && _darkScreenBand.IsValid
+                    && display.IsValid
                     && !string.IsNullOrEmpty(_darkScreenContent);
                 return new ExtraPathBody(
-                    _darkScreenBand,
+                    display,
                     _darkScreenHeader,
                     _darkScreenContent,
                     visible,
@@ -130,14 +133,22 @@ namespace GI_Subtitles.Core.Overlay
             }
         }
 
+        public OverlayRect DarkScreenDisplay
+        {
+            get { return _darkScreenDisplay; }
+        }
+
+        public OverlayRect DialogueOptionDisplay
+        {
+            get { return _dialogueOptionDisplay; }
+        }
+
         public ExtraPathBody DialogueChoiceEcho
         {
             get
             {
-                int index = IndexOfPair(VoicePrimaryId);
-                OverlayRect display = index >= 0 ? _pairs[index].Display : OverlayRect.Invalid;
+                OverlayRect display = ResolveEchoDisplay();
                 bool visible = SubtitlesVisible
-                    && index >= 0
                     && display.IsValid
                     && !string.IsNullOrEmpty(_echoContent);
                 return new ExtraPathBody(
@@ -145,7 +156,8 @@ namespace GI_Subtitles.Core.Overlay
                     string.Empty,
                     _echoContent,
                     visible,
-                    _echoRecognitionOrder);
+                    _echoRecognitionOrder,
+                    followsVoicePrimary: !_dialogueOptionDisplay.IsValid);
             }
         }
 
@@ -205,11 +217,13 @@ namespace GI_Subtitles.Core.Overlay
             get { return _adjustOutlines; }
         }
 
+        public OverlayAdjustTarget ArmedTarget { get; private set; }
+
         public int ArmedPairId { get; private set; }
 
         public bool IsClickThrough
         {
-            get { return ArmedPairId == 0; }
+            get { return ArmedTarget == OverlayAdjustTarget.None; }
         }
 
         public int ArmedPairIndex
@@ -283,6 +297,11 @@ namespace GI_Subtitles.Core.Overlay
 
         public void PreviewCaptureRegion(bool hasCaptureRegion)
         {
+            PreviewCaptureRegion(hasCaptureRegion, darkScreenScanOn: false);
+        }
+
+        public void PreviewCaptureRegion(bool hasCaptureRegion, bool darkScreenScanOn)
+        {
             Tick();
             if (!hasCaptureRegion)
             {
@@ -291,7 +310,7 @@ namespace GI_Subtitles.Core.Overlay
                 return;
             }
 
-            BuildPreviewOutlines();
+            BuildPreviewOutlines(darkScreenScanOn);
             _previewExpiresAt = _utcNow().AddMilliseconds(PreviewDurationMs);
             PreviewChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -305,15 +324,49 @@ namespace GI_Subtitles.Core.Overlay
                 return false;
             }
 
-            if (ArmedPairId == pairId)
+            if (ArmedTarget == OverlayAdjustTarget.Pair && ArmedPairId == pairId)
             {
                 ClearArm();
                 return true;
             }
 
-            ArmedPairId = pairId;
-            RebuildAdjustOutlines();
-            AdjustChanged?.Invoke(this, EventArgs.Empty);
+            Arm(OverlayAdjustTarget.Pair, pairId);
+            return true;
+        }
+
+        public bool TryToggleDarkScreenDisplayAdjust()
+        {
+            Tick();
+            if (!_darkScreenDisplay.IsValid)
+            {
+                return false;
+            }
+
+            if (ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay)
+            {
+                ClearArm();
+                return true;
+            }
+
+            Arm(OverlayAdjustTarget.DarkScreenDisplay, 0);
+            return true;
+        }
+
+        public bool TryToggleDialogueOptionDisplayAdjust()
+        {
+            Tick();
+            if (!_dialogueOptionDisplay.IsValid)
+            {
+                return false;
+            }
+
+            if (ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
+            {
+                ClearArm();
+                return true;
+            }
+
+            Arm(OverlayAdjustTarget.DialogueOptionDisplay, 0);
             return true;
         }
 
@@ -510,6 +563,30 @@ namespace GI_Subtitles.Core.Overlay
             PersistPairs();
         }
 
+        public void SetDarkScreenDisplay(OverlayRect display)
+        {
+            _darkScreenDisplay = display ?? OverlayRect.Invalid;
+            PersistExtraPathDisplays();
+            RefreshArmedExtraPath(OverlayAdjustTarget.DarkScreenDisplay, _darkScreenDisplay);
+        }
+
+        public void ClearDarkScreenDisplay()
+        {
+            SetDarkScreenDisplay(OverlayRect.Invalid);
+        }
+
+        public void SetDialogueOptionDisplay(OverlayRect display)
+        {
+            _dialogueOptionDisplay = display ?? OverlayRect.Invalid;
+            PersistExtraPathDisplays();
+            RefreshArmedExtraPath(OverlayAdjustTarget.DialogueOptionDisplay, _dialogueOptionDisplay);
+        }
+
+        public void ClearDialogueOptionDisplay()
+        {
+            SetDialogueOptionDisplay(OverlayRect.Invalid);
+        }
+
         public bool TryGetVoicePrimaryCapture(out int pairIndex, out OverlayRect capture)
         {
             pairIndex = IndexOfPair(VoicePrimaryId);
@@ -704,10 +781,63 @@ namespace GI_Subtitles.Core.Overlay
 
             SyncPairRuntime();
             bool identitiesChanged = EnsureIdentities();
+            LoadExtraPathDisplays();
             if (wroteLegacy || identitiesChanged)
             {
                 PersistPairs();
             }
+        }
+
+        private void LoadExtraPathDisplays()
+        {
+            _darkScreenDisplay = OverlayRect.Invalid;
+            _dialogueOptionDisplay = OverlayRect.Invalid;
+            if (_pairStore == null)
+            {
+                return;
+            }
+
+            OverlayRect darkScreen = _pairStore.ReadDarkScreenDisplay();
+            _darkScreenDisplay = darkScreen ?? OverlayRect.Invalid;
+            OverlayRect dialogueOption = _pairStore.ReadDialogueOptionDisplay();
+            _dialogueOptionDisplay = dialogueOption ?? OverlayRect.Invalid;
+        }
+
+        private void PersistExtraPathDisplays()
+        {
+            if (_pairStore == null)
+            {
+                return;
+            }
+
+            _pairStore.WriteDarkScreenDisplay(_darkScreenDisplay);
+            _pairStore.WriteDialogueOptionDisplay(_dialogueOptionDisplay);
+        }
+
+        private OverlayRect ResolveDarkScreenDisplay()
+        {
+            if (_darkScreenDisplay.IsValid)
+            {
+                return _darkScreenDisplay;
+            }
+
+            return _darkScreenBand;
+        }
+
+        private OverlayRect ResolveEchoDisplay()
+        {
+            if (_dialogueOptionDisplay.IsValid)
+            {
+                return _dialogueOptionDisplay;
+            }
+
+            int index = IndexOfPair(VoicePrimaryId);
+            if (index < 0)
+            {
+                return OverlayRect.Invalid;
+            }
+
+            return _pairs[index].Display;
         }
 
         private void PersistPairs()
@@ -990,8 +1120,7 @@ namespace GI_Subtitles.Core.Overlay
 
         private void ShowDialogueChoiceEcho(string content)
         {
-            int index = IndexOfPair(VoicePrimaryId);
-            if (index < 0 || !_pairs[index].Display.IsValid)
+            if (!ResolveEchoDisplay().IsValid)
             {
                 ClearEcho();
                 return;
@@ -1174,12 +1303,38 @@ namespace GI_Subtitles.Core.Overlay
             }
         }
 
-        private void BuildPreviewOutlines()
+        private void BuildPreviewOutlines(bool darkScreenScanOn)
         {
             _previewOutlines.Clear();
             for (int i = 0; i < _pairs.Count; i++)
             {
                 AddPairOutlines(_previewOutlines, i);
+            }
+
+            if (_darkScreenDisplay.IsValid)
+            {
+                _previewOutlines.Add(new RegionOutline(
+                    0,
+                    _darkScreenDisplay,
+                    true,
+                    RegionOutlineKind.DarkScreenDisplay));
+            }
+            else if (darkScreenScanOn && _darkScreenActive && _darkScreenBand.IsValid)
+            {
+                _previewOutlines.Add(new RegionOutline(
+                    0,
+                    _darkScreenBand,
+                    false,
+                    RegionOutlineKind.DarkScreenCandidate));
+            }
+
+            if (_dialogueOptionDisplay.IsValid)
+            {
+                _previewOutlines.Add(new RegionOutline(
+                    0,
+                    _dialogueOptionDisplay,
+                    true,
+                    RegionOutlineKind.DialogueOptionDisplay));
             }
         }
 
@@ -1213,22 +1368,69 @@ namespace GI_Subtitles.Core.Overlay
         private void RebuildAdjustOutlines()
         {
             _adjustOutlines.Clear();
-            int index = IndexOfPair(ArmedPairId);
-            if (index < 0)
+            if (ArmedTarget == OverlayAdjustTarget.Pair)
+            {
+                int index = IndexOfPair(ArmedPairId);
+                if (index >= 0)
+                {
+                    AddPairOutlines(_adjustOutlines, index);
+                }
+
+                return;
+            }
+
+            if (ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay && _darkScreenDisplay.IsValid)
+            {
+                _adjustOutlines.Add(new RegionOutline(
+                    0,
+                    _darkScreenDisplay,
+                    true,
+                    RegionOutlineKind.DarkScreenDisplay));
+                return;
+            }
+
+            if (ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay && _dialogueOptionDisplay.IsValid)
+            {
+                _adjustOutlines.Add(new RegionOutline(
+                    0,
+                    _dialogueOptionDisplay,
+                    true,
+                    RegionOutlineKind.DialogueOptionDisplay));
+            }
+        }
+
+        private void Arm(OverlayAdjustTarget target, int pairId)
+        {
+            ArmedTarget = target;
+            ArmedPairId = pairId;
+            RebuildAdjustOutlines();
+            AdjustChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void RefreshArmedExtraPath(OverlayAdjustTarget target, OverlayRect display)
+        {
+            if (ArmedTarget != target)
             {
                 return;
             }
 
-            AddPairOutlines(_adjustOutlines, index);
+            if (!display.IsValid)
+            {
+                ClearArm();
+                return;
+            }
+
+            RebuildAdjustOutlines();
         }
 
         private void ClearArm()
         {
-            if (ArmedPairId == 0 && _adjustOutlines.Count == 0)
+            if (ArmedTarget == OverlayAdjustTarget.None && ArmedPairId == 0 && _adjustOutlines.Count == 0)
             {
                 return;
             }
 
+            ArmedTarget = OverlayAdjustTarget.None;
             ArmedPairId = 0;
             _adjustOutlines.Clear();
             AdjustChanged?.Invoke(this, EventArgs.Empty);

@@ -270,6 +270,282 @@ namespace GI_Test
         }
 
         [TestMethod]
+        public void DarkScreen_PinnedDisplay_PlacesBodyOnPin_NotCandidateBand()
+        {
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+            OverlayRect pin = new OverlayRect(10, 20, 300, 50);
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.SetDarkScreenDisplay(pin);
+
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, content: "cutscene");
+
+            Assert.AreEqual(10, session.DarkScreenBody.Display.X);
+            Assert.AreEqual(20, session.DarkScreenBody.Display.Y);
+            Assert.AreEqual(300, session.DarkScreenBody.Display.Width);
+            Assert.AreEqual(50, session.DarkScreenBody.Display.Height);
+            Assert.AreEqual("cutscene", session.DarkScreenBody.Content);
+            Assert.IsTrue(session.DarkScreenDisplay.IsValid);
+        }
+
+        [TestMethod]
+        public void DarkScreen_ClearDisplay_ReturnsBodyToCandidateBand()
+        {
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+            OverlayRect pin = new OverlayRect(10, 20, 300, 50);
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.SetDarkScreenDisplay(pin);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, content: "cutscene");
+
+            session.ClearDarkScreenDisplay();
+
+            Assert.IsFalse(session.DarkScreenDisplay.IsValid);
+            Assert.AreEqual(40, session.DarkScreenBody.Display.X);
+            Assert.AreEqual(80, session.DarkScreenBody.Display.Y);
+            Assert.AreEqual("cutscene", session.DarkScreenBody.Content);
+        }
+
+        [TestMethod]
+        public void Preview_PinnedDarkScreen_DrawsSolidDisplay_NotCandidate()
+        {
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+            OverlayRect pin = new OverlayRect(10, 20, 300, 50);
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.SetDarkScreenDisplay(pin);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: false),
+                PairFrameSample.Unchanged());
+
+            session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: true);
+
+            Assert.AreEqual(3, session.PreviewOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.Pair, session.PreviewOutlines[0].Kind);
+            Assert.AreEqual(RegionOutlineKind.Pair, session.PreviewOutlines[1].Kind);
+            RegionOutline extra = session.PreviewOutlines[2];
+            Assert.AreEqual(RegionOutlineKind.DarkScreenDisplay, extra.Kind);
+            Assert.AreEqual(0, extra.PairOrdinal);
+            Assert.IsTrue(extra.IsDisplay);
+            Assert.IsFalse(extra.Dashed);
+            Assert.AreEqual(10, extra.Rect.X);
+            Assert.AreEqual(20, extra.Rect.Y);
+        }
+
+        [TestMethod]
+        public void Preview_LiveCandidate_DrawsDashedBand_OnlyWhenScanOnAndUnpinned()
+        {
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: false),
+                PairFrameSample.Unchanged());
+
+            session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: true);
+            Assert.AreEqual(3, session.PreviewOutlines.Count);
+            RegionOutline candidate = session.PreviewOutlines[2];
+            Assert.AreEqual(RegionOutlineKind.DarkScreenCandidate, candidate.Kind);
+            Assert.AreEqual(0, candidate.PairOrdinal);
+            Assert.IsFalse(candidate.IsDisplay);
+            Assert.IsTrue(candidate.Dashed);
+            Assert.AreEqual(40, candidate.Rect.X);
+
+            session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: false);
+            Assert.AreEqual(2, session.PreviewOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.Pair, session.PreviewOutlines[0].Kind);
+            Assert.AreEqual(RegionOutlineKind.Pair, session.PreviewOutlines[1].Kind);
+
+            session.SetDarkScreenDisplay(new OverlayRect(10, 20, 300, 50));
+            session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: true);
+            Assert.AreEqual(3, session.PreviewOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.DarkScreenDisplay, session.PreviewOutlines[2].Kind);
+        }
+
+        [TestMethod]
+        public void DialogueChoiceEcho_DetachesToDisplay_WithNoDuplicate()
+        {
+            OverlayRect pin = new OverlayRect(200, 300, 160, 40);
+            LiveOverlaySession session = CreateSessionWithPairs(2);
+            session.SetVoicePrimary(2);
+            session.SetDialogueOptionDisplay(pin);
+
+            session.Beat(ExtraPathSample.DialogueChoice("跳过"));
+
+            ExtraPathBody echo = session.DialogueChoiceEcho;
+            Assert.IsTrue(echo.Visible);
+            Assert.AreEqual("◆ 跳过", echo.Content);
+            Assert.AreEqual(200, echo.Display.X);
+            Assert.AreEqual(300, echo.Display.Y);
+            Assert.AreEqual(160, echo.Display.Width);
+            Assert.AreNotEqual(session.Pairs[1].Display.X, echo.Display.X);
+            Assert.IsFalse(echo.FollowsVoicePrimary);
+            Assert.AreEqual(string.Empty, session.PairBodies[0].Content);
+            Assert.AreEqual(string.Empty, session.PairBodies[1].Content);
+            Assert.IsFalse(session.HintVisible);
+
+            session.ClearDialogueOptionDisplay();
+            echo = session.DialogueChoiceEcho;
+            Assert.IsTrue(echo.Visible);
+            Assert.AreEqual("◆ 跳过", echo.Content);
+            Assert.AreEqual(session.Pairs[1].Display.X, echo.Display.X);
+            Assert.AreEqual(session.Pairs[1].Display.Y, echo.Display.Y);
+            Assert.IsTrue(echo.FollowsVoicePrimary);
+        }
+
+        [TestMethod]
+        public void DialogueChoiceEcho_Detached_DoesNotNeedVoicePrimaryDisplay()
+        {
+            OverlayRect pin = new OverlayRect(8, 9, 120, 30);
+            var store = new MemoryRegionPairStore
+            {
+                StoredPairs =
+                {
+                    new RegionPairRecord
+                    {
+                        Id = 1,
+                        Capture = new OverlayRect(0, 10, 80, 20),
+                        Display = OverlayRect.Invalid
+                    }
+                },
+                VoicePrimaryId = 1,
+                NextPairId = 2
+            };
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            session.SetDialogueOptionDisplay(pin);
+            session.Beat(ExtraPathSample.DialogueChoice("同意"));
+
+            ExtraPathBody echo = session.DialogueChoiceEcho;
+            Assert.IsTrue(echo.Visible);
+            Assert.AreEqual("◆ 同意", echo.Content);
+            Assert.AreEqual(8, echo.Display.X);
+        }
+
+        [TestMethod]
+        public void ExtraPathAdjust_DisabledUntilBoxed_OutlinesDisplayOnly()
+        {
+            OverlayRect pin = new OverlayRect(10, 20, 300, 50);
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+
+            Assert.IsFalse(session.TryToggleDarkScreenDisplayAdjust());
+            Assert.IsFalse(session.TryToggleDialogueOptionDisplayAdjust());
+            Assert.IsTrue(session.IsClickThrough);
+            Assert.AreEqual(OverlayAdjustTarget.None, session.ArmedTarget);
+            Assert.AreEqual(0, session.AdjustOutlines.Count);
+
+            session.SetDarkScreenDisplay(pin);
+            Assert.IsTrue(session.TryToggleDarkScreenDisplayAdjust());
+            Assert.IsFalse(session.IsClickThrough);
+            Assert.AreEqual(OverlayAdjustTarget.DarkScreenDisplay, session.ArmedTarget);
+            Assert.AreEqual(0, session.ArmedPairId);
+            Assert.AreEqual(1, session.AdjustOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.DarkScreenDisplay, session.AdjustOutlines[0].Kind);
+            Assert.IsTrue(session.AdjustOutlines[0].IsDisplay);
+            Assert.AreEqual(10, session.AdjustOutlines[0].Rect.X);
+
+            Assert.IsTrue(session.TryToggleDarkScreenDisplayAdjust());
+            Assert.IsTrue(session.IsClickThrough);
+            Assert.AreEqual(OverlayAdjustTarget.None, session.ArmedTarget);
+
+            session.SetDialogueOptionDisplay(new OverlayRect(200, 300, 160, 40));
+            Assert.IsTrue(session.TryToggleDialogueOptionDisplayAdjust());
+            Assert.AreEqual(OverlayAdjustTarget.DialogueOptionDisplay, session.ArmedTarget);
+            Assert.AreEqual(1, session.AdjustOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.DialogueOptionDisplay, session.AdjustOutlines[0].Kind);
+            Assert.IsTrue(session.AdjustOutlines[0].IsDisplay);
+            Assert.AreEqual(200, session.AdjustOutlines[0].Rect.X);
+
+            session.CancelDisplayAdjust();
+            Assert.IsTrue(session.IsClickThrough);
+            Assert.AreEqual(0, session.AdjustOutlines.Count);
+        }
+
+        [TestMethod]
+        public void ExtraPathAdjust_SwitchingFromPair_OutlinesOnlyTheExtraDisplay()
+        {
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.SetDarkScreenDisplay(new OverlayRect(10, 20, 300, 50));
+
+            Assert.IsTrue(session.TryToggleDisplayAdjust(session.Pairs[0].Id));
+            Assert.AreEqual(2, session.AdjustOutlines.Count);
+
+            Assert.IsTrue(session.TryToggleDarkScreenDisplayAdjust());
+            Assert.AreEqual(OverlayAdjustTarget.DarkScreenDisplay, session.ArmedTarget);
+            Assert.AreEqual(0, session.ArmedPairId);
+            Assert.AreEqual(1, session.AdjustOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.DarkScreenDisplay, session.AdjustOutlines[0].Kind);
+        }
+
+        [TestMethod]
+        public void Preview_DialogueOptionDisplay_DrawsPurpleOutline()
+        {
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.SetDialogueOptionDisplay(new OverlayRect(200, 300, 160, 40));
+
+            session.PreviewCaptureRegion(hasCaptureRegion: true);
+
+            Assert.AreEqual(3, session.PreviewOutlines.Count);
+            RegionOutline extra = session.PreviewOutlines[2];
+            Assert.AreEqual(RegionOutlineKind.DialogueOptionDisplay, extra.Kind);
+            Assert.AreEqual(0, extra.PairOrdinal);
+            Assert.IsTrue(extra.IsDisplay);
+            Assert.IsFalse(extra.Dashed);
+            Assert.AreEqual(200, extra.Rect.X);
+        }
+
+        [TestMethod]
+        public void DarkScreen_ScanOff_KeepsBoxedDisplay()
+        {
+            OverlayRect pin = new OverlayRect(10, 20, 300, 50);
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+            LiveOverlaySession session = CreateSessionWithPairs(1);
+            session.SetDarkScreenDisplay(pin);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: false),
+                PairFrameSample.Unchanged());
+
+            session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: false);
+
+            Assert.IsTrue(session.DarkScreenDisplay.IsValid);
+            Assert.AreEqual(10, session.DarkScreenDisplay.X);
+            Assert.AreEqual(3, session.PreviewOutlines.Count);
+            Assert.AreEqual(RegionOutlineKind.DarkScreenDisplay, session.PreviewOutlines[2].Kind);
+            Assert.AreNotEqual(RegionOutlineKind.DarkScreenCandidate, session.PreviewOutlines[2].Kind);
+        }
+
+        [TestMethod]
+        public void DarkScreen_BoxedDisplay_PersistsAcrossSessions()
+        {
+            OverlayRect pin = new OverlayRect(12, 24, 180, 36);
+            var store = new MemoryRegionPairStore
+            {
+                StoredPairs =
+                {
+                    new RegionPairRecord
+                    {
+                        Id = 1,
+                        Capture = new OverlayRect(0, 10, 80, 20),
+                        Display = new OverlayRect(0, 40, 80, 20)
+                    }
+                },
+                VoicePrimaryId = 1,
+                NextPairId = 2
+            };
+            var first = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            first.SetDarkScreenDisplay(pin);
+
+            Assert.AreEqual(12, store.DarkScreenDisplay.X);
+            Assert.AreEqual(24, store.DarkScreenDisplay.Y);
+
+            var reloaded = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            Assert.AreEqual(12, reloaded.DarkScreenDisplay.X);
+            Assert.AreEqual(36, reloaded.DarkScreenDisplay.Height);
+            Assert.IsTrue(reloaded.DarkScreenDisplay.IsValid);
+        }
+
+        [TestMethod]
         public void NoValidCapture_DoesNotRunExtraPaths()
         {
             var pairs = new MemoryRegionPairStore();
@@ -327,6 +603,8 @@ namespace GI_Test
             public int VoicePrimaryId;
             public int NextPairId;
             public int WriteCount;
+            public OverlayRect DarkScreenDisplay = OverlayRect.Invalid;
+            public OverlayRect DialogueOptionDisplay = OverlayRect.Invalid;
 
             public System.Collections.Generic.IReadOnlyList<RegionPairRecord> ReadPairs()
             {
@@ -362,6 +640,26 @@ namespace GI_Test
             public void WriteNextPairId(int id)
             {
                 NextPairId = id;
+            }
+
+            public OverlayRect ReadDarkScreenDisplay()
+            {
+                return DarkScreenDisplay ?? OverlayRect.Invalid;
+            }
+
+            public void WriteDarkScreenDisplay(OverlayRect display)
+            {
+                DarkScreenDisplay = display ?? OverlayRect.Invalid;
+            }
+
+            public OverlayRect ReadDialogueOptionDisplay()
+            {
+                return DialogueOptionDisplay ?? OverlayRect.Invalid;
+            }
+
+            public void WriteDialogueOptionDisplay(OverlayRect display)
+            {
+                DialogueOptionDisplay = display ?? OverlayRect.Invalid;
             }
         }
     }

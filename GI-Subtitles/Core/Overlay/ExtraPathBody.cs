@@ -7,13 +7,15 @@ namespace GI_Subtitles.Core.Overlay
             string header,
             string content,
             bool visible,
-            int recognitionOrder)
+            int recognitionOrder,
+            bool followsVoicePrimary = false)
         {
             Display = display ?? OverlayRect.Invalid;
             Header = header ?? string.Empty;
             Content = content ?? string.Empty;
             Visible = visible;
             RecognitionOrder = recognitionOrder;
+            FollowsVoicePrimary = followsVoicePrimary;
         }
 
         public OverlayRect Display { get; }
@@ -25,5 +27,7 @@ namespace GI_Subtitles.Core.Overlay
         public bool Visible { get; }
 
         public int RecognitionOrder { get; }
+
+        public bool FollowsVoicePrimary { get; }
     }
 }

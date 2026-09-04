@@ -9,6 +9,8 @@ namespace GI_Subtitles.Core.Overlay
         public const string PairsConfigKey = "RegionPairs";
         public const string VoicePrimaryIdConfigKey = "VoicePrimaryId";
         public const string NextPairIdConfigKey = "NextPairId";
+        public const string DarkScreenDisplayConfigKey = "DarkScreenDisplay";
+        public const string DialogueOptionDisplayConfigKey = "DialogueOptionDisplay";
 
         public IReadOnlyList<RegionPairRecord> ReadPairs()
         {
@@ -55,6 +57,26 @@ namespace GI_Subtitles.Core.Overlay
         public void WriteNextPairId(int id)
         {
             AppConfig.Set(NextPairIdConfigKey, id);
+        }
+
+        public OverlayRect ReadDarkScreenDisplay()
+        {
+            return AppConfig.Get<OverlayRect>(DarkScreenDisplayConfigKey, null) ?? OverlayRect.Invalid;
+        }
+
+        public void WriteDarkScreenDisplay(OverlayRect display)
+        {
+            AppConfig.Set(DarkScreenDisplayConfigKey, display ?? OverlayRect.Invalid);
+        }
+
+        public OverlayRect ReadDialogueOptionDisplay()
+        {
+            return AppConfig.Get<OverlayRect>(DialogueOptionDisplayConfigKey, null) ?? OverlayRect.Invalid;
+        }
+
+        public void WriteDialogueOptionDisplay(OverlayRect display)
+        {
+            AppConfig.Set(DialogueOptionDisplayConfigKey, display ?? OverlayRect.Invalid);
         }
     }
 }

@@ -386,6 +386,8 @@ namespace GI_Test
             public int VoicePrimaryId;
             public int NextPairId;
             public int WriteCount;
+            public OverlayRect DarkScreenDisplay = OverlayRect.Invalid;
+            public OverlayRect DialogueOptionDisplay = OverlayRect.Invalid;
 
             public IReadOnlyList<RegionPairRecord> ReadPairs()
             {
@@ -421,6 +423,26 @@ namespace GI_Test
             public void WriteNextPairId(int id)
             {
                 NextPairId = id;
+            }
+
+            public OverlayRect ReadDarkScreenDisplay()
+            {
+                return DarkScreenDisplay ?? OverlayRect.Invalid;
+            }
+
+            public void WriteDarkScreenDisplay(OverlayRect display)
+            {
+                DarkScreenDisplay = display ?? OverlayRect.Invalid;
+            }
+
+            public OverlayRect ReadDialogueOptionDisplay()
+            {
+                return DialogueOptionDisplay ?? OverlayRect.Invalid;
+            }
+
+            public void WriteDialogueOptionDisplay(OverlayRect display)
+            {
+                DialogueOptionDisplay = display ?? OverlayRect.Invalid;
             }
         }
     }

@@ -357,12 +357,53 @@ namespace GI_Subtitles.Core.UI
             return display.IsValid && settings.TrySetDisplay(pairId, display);
         }
 
+        public bool BoxDarkScreenDisplay()
+        {
+            if (_overlaySession == null)
+            {
+                return false;
+            }
+
+            OverlayRect display = PromptRect("ExtraPath_BoxDarkScreenMask", "框选暗屏显示区");
+            if (!display.IsValid)
+            {
+                return false;
+            }
+
+            _overlaySession.SetDarkScreenDisplay(display);
+            data?.RefreshExtraPathDisplayRows();
+            return true;
+        }
+
+        public bool BoxDialogueOptionDisplay()
+        {
+            if (_overlaySession == null)
+            {
+                return false;
+            }
+
+            OverlayRect display = PromptRect("ExtraPath_BoxDialogueOptionMask", "框选对话选项显示区");
+            if (!display.IsValid)
+            {
+                return false;
+            }
+
+            _overlaySession.SetDialogueOptionDisplay(display);
+            data?.RefreshExtraPathDisplayRows();
+            return true;
+        }
+
+        private OverlayRect PromptRect(string resourceKey, string fallback)
+        {
+            return PromptRect(resourceKey, fallback, 0);
+        }
+
         private OverlayRect PromptRect(string resourceKey, string fallback, int ordinal)
         {
             try
             {
                 string format = GetLocalizedString(resourceKey, fallback);
-                string prompt = string.Format(format, ordinal);
+                string prompt = ordinal > 0 ? string.Format(format, ordinal) : format;
                 var rect = Screenshot.Screenshot.GetRegion(prompt);
                 if (Convert.ToInt32(rect.Width) > 0 && Convert.ToInt32(rect.Height) > 0)
                 {

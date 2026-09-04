@@ -17,6 +17,14 @@ namespace GI_Subtitles.Core.Overlay
         int ReadNextPairId();
 
         void WriteNextPairId(int id);
+
+        OverlayRect ReadDarkScreenDisplay();
+
+        void WriteDarkScreenDisplay(OverlayRect display);
+
+        OverlayRect ReadDialogueOptionDisplay();
+
+        void WriteDialogueOptionDisplay(OverlayRect display);
     }
 
     public sealed class RegionPairRecord

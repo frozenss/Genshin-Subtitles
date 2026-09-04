@@ -94,13 +94,17 @@ namespace GI_Subtitles.Views
         private OverlayRect _dragStartRect = OverlayRect.Invalid;
         private System.Windows.Point _dragStartMouse;
         private int _dragPairIndex = -1;
+        private OverlayAdjustTarget _dragTarget = OverlayAdjustTarget.None;
         private int _lastPreviewCount;
         private int _lastArmedPairId = -1;
+        private OverlayAdjustTarget _lastArmedTarget = OverlayAdjustTarget.None;
         private bool _escHotkeyRegistered;
         private const int HotkeyIdAdjustEsc = 9006;
         private const uint VkEscape = 0x1B;
         private static readonly SolidColorBrush CaptureOutlineBrush = CreateFrozenBrush(0x3E, 0xE0, 0x5A);
         private static readonly SolidColorBrush DisplayOutlineBrush = CreateFrozenBrush(0xE6, 0xC3, 0x5C);
+        private static readonly SolidColorBrush DarkScreenOutlineBrush = CreateFrozenBrush(0x2A, 0xD4, 0xE8);
+        private static readonly SolidColorBrush DialogueOptionOutlineBrush = CreateFrozenBrush(0xA8, 0x5C, 0xE6);
         private static readonly SolidColorBrush AdjustHitFill = CreateFrozenBrush(1, 255, 255, 255);
         string ocrText = "";
         private NotifyIcon notifyIcon;
@@ -637,6 +641,19 @@ namespace GI_Subtitles.Views
             DialogueChoiceText.Text = echo.Content;
             DialogueChoiceText.Visibility = Visibility.Visible;
             System.Windows.Controls.Panel.SetZIndex(DialogueChoiceText, echo.RecognitionOrder);
+
+            var transform = (System.Windows.Media.TranslateTransform)DialogueChoiceText.RenderTransform;
+            if (!echo.FollowsVoicePrimary)
+            {
+                transform.Y = 0;
+                DialogueChoiceText.Height = echo.Display.Height / Scale;
+                DialogueChoiceText.MaxHeight = echo.Display.Height / Scale;
+                DialogueChoiceText.FontSize = Config.Get<int>("Size");
+                return;
+            }
+
+            DialogueChoiceText.ClearValue(FrameworkElement.HeightProperty);
+            DialogueChoiceText.ClearValue(FrameworkElement.MaxHeightProperty);
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -1930,7 +1947,9 @@ namespace GI_Subtitles.Views
 
         private void PreviewCaptureRegion()
         {
-            _overlaySession.PreviewCaptureRegion(_overlaySession.HasValidCapture);
+            _overlaySession.PreviewCaptureRegion(
+                _overlaySession.HasValidCapture,
+                Config.Get("RecognizeDarkScreenSubtitles", true));
         }
 
         private void OnHintChanged()
@@ -1975,7 +1994,8 @@ namespace GI_Subtitles.Views
             }
 
             if (_overlaySession.PreviewOutlines.Count == _lastPreviewCount &&
-                _overlaySession.ArmedPairId == _lastArmedPairId)
+                _overlaySession.ArmedPairId == _lastArmedPairId &&
+                _overlaySession.ArmedTarget == _lastArmedTarget)
             {
                 return;
             }
@@ -2003,6 +2023,7 @@ namespace GI_Subtitles.Views
 
             _lastPreviewCount = _overlaySession.PreviewOutlines.Count;
             _lastArmedPairId = _overlaySession.ArmedPairId;
+            _lastArmedTarget = _overlaySession.ArmedTarget;
         }
 
         private void ClearOutlineElements()
@@ -2026,7 +2047,7 @@ namespace GI_Subtitles.Views
             System.Windows.Point canvasPoint = DisplayToCanvas(rect);
             double width = rect.Width / Scale;
             double height = rect.Height / Scale;
-            SolidColorBrush stroke = outline.IsDisplay ? DisplayOutlineBrush : CaptureOutlineBrush;
+            SolidColorBrush stroke = BrushForOutline(outline);
 
             var box = new System.Windows.Shapes.Rectangle
             {
@@ -2034,6 +2055,7 @@ namespace GI_Subtitles.Views
                 Height = height,
                 Stroke = stroke,
                 StrokeThickness = 3,
+                StrokeDashArray = outline.Dashed ? new DoubleCollection { 4, 3 } : null,
                 Fill = takesMouse ? AdjustHitFill : null,
                 IsHitTestVisible = takesMouse,
                 Cursor = takesMouse ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Arrow
@@ -2053,7 +2075,7 @@ namespace GI_Subtitles.Views
 
             var label = new System.Windows.Controls.TextBlock
             {
-                Text = FormatPairOutlineLabel(outline.PairOrdinal),
+                Text = FormatOutlineLabel(outline),
                 Foreground = stroke,
                 FontWeight = FontWeights.Bold,
                 FontSize = 14,
@@ -2064,6 +2086,35 @@ namespace GI_Subtitles.Views
             System.Windows.Controls.Panel.SetZIndex(label, 41);
             OverlayCanvas.Children.Add(label);
             _outlineElements.Add(label);
+        }
+
+        private static SolidColorBrush BrushForOutline(RegionOutline outline)
+        {
+            switch (outline.Kind)
+            {
+                case RegionOutlineKind.DarkScreenDisplay:
+                case RegionOutlineKind.DarkScreenCandidate:
+                    return DarkScreenOutlineBrush;
+                case RegionOutlineKind.DialogueOptionDisplay:
+                    return DialogueOptionOutlineBrush;
+                default:
+                    return outline.IsDisplay ? DisplayOutlineBrush : CaptureOutlineBrush;
+            }
+        }
+
+        private string FormatOutlineLabel(RegionOutline outline)
+        {
+            switch (outline.Kind)
+            {
+                case RegionOutlineKind.DarkScreenDisplay:
+                    return TryFindResource("Overlay_DarkScreenOutlineLabel") as string ?? "暗屏";
+                case RegionOutlineKind.DialogueOptionDisplay:
+                    return TryFindResource("Overlay_DialogueOptionOutlineLabel") as string ?? "选项";
+                case RegionOutlineKind.DarkScreenCandidate:
+                    return TryFindResource("Overlay_DarkScreenCandidateOutlineLabel") as string ?? "检测带";
+                default:
+                    return FormatPairOutlineLabel(outline.PairOrdinal);
+            }
         }
 
         private string FormatPairOutlineLabel(int ordinal)
@@ -2091,8 +2142,29 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            int index = _overlaySession.ArmedPairIndex;
-            if (index < 0)
+            OverlayAdjustTarget target = _overlaySession.ArmedTarget;
+            OverlayRect start = OverlayRect.Invalid;
+            int pairIndex = -1;
+            if (target == OverlayAdjustTarget.Pair)
+            {
+                pairIndex = _overlaySession.ArmedPairIndex;
+                if (pairIndex < 0)
+                {
+                    return;
+                }
+
+                start = _overlaySession.GetDisplay(pairIndex);
+            }
+            else if (target == OverlayAdjustTarget.DarkScreenDisplay)
+            {
+                start = _overlaySession.DarkScreenDisplay;
+            }
+            else if (target == OverlayAdjustTarget.DialogueOptionDisplay)
+            {
+                start = _overlaySession.DialogueOptionDisplay;
+            }
+
+            if (start == null || !start.IsValid)
             {
                 return;
             }
@@ -2104,8 +2176,9 @@ namespace GI_Subtitles.Views
             }
 
             _displayDragging = true;
-            _dragPairIndex = index;
-            _dragStartRect = _overlaySession.GetDisplay(index);
+            _dragTarget = target;
+            _dragPairIndex = pairIndex;
+            _dragStartRect = start;
             _dragStartMouse = e.GetPosition(OverlayCanvas);
             box.CaptureMouse();
             e.Handled = true;
@@ -2113,7 +2186,7 @@ namespace GI_Subtitles.Views
 
         private void DisplayAdjust_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (!_displayDragging || e.LeftButton != MouseButtonState.Pressed || _dragPairIndex < 0)
+            if (!_displayDragging || e.LeftButton != MouseButtonState.Pressed || _dragTarget == OverlayAdjustTarget.None)
             {
                 return;
             }
@@ -2126,7 +2199,7 @@ namespace GI_Subtitles.Views
                 (int)Math.Round(_dragStartRect.Y + deltaY * Scale),
                 _dragStartRect.Width,
                 _dragStartRect.Height);
-            _overlaySession.SetDisplay(_dragPairIndex, moved);
+            ApplyDraggedDisplay(moved);
 
             var box = sender as System.Windows.Shapes.Rectangle;
             if (box != null)
@@ -2151,9 +2224,31 @@ namespace GI_Subtitles.Views
             box?.ReleaseMouseCapture();
             _displayDragging = false;
             _dragPairIndex = -1;
+            _dragTarget = OverlayAdjustTarget.None;
             ApplyOutlines();
             data?.RefreshPairPage();
+            data?.RefreshExtraPathDisplayRows();
             e.Handled = true;
+        }
+
+        private void ApplyDraggedDisplay(OverlayRect moved)
+        {
+            if (_dragTarget == OverlayAdjustTarget.Pair)
+            {
+                _overlaySession.SetDisplay(_dragPairIndex, moved);
+                return;
+            }
+
+            if (_dragTarget == OverlayAdjustTarget.DarkScreenDisplay)
+            {
+                _overlaySession.SetDarkScreenDisplay(moved);
+                return;
+            }
+
+            if (_dragTarget == OverlayAdjustTarget.DialogueOptionDisplay)
+            {
+                _overlaySession.SetDialogueOptionDisplay(moved);
+            }
         }
 
         private void UpdateAdjustEscHotkey()

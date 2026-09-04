@@ -482,12 +482,54 @@
                                   Content="{DynamicResource Config_RecognizeDarkScreenSubtitles}"
                                   ToolTip="{DynamicResource Config_RecognizeDarkScreenSubtitles_Tooltip}"
                                   Margin="0,0,0,6"/>
-                        <CheckBox x:Name="RecognizeDialogueOptionsCheckBox"
-                                  Checked="RecognizeDialogueOptionsCheckBox_Checked"
-                                  Unchecked="RecognizeDialogueOptionsCheckBox_Checked"
-                                  Content="{DynamicResource Config_RecognizeDialogueOptions}"
-                                  ToolTip="{DynamicResource Config_RecognizeDialogueOptions_Tooltip}"
-                                  Margin="0,0,0,6"/>
+                        <StackPanel x:Name="DarkScreenDisplayRow" Margin="22,0,0,10" Visibility="Collapsed">
+                            <TextBlock x:Name="DarkScreenDisplayStatus"
+                                       Margin="0,0,0,6"
+                                       TextWrapping="Wrap"
+                                       Foreground="#555555"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{DynamicResource ExtraPath_BoxDisplay}"
+                                        Click="BoxDarkScreenDisplay_Click"
+                                        Padding="10,2"
+                                        Margin="0,0,8,0"/>
+                                <Button x:Name="AdjustDarkScreenDisplayButton"
+                                        Content="{DynamicResource Btn_AdjustDisplay}"
+                                        Click="AdjustDarkScreenDisplay_Click"
+                                        Padding="10,2"
+                                        Margin="0,0,8,0"/>
+                                <Button Content="{DynamicResource ExtraPath_ClearDefault}"
+                                        Click="ClearDarkScreenDisplay_Click"
+                                        Padding="10,2"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel x:Name="DialogueOptionScanPanel">
+                            <CheckBox x:Name="RecognizeDialogueOptionsCheckBox"
+                                      Checked="RecognizeDialogueOptionsCheckBox_Checked"
+                                      Unchecked="RecognizeDialogueOptionsCheckBox_Checked"
+                                      Content="{DynamicResource Config_RecognizeDialogueOptions}"
+                                      ToolTip="{DynamicResource Config_RecognizeDialogueOptions_Tooltip}"
+                                      Margin="0,0,0,6"/>
+                            <StackPanel x:Name="DialogueOptionDisplayRow" Margin="22,0,0,10" Visibility="Collapsed">
+                                <TextBlock x:Name="DialogueOptionDisplayStatus"
+                                           Margin="0,0,0,6"
+                                           TextWrapping="Wrap"
+                                           Foreground="#555555"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{DynamicResource ExtraPath_BoxDisplay}"
+                                            Click="BoxDialogueOptionDisplay_Click"
+                                            Padding="10,2"
+                                            Margin="0,0,8,0"/>
+                                    <Button x:Name="AdjustDialogueOptionDisplayButton"
+                                            Content="{DynamicResource Btn_AdjustDisplay}"
+                                            Click="AdjustDialogueOptionDisplay_Click"
+                                            Padding="10,2"
+                                            Margin="0,0,8,0"/>
+                                    <Button Content="{DynamicResource ExtraPath_ClearDefault}"
+                                            Click="ClearDialogueOptionDisplay_Click"
+                                            Padding="10,2"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Action Buttons -->

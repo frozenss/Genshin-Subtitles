@@ -159,7 +159,11 @@ namespace GI_Subtitles.Views
             _pairSettings = new RegionPairSettings(overlaySession);
             _overlaySession.AdjustChanged += (sender, args) =>
             {
-                Dispatcher.BeginInvoke(new Action(RefreshPairPage));
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    RefreshPairPage();
+                    RefreshExtraPathDisplayRows();
+                }));
             };
             InitializeComponent();
             SourceInitialized += (sender, args) => FitWindowToWorkingArea();
@@ -256,6 +260,7 @@ namespace GI_Subtitles.Views
             RecognizeDialogueOptionsCheckBox.IsChecked = Config.Get("RecognizeDialogueOptions", false);
             BindOcrIntervalSettings();
             RefreshPairPage();
+            RefreshExtraPathDisplayRows();
             IsVisibleChanged += SettingsWindow_IsVisibleChanged;
         }
 
@@ -265,6 +270,7 @@ namespace GI_Subtitles.Views
             {
                 BindOcrIntervalSettings();
                 RefreshPairPage();
+                RefreshExtraPathDisplayRows();
             }
         }
 
@@ -400,7 +406,9 @@ namespace GI_Subtitles.Views
 
         private void PreviewAll_Click(object sender, RoutedEventArgs e)
         {
-            _overlaySession.PreviewCaptureRegion(_overlaySession.HasValidCapture);
+            _overlaySession.PreviewCaptureRegion(
+                _overlaySession.HasValidCapture,
+                RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true);
         }
 
         private void AdjustDisplay_Click(object sender, RoutedEventArgs e)
@@ -417,13 +425,14 @@ namespace GI_Subtitles.Views
 
         private void SettingsWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key != System.Windows.Input.Key.Escape || _overlaySession.ArmedPairId == 0)
+            if (e.Key != System.Windows.Input.Key.Escape || _overlaySession.IsClickThrough)
             {
                 return;
             }
 
             _pairSettings.CancelDisplayAdjust();
             RefreshPairPage();
+            RefreshExtraPathDisplayRows();
             e.Handled = true;
         }
 
@@ -952,6 +961,7 @@ namespace GI_Subtitles.Views
 
                     DisplayLocalFileDates();
                     OutputConfirmButton.IsEnabled = true;
+                    RefreshExtraPathDisplayRows();
                 }
             }
         }
@@ -2227,9 +2237,14 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            Config.Set(
-                "RecognizeDarkScreenSubtitles",
-                RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true);
+            bool enabled = RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true;
+            Config.Set("RecognizeDarkScreenSubtitles", enabled);
+            if (!enabled && _overlaySession.ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay)
+            {
+                _overlaySession.CancelDisplayAdjust();
+            }
+
+            RefreshExtraPathDisplayRows();
         }
 
         private void RecognizeDialogueOptionsCheckBox_Checked(object sender, RoutedEventArgs e)
@@ -2239,9 +2254,139 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            Config.Set(
-                "RecognizeDialogueOptions",
-                RecognizeDialogueOptionsCheckBox.IsChecked == true);
+            bool enabled = RecognizeDialogueOptionsCheckBox.IsChecked == true;
+            Config.Set("RecognizeDialogueOptions", enabled);
+            if (!enabled && _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
+            {
+                _overlaySession.CancelDisplayAdjust();
+            }
+
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void BoxDarkScreenDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            notifyIcon.BoxDarkScreenDisplay();
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void BoxDialogueOptionDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            notifyIcon.BoxDialogueOptionDisplay();
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void AdjustDarkScreenDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            _overlaySession.TryToggleDarkScreenDisplayAdjust();
+            RefreshPairPage();
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void AdjustDialogueOptionDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            _overlaySession.TryToggleDialogueOptionDisplayAdjust();
+            RefreshPairPage();
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void ClearDarkScreenDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            _overlaySession.ClearDarkScreenDisplay();
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void ClearDialogueOptionDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            _overlaySession.ClearDialogueOptionDisplay();
+            RefreshExtraPathDisplayRows();
+        }
+
+        public void RefreshExtraPathDisplayRows()
+        {
+            bool darkScanOn = RecognizeDarkScreenSubtitlesCheckBox != null
+                && RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true;
+            if (DarkScreenDisplayRow != null)
+            {
+                DarkScreenDisplayRow.Visibility = darkScanOn ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            UpdateExtraPathStatus(
+                DarkScreenDisplayStatus,
+                _overlaySession.DarkScreenDisplay,
+                "ExtraPath_DarkScreenFollowBand");
+            UpdateExtraPathAdjustButton(
+                AdjustDarkScreenDisplayButton,
+                _overlaySession.DarkScreenDisplay.IsValid,
+                _overlaySession.ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay);
+
+            bool genshin = string.Equals(Game, "Genshin", StringComparison.Ordinal);
+            if (!genshin && _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
+            {
+                _overlaySession.CancelDisplayAdjust();
+            }
+
+            if (DialogueOptionScanPanel != null)
+            {
+                DialogueOptionScanPanel.Visibility = genshin ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            bool dialogueScanOn = genshin
+                && RecognizeDialogueOptionsCheckBox != null
+                && RecognizeDialogueOptionsCheckBox.IsChecked == true;
+            if (DialogueOptionDisplayRow != null)
+            {
+                DialogueOptionDisplayRow.Visibility = dialogueScanOn ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            UpdateExtraPathStatus(
+                DialogueOptionDisplayStatus,
+                _overlaySession.DialogueOptionDisplay,
+                "ExtraPath_DialogueFollowVoicePrimary");
+            UpdateExtraPathAdjustButton(
+                AdjustDialogueOptionDisplayButton,
+                _overlaySession.DialogueOptionDisplay.IsValid,
+                _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay);
+        }
+
+        private void UpdateExtraPathStatus(System.Windows.Controls.TextBlock status, OverlayRect display, string unsetKey)
+        {
+            if (status == null)
+            {
+                return;
+            }
+
+            if (display == null || !display.IsValid)
+            {
+                status.Text = TryFindResource(unsetKey) as string ?? string.Empty;
+                return;
+            }
+
+            string setLabel = TryFindResource("ExtraPath_DisplaySet") as string ?? string.Empty;
+            status.Text = setLabel + " " + display.X + ", " + display.Y + ", " + display.Width + ", " + display.Height;
+        }
+
+        private static void UpdateExtraPathAdjustButton(
+            System.Windows.Controls.Button button,
+            bool canAdjust,
+            bool armed)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            button.IsEnabled = canAdjust || armed;
+            if (armed)
+            {
+                button.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD4, 0xB4, 0x4A));
+                button.BorderThickness = new Thickness(2);
+            }
+            else
+            {
+                button.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
+                button.ClearValue(System.Windows.Controls.Control.BorderThicknessProperty);
+            }
         }
 
         private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
