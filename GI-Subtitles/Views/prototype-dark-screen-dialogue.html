@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE · 暗屏和对话选项的开关、显示区在设置里长什么样</title>
+  <!--
+    Three variants of dark-screen / dialogue-option settings chrome,
+    switchable via ?variant=. Hosted next to SettingsWindow.xaml.
+    Throwaway. Do not ship.
+  -->
+  <style>
+    :root {
+      --gold: #e6c35c;
+      --lime: #3ee05a;
+      --cyan: #3ec8e0;
+      --opt: #c084fc;
+      --ice: #e8eef8;
+      --ink: #0c1018;
+      --panel: #161b27;
+      --muted: #8b93a7;
+      --warn: #d7a84b;
+      --wpf: #f0f0f0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      background: #07090e;
+      color: #e8ecf4;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto auto 1fr;
+      height: 100%;
+    }
+    header.chrome {
+      grid-column: 1 / -1;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid #252b3a;
+      background: #0e121b;
+    }
+    header.chrome .kicker {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #d7a84b;
+      font-weight: 700;
+    }
+    header.chrome h1 { margin: 2px 0 4px; font-size: 16px; font-weight: 650; }
+    header.chrome p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 110ch;
+    }
+    .scenes {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #0e121b;
+      border-bottom: 1px solid #252b3a;
+      align-items: center;
+    }
+    .scenes .lab {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      margin-right: 4px;
+    }
+    .scenes button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .scenes button.on {
+      background: #3a2f14;
+      border-color: var(--gold);
+      color: #ffe9a8;
+    }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #root { flex: 1; min-height: 0; position: relative; width: 100%; display: flex; flex-direction: column; }
+    .desk {
+      margin: 12px;
+      flex: 1;
+      min-height: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #3a3a3a;
+      box-shadow: inset 0 0 0 1px #2a3144;
+      position: relative;
+    }
+    .desk.game {
+      background:
+        radial-gradient(ellipse at 20% 10%, #2a3344 0, transparent 50%),
+        linear-gradient(180deg, #1a2230 0%, #121820 60%, #0b0e14 100%);
+    }
+    .win {
+      position: absolute;
+      inset: 12px 20px 40px;
+      background: var(--wpf);
+      color: #222;
+      border: 1px solid #7a7a7a;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      min-width: 0;
+    }
+    .win-title {
+      height: 28px;
+      background: linear-gradient(#fff, #ececec);
+      border-bottom: 1px solid #c8c8c8;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    .win-title .dot {
+      width: 14px; height: 14px;
+      background: #5b8def;
+      border-radius: 2px;
+    }
+    .tabs {
+      display: flex;
+      gap: 1px;
+      padding: 8px 10px 0;
+      background: var(--wpf);
+      flex: 0 0 auto;
+    }
+    .tabs button {
+      font: inherit;
+      background: #e6e6e6;
+      border: 1px solid #bdbdbd;
+      border-bottom: none;
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: 3px 3px 0 0;
+      color: #444;
+      cursor: pointer;
+    }
+    .tabs button.on {
+      background: #fff;
+      color: #111;
+      font-weight: 650;
+    }
+    .tab-body {
+      flex: 1;
+      min-height: 0;
+      margin: 0 10px 10px;
+      background: #fff;
+      border: 1px solid #bdbdbd;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    .placeholder { color: #888; font-style: italic; padding: 24px 8px; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+    .muted { color: #666; font-style: italic; }
+    .btn {
+      font: inherit;
+      background: #f8f8f8;
+      border: 1px solid #adadad;
+      border-radius: 2px;
+      padding: 3px 10px;
+      cursor: pointer;
+      color: #222;
+    }
+    .btn:hover { background: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.danger { color: #8a1f1f; }
+    .btn.voice.on {
+      background: #fff6d8;
+      border-color: #c9a227;
+      color: #6a4b00;
+      font-weight: 700;
+    }
+    .btn.hl {
+      background: #fff6d8;
+      border-color: #c9a227;
+    }
+    label.check { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+    .hint { color: #666; font-size: 11px; }
+    .indent {
+      margin: -2px 0 10px 22px;
+      padding: 6px 8px;
+      background: #f6f8fb;
+      border: 1px solid #d5dce8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .indent .st {
+      font-weight: 650;
+      color: #2a4a7a;
+      min-width: 6.5em;
+    }
+    .indent .st.set { color: #6a4b00; }
+    .group {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      padding: 8px 10px 6px;
+      margin: 0 0 10px;
+      background: #fafafa;
+    }
+    .group h3 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .group.not-pair {
+      border-style: dashed;
+      background: #f7f9fc;
+    }
+    .card {
+      border: 1px solid #cfcfcf;
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin: 0 0 6px;
+      background: #fafafa;
+    }
+    .card.voice {
+      border-color: #d4b44a;
+      background: #fffdf6;
+    }
+    .card h3 {
+      margin: 0 0 6px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .kv { display: grid; grid-template-columns: 4.5em 1fr auto auto; gap: 4px 8px; align-items: center; }
+    .kv .coords { font-variant-numeric: tabular-nums; color: #333; }
+    .card-foot { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fff4ce;
+      color: #7a5a00;
+      border: 1px solid #e0c060;
+      white-space: nowrap;
+    }
+    .chip.extra {
+      background: #eef6fb;
+      color: #215a72;
+      border-color: #9ad0e0;
+    }
+    .extra-strip {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed #c5c5c5;
+    }
+    .extra-strip .lab {
+      font-size: 11px;
+      color: #555;
+      margin: 0 0 6px;
+      font-weight: 650;
+    }
+    .extra-chip {
+      border: 1px dashed #9aa8bc;
+      background: #f4f7fb;
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin: 0 0 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .extra-chip.off { opacity: 0.55; }
+    .extra-chip .name { font-weight: 700; min-width: 7em; }
+    .game-stage {
+      position: absolute;
+      inset: 18px 24px 56px;
+      border-radius: 4px;
+      background:
+        linear-gradient(180deg, rgba(40,70,90,0.35), rgba(10,12,16,0.2)),
+        repeating-linear-gradient(90deg, #1e2836 0 40px, #1b2430 40px 80px);
+      border: 1px solid #2c3648;
+      overflow: hidden;
+      user-select: none;
+    }
+    .game-stage .sub {
+      position: absolute;
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
+      text-shadow: 0 1px 4px #000;
+      font-size: 14px;
+      pointer-events: none;
+      line-height: 1.25;
+    }
+    .game-stage .echo {
+      font-size: 13px;
+      color: #ffe9a8;
+    }
+    .banner {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(12,16,24,0.92);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 2px;
+      z-index: 6;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .ov-bar {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 7;
+      background: rgba(12,16,24,0.88);
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #3a4358;
+    }
+    .ov-bar button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .ov-bar button.hl {
+      background: #3a2f14;
+      border-color: var(--gold);
+      color: #ffe9a8;
+    }
+    .rect {
+      position: absolute;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .rect .tag {
+      position: absolute;
+      left: 0;
+      top: -16px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 0 4px;
+      white-space: nowrap;
+      line-height: 14px;
+    }
+    .rect.cap {
+      border: 2px solid var(--lime);
+      background: rgba(62, 224, 90, 0.08);
+    }
+    .rect.cap .tag { background: var(--lime); color: #042; }
+    .rect.dis {
+      border: 3px solid var(--gold);
+      background: rgba(230, 195, 92, 0.12);
+    }
+    .rect.dis .tag { background: var(--gold); color: #3a2a00; }
+    .rect.dark {
+      border: 2px dashed var(--cyan);
+      background: rgba(62, 200, 224, 0.12);
+    }
+    .rect.dark.solid { border-style: solid; border-width: 3px; }
+    .rect.dark .tag { background: var(--cyan); color: #042830; }
+    .rect.opt {
+      border: 2px dashed var(--opt);
+      background: rgba(192, 132, 252, 0.14);
+    }
+    .rect.opt.solid { border-style: solid; border-width: 3px; }
+    .rect.opt .tag { background: var(--opt); color: #2a1040; }
+    .rect.fill-dark {
+      border: none;
+      background: rgba(120, 80, 200, 0.28);
+      box-shadow: inset 0 0 0 2px #8b6ad4;
+    }
+    .rect.fill-dark .tag { background: #8b6ad4; color: #fff; }
+    .rect.fill-opt {
+      border: none;
+      background: rgba(200, 80, 120, 0.28);
+      box-shadow: inset 0 0 0 2px #c45a78;
+    }
+    .rect.fill-opt .tag { background: #c45a78; color: #fff; }
+    .rect.ice {
+      border: 2px solid #e8eef8;
+      background: rgba(232, 238, 248, 0.08);
+    }
+    .rect.ice .tag { background: #e8eef8; color: #223; }
+    .rect.cand {
+      border: 2px dashed #8cf;
+      background: rgba(136, 204, 255, 0.1);
+    }
+    .rect.cand .tag { background: #8cf; color: #123; }
+    .rect.rubber {
+      border: 2px dotted #fff;
+      background: rgba(255,255,255,0.08);
+      pointer-events: none;
+    }
+    .rect.live { pointer-events: auto; cursor: move; }
+    .mask {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 2;
+      pointer-events: none;
+    }
+    aside.chrome {
+      border-left: 1px solid #252b3a;
+      background: var(--panel);
+      padding: 12px 14px 72px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .state {
+      background: #0e121b;
+      border: 1px solid #252b3a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .state dl { margin: 0; display: grid; grid-template-columns: 7.5em 1fr; gap: 4px 8px; }
+    .state dt { color: var(--muted); }
+    .state dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .state dd.flash-dd { animation: flash 600ms ease; }
+    @keyframes flash { from { color: #ffe9a8; } to { color: inherit; } }
+    fieldset {
+      border: 1px solid #2a3144;
+      border-radius: 6px;
+      margin: 0 0 12px;
+      padding: 8px 8px 10px;
+    }
+    legend { color: var(--muted); padding: 0 4px; }
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0 0 12px;
+    }
+    aside button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+    aside button:hover { background: #2c354a; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .switcher {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #111;
+      color: #f5f5f5;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      z-index: 20;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .switcher button {
+      width: 32px; height: 28px;
+      border-radius: 999px;
+      background: #222;
+      color: #fff;
+      border: 1px solid #666;
+      font-size: 16px;
+      padding: 0;
+      cursor: pointer;
+    }
+    .switcher .label { min-width: 220px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="kicker">PROTOTYPE · 非产品代码</div>
+    <h1>暗屏和对话选项的开关、显示区在设置里长什么样</h1>
+    <p>
+      分发已锁定：两条都是额外路径，不是区域对；「识别暗屏字幕」默认开，「识别对话选项」默认关、非原神不提供；
+      可选显示区用同一套「调整显示区」；选项回显默认在配音主区正文上方一行，有对话选项显示区则拆走、不双份。
+      这里只比开关放哪、两块可选显示区怎么出现、预览全部怎么画。区域对框选/拖动、最小识图间隔、行为记录窗不重做。
+    </p>
+  </header>
+
+  <div class="scenes" id="scenes">
+    <span class="lab">场景</span>
+    <button type="button" data-scene="configDefault">其他配置 · 原神默认</button>
+    <button type="button" data-scene="wuthering">鸣潮 · 对话选项消失</button>
+    <button type="button" data-scene="pinned">两块显示区都指定了</button>
+    <button type="button" data-scene="pairs">区域对页</button>
+    <button type="button" data-scene="previewFollow">预览 · 跟候选带</button>
+    <button type="button" data-scene="previewBoth">预览 · 持久框和检测带</button>
+    <button type="button" data-scene="firstAdjust">第一次拉暗屏显示区 · 没有候选带</button>
+  </div>
+
+  <div class="stage-wrap">
+    <div id="root"></div>
+    <div class="switcher" id="switcher">
+      <button type="button" id="prev" aria-label="上一变体">←</button>
+      <div class="label" id="switcherLabel">A</div>
+      <button type="button" id="next" aria-label="下一变体">→</button>
+    </div>
+  </div>
+
+  <aside class="chrome">
+    <h2>变体</h2>
+    <p class="note" id="variantNote"></p>
+    <div class="state">
+      <dl>
+        <dt>变体</dt><dd id="stVariant"></dd>
+        <dt>场景</dt><dd id="stScene"></dd>
+        <dt>页</dt><dd id="stTab"></dd>
+        <dt>游戏</dt><dd id="stGame"></dd>
+        <dt>识别暗屏</dt><dd id="stDarkOn"></dd>
+        <dt>识别对话选项</dt><dd id="stOptOn"></dd>
+        <dt>暗屏显示区</dt><dd id="stDarkDis"></dd>
+        <dt>对话选项显示区</dt><dd id="stOptDis"></dd>
+        <dt>检测带</dt><dd id="stCand"></dd>
+        <dt>最近操作</dt><dd id="stLast"></dd>
+      </dl>
+    </div>
+    <fieldset>
+      <legend>自由点</legend>
+      <div class="btns">
+        <button type="button" id="togGame">切原神 / 鸣潮</button>
+        <button type="button" id="togDark">开/关暗屏识别</button>
+        <button type="button" id="togOpt">开/关对话选项</button>
+        <button type="button" id="pinDark">钉 / 清暗屏显示区</button>
+        <button type="button" id="pinOpt">钉 / 清选项显示区</button>
+        <button type="button" id="togCand">检测带 有 / 无</button>
+      </div>
+    </fieldset>
+    <p class="note">底栏或 ←/→ 切变体。预览场景点穿，不能拖框。第一次拉框：在游戏画面上按住拖。</p>
+  </aside>
+
+  <script>
+    const VARIANTS = [
+      {
+        key: "A",
+        name: "配置页展开行",
+        note: "开关仍在「其他配置」，紧挨启用配音。打开某一条，下面展开一行：跟候选带/跟配音主区、框选、调整、清回。不是卡片，没有识别区。没拉过时「调整」也能空拉。非原神：对话选项整行消失。预览：对 N 仍绿/金；暗屏青框、选项紫框；有持久框就不画检测带。"
+      },
+      {
+        key: "B",
+        name: "额外识别专页",
+        note: "新页「额外识别」，两组虚线框（标明不是区域对）。其他配置只留间隔、开机、配音，一行字指向新页。没拉过时「调整」禁用，第一次只能框选；检测带活着时可「钉成显示区」。预览用色块而不是线框，持久框和检测带同时画。"
+      },
+      {
+        key: "C",
+        name: "区域对页脚芯片",
+        note: "开关仍在其他配置，不带显示区按钮。区域对页底下一截「额外显示区」虚线芯片：没有识别区、没有设为配音主区。没拉过时「调整」禁用。预览：额外路径白框，检测带只在没持久框时画成内虚线。"
+      }
+    ];
+
+    const SCENE_LABEL = {
+      configDefault: "其他配置 · 原神默认",
+      wuthering: "鸣潮 · 对话选项消失",
+      pinned: "两块显示区都指定了",
+      pairs: "区域对页",
+      previewFollow: "预览 · 跟候选带",
+      previewBoth: "预览 · 持久框和检测带",
+      firstAdjust: "第一次拉暗屏显示区"
+    };
+
+    const PAIR1 = {
+      cap: { x: 22, y: 78, w: 56, h: 8 },
+      dis: { x: 22, y: 87, w: 56, h: 9 }
+    };
+    const PAIR2 = {
+      cap: { x: 6, y: 16, w: 20, h: 22 },
+      dis: { x: 6, y: 40, w: 24, h: 10 }
+    };
+    const CAND = { x: 18, y: 44, w: 64, h: 10 };
+    const DARK_PIN = { x: 16, y: 68, w: 68, h: 11 };
+    const OPT_PIN = { x: 64, y: 26, w: 28, h: 14 };
+
+    const params = new URLSearchParams(location.search);
+    let variantIndex = Math.max(0, VARIANTS.findIndex(v => v.key === (params.get("variant") || "A")));
+    if (variantIndex < 0) variantIndex = 0;
+    let scene = params.get("scene") || "configDefault";
+    if (!SCENE_LABEL[scene]) scene = "configDefault";
+    let tab = params.get("tab") || "";
+    let last = "打开原型";
+    let game = "genshin";
+    let darkOn = true;
+    let optOn = false;
+    let darkDis = null;
+    let optDis = null;
+    let candLive = false;
+    let mode = "settings";
+    let boxing = null;
+    let rubber = null;
+    let drag = null;
+
+    function current() { return VARIANTS[variantIndex]; }
+    function isGenshin() { return game === "genshin"; }
+    function fmtRect(r) {
+      if (!r) return "—";
+      return Math.round(r.x) + "," + Math.round(r.y) + " " + Math.round(r.w) + "×" + Math.round(r.h);
+    }
+    function darkStatus() { return darkDis ? "已指定显示区" : "跟候选带"; }
+    function optStatus() { return optDis ? "已指定显示区" : "跟配音主区"; }
+    function tabs() {
+      const list = [
+        { id: "lang", label: "语言包管理" },
+        { id: "keys", label: "快捷键设置" },
+        { id: "pairs", label: "区域对" }
+      ];
+      if (current().key === "B") list.push({ id: "extra", label: "额外识别" });
+      list.push({ id: "config", label: "其他配置选项" });
+      list.push({ id: "help", label: "帮助" });
+      return list;
+    }
+    function defaultTab() {
+      const v = current().key;
+      if (scene === "pairs") return "pairs";
+      if (v === "B" && (scene === "configDefault" || scene === "pinned" || scene === "wuthering" || scene === "firstAdjust")) {
+        return "extra";
+      }
+      if (scene === "wuthering" && v === "B") return "extra";
+      return "config";
+    }
+    function isOverlayScene() {
+      return scene === "previewFollow" || scene === "previewBoth" || scene === "firstAdjust" || mode === "preview" || mode === "boxing";
+    }
+
+    function loadScene(name) {
+      scene = name;
+      boxing = null;
+      rubber = null;
+      drag = null;
+      if (name === "configDefault") {
+        game = "genshin"; darkOn = true; optOn = false; darkDis = null; optDis = null; candLive = false; mode = "settings";
+        last = "原神默认：暗屏开、选项关、都没拉过显示区";
+      } else if (name === "wuthering") {
+        game = "wuthering"; darkOn = true; optOn = false; darkDis = null; optDis = null; candLive = false; mode = "settings";
+        last = "鸣潮：对话选项整项不提供";
+      } else if (name === "pinned") {
+        game = "genshin"; darkOn = true; optOn = true; darkDis = Object.assign({}, DARK_PIN); optDis = Object.assign({}, OPT_PIN); candLive = false; mode = "settings";
+        last = "两块可选显示区都拉过";
+      } else if (name === "pairs") {
+        game = "genshin"; darkOn = true; optOn = true; darkDis = null; optDis = null; candLive = false; mode = "settings";
+        last = "看区域对页会不会出现额外显示区";
+      } else if (name === "previewFollow") {
+        game = "genshin"; darkOn = true; optOn = false; darkDis = null; optDis = null; candLive = true; mode = "preview";
+        last = "预览全部：检测带活着，没有暗屏显示区";
+      } else if (name === "previewBoth") {
+        game = "genshin"; darkOn = true; optOn = true; darkDis = Object.assign({}, DARK_PIN); optDis = Object.assign({}, OPT_PIN); candLive = true; mode = "preview";
+        last = "预览全部：持久框还在，检测带也活着";
+      } else if (name === "firstAdjust") {
+        game = "genshin"; darkOn = true; optOn = false; darkDis = null; optDis = null; candLive = false;
+        last = "第一次拉暗屏显示区，画面上没有候选带";
+        if (current().key === "A") {
+          mode = "boxing";
+          boxing = { target: "dark" };
+        } else {
+          mode = "settings";
+        }
+      }
+      tab = defaultTab();
+      syncUrl();
+      render();
+    }
+
+    function syncUrl(push) {
+      const v = current();
+      const url = new URL(location.href);
+      url.searchParams.set("variant", v.key);
+      url.searchParams.set("scene", scene);
+      url.searchParams.set("tab", tab);
+      if (push !== false) history.replaceState(null, "", url);
+      document.getElementById("variantNote").textContent = v.note;
+      document.getElementById("switcherLabel").textContent = v.key + " · " + v.name;
+    }
+
+    function setVariant(i, keepTab) {
+      variantIndex = (i + VARIANTS.length) % VARIANTS.length;
+      if (!keepTab) tab = defaultTab();
+      if (scene === "firstAdjust") {
+        boxing = null; rubber = null;
+        if (current().key === "A" && !darkDis) {
+          mode = "boxing";
+          boxing = { target: "dark" };
+        } else if (scene === "firstAdjust") {
+          mode = "settings";
+        }
+      }
+      syncUrl();
+      render();
+    }
+
+    function setTab(id) {
+      tab = id;
+      mode = "settings";
+      boxing = null;
+      rubber = null;
+      syncUrl();
+      render();
+    }
+
+    function startBox(target) {
+      if (target === "opt" && !isGenshin()) return;
+      mode = "boxing";
+      boxing = { target: target };
+      rubber = null;
+      last = target === "dark" ? "开始框选暗屏显示区" : "开始框选对话选项显示区";
+      scene = "custom";
+      render();
+    }
+    function startAdjust(target) {
+      if (target === "opt" && !isGenshin()) return;
+      const has = target === "dark" ? darkDis : optDis;
+      const v = current().key;
+      if (!has && v !== "A") {
+        last = "没拉过显示区，「调整显示区」不可用。请先框选。";
+        render();
+        return;
+      }
+      if (!has && v === "A") {
+        startBox(target);
+        last = "没有现成框，调整变成空拉";
+        return;
+      }
+      mode = "adjust";
+      boxing = { target: target };
+      last = target === "dark" ? "调整暗屏显示区（可拖）" : "调整对话选项显示区（可拖）";
+      scene = "custom";
+      render();
+    }
+    function clearDis(target) {
+      if (target === "dark") darkDis = null;
+      else optDis = null;
+      last = target === "dark" ? "暗屏显示区清回默认，跟候选带" : "对话选项显示区清回默认，跟配音主区";
+      scene = "custom";
+      render();
+    }
+    function pinFromCandidate() {
+      if (!candLive) {
+        last = "没有活着的候选带，不能钉";
+        render();
+        return;
+      }
+      darkDis = Object.assign({}, CAND);
+      last = "把当前检测带钉成暗屏显示区";
+      scene = "custom";
+      render();
+    }
+
+    function pairCards() {
+      const p1 = '<div class="card voice"><h3>对 1 <span class="chip">配音主区</span></h3>' +
+        '<div class="kv">' +
+        '<span>识别区</span><span class="coords">22,78 56×8</span><button class="btn" type="button" disabled>框选</button><span></span>' +
+        '<span>显示区</span><span class="coords">22,87 56×9</span><button class="btn" type="button" disabled>框选</button><button class="btn" type="button" disabled>调整显示区</button>' +
+        "</div>" +
+        '<div class="card-foot"><button class="btn danger" type="button" disabled>删除</button>' +
+        '<button class="btn voice on" type="button" disabled>配音主区</button></div></div>';
+      const p2 = '<div class="card"><h3>对 2</h3>' +
+        '<div class="kv">' +
+        '<span>识别区</span><span class="coords">6,16 20×22</span><button class="btn" type="button" disabled>框选</button><span></span>' +
+        '<span>显示区</span><span class="coords">6,40 24×10</span><button class="btn" type="button" disabled>框选</button><button class="btn" type="button" disabled>调整显示区</button>' +
+        "</div>" +
+        '<div class="card-foot"><button class="btn danger" type="button" disabled>删除</button>' +
+        '<button class="btn voice" type="button" disabled>设为配音主区</button></div></div>';
+      return '<div class="row"><button class="btn" type="button" disabled>添加区域对</button>' +
+        '<button class="btn" type="button" data-act="preview">预览全部</button></div>' + p1 + p2;
+    }
+
+    function extraChip(target) {
+      const isDark = target === "dark";
+      const on = isDark ? darkOn : optOn;
+      const has = isDark ? darkDis : optDis;
+      const name = isDark ? "暗屏显示区" : "对话选项显示区";
+      const st = isDark ? darkStatus() : optStatus();
+      const adjDisabled = !has && current().key !== "A" ? " disabled" : "";
+      const off = on ? "" : " off";
+      const note = on ? "" : '<span class="hint">识别关着，字不会上叠加层</span>';
+      return '<div class="extra-chip' + off + '">' +
+        '<span class="name">' + name + '</span>' +
+        '<span class="chip extra">' + st + "</span>" +
+        '<button class="btn" type="button" data-act="box" data-target="' + target + '">框选</button>' +
+        '<button class="btn" type="button" data-act="adj" data-target="' + target + '"' + adjDisabled + ">调整显示区</button>" +
+        '<button class="btn" type="button" data-act="clr" data-target="' + target + '"' + (has ? "" : " disabled") + ">清回默认</button>" +
+        note +
+        "</div>";
+    }
+
+    function indentRow(target, forceHl) {
+      const isDark = target === "dark";
+      const has = isDark ? darkDis : optDis;
+      const st = isDark ? darkStatus() : optStatus();
+      const v = current().key;
+      const adjDisabled = !has && v !== "A" ? " disabled" : "";
+      const hl = forceHl && !has ? " hl" : "";
+      return '<div class="indent">' +
+        '<span class="st' + (has ? " set" : "") + '">' + st + "</span>" +
+        (has ? '<span class="hint">' + fmtRect(has) + "</span>" : "") +
+        '<button class="btn' + hl + '" type="button" data-act="box" data-target="' + target + '">框选显示区</button>' +
+        '<button class="btn" type="button" data-act="adj" data-target="' + target + '"' + adjDisabled + ">调整显示区</button>" +
+        '<button class="btn" type="button" data-act="clr" data-target="' + target + '"' + (has ? "" : " disabled") + ">清回默认</button>" +
+        "</div>";
+    }
+
+    function configChecks(withRows) {
+      const first = scene === "firstAdjust" && current().key === "A";
+      const darkRow = withRows && darkOn ? indentRow("dark", first) : "";
+      const optRow = withRows && optOn && isGenshin() ? indentRow("opt", false) : "";
+      const optBox = isGenshin()
+        ? '<label class="check"><input type="checkbox" id="optOn"' + (optOn ? " checked" : "") + "> 识别对话选项</label>" + optRow
+        : "";
+      const extraHint = current().key === "C"
+        ? '<div class="hint" style="margin:-4px 0 10px 22px">暗屏 / 对话选项显示区在「区域对」页底部，不是区域对。</div>'
+        : (current().key === "B"
+          ? '<div class="hint" style="margin:0 0 10px">暗屏与对话选项在「额外识别」页。</div>'
+          : "");
+      return [
+        '<div class="row"><span style="width:7.5em;font-weight:650">最小识图间隔</span><input style="width:64px;text-align:center" value="400" disabled> <span>ms</span><span class="muted">（已定，这张票不比）</span></div>',
+        '<label class="check"><input type="checkbox"> 开机自动启动</label>',
+        '<div class="row"><label class="check" style="margin:0"><input type="checkbox" checked> 启用支线配音</label><button class="btn" type="button">测试配音</button></div>',
+        '<div class="hint" style="margin:-4px 0 10px 22px">配音主区在「区域对」页指定，当前对 1。</div>',
+        extraHint,
+        current().key === "B" ? "" : ('<label class="check"><input type="checkbox" id="darkOn"' + (darkOn ? " checked" : "") + "> 识别暗屏字幕</label>" + darkRow),
+        current().key === "B" ? "" : optBox,
+        '<div class="row" style="margin-top:14px"><button class="btn" type="button">打开程序文件夹</button></div>'
+      ].join("");
+    }
+
+    function extraPage() {
+      const first = scene === "firstAdjust";
+      const pin = current().key === "B"
+        ? '<button class="btn" type="button" data-act="pin"' + (candLive ? "" : " disabled") + ">钉成显示区</button>"
+        : "";
+      const darkAdj = (!darkDis && current().key !== "A") ? " disabled" : "";
+      const hl = first && !darkDis ? " hl" : "";
+      const dark = '<div class="group not-pair"><h3>暗屏字幕 <span class="chip extra">不是区域对</span></h3>' +
+        '<label class="check"><input type="checkbox" id="darkOn"' + (darkOn ? " checked" : "") + "> 识别暗屏字幕</label>" +
+        '<div class="hint">字默认跟检测出来的候选带。可选一块暗屏显示区，用「调整显示区」或框选钉住。</div>' +
+        '<div class="row"><span class="st">' + darkStatus() + "</span>" +
+        (darkDis ? '<span class="hint">' + fmtRect(darkDis) + "</span>" : "") +
+        '<button class="btn' + hl + '" type="button" data-act="box" data-target="dark">框选显示区</button>' +
+        '<button class="btn" type="button" data-act="adj" data-target="dark"' + darkAdj + ">调整显示区</button>" +
+        '<button class="btn" type="button" data-act="clr" data-target="dark"' + (darkDis ? "" : " disabled") + ">清回默认</button>" +
+        pin +
+        "</div></div>";
+      let opt = "";
+      if (isGenshin()) {
+        const optAdj = (!optDis && current().key !== "A") ? " disabled" : "";
+        opt = '<div class="group not-pair"><h3>对话选项 <span class="chip extra">不是区域对</span></h3>' +
+          '<label class="check"><input type="checkbox" id="optOn"' + (optOn ? " checked" : "") + "> 识别对话选项</label>" +
+          '<div class="hint">选定后 3 秒回显。默认在配音主区正文上方一行；拉过显示区则拆走、不双份。</div>' +
+          '<div class="row"><span class="st">' + optStatus() + "</span>" +
+          (optDis ? '<span class="hint">' + fmtRect(optDis) + "</span>" : "") +
+          '<button class="btn" type="button" data-act="box" data-target="opt">框选显示区</button>' +
+          '<button class="btn" type="button" data-act="adj" data-target="opt"' + optAdj + ">调整显示区</button>" +
+          '<button class="btn" type="button" data-act="clr" data-target="opt"' + (optDis ? "" : " disabled") + ">清回默认</button>" +
+          "</div></div>";
+      } else {
+        opt = '<div class="hint">当前游戏不是原神，不提供对话选项。</div>';
+      }
+      return dark + opt;
+    }
+
+    function pairsPage() {
+      let html = pairCards();
+      if (current().key === "C") {
+        html += '<div class="extra-strip"><div class="lab">额外显示区 · 不是区域对</div>';
+        html += extraChip("dark");
+        if (isGenshin()) html += extraChip("opt");
+        html += "</div>";
+      }
+      return html;
+    }
+
+    function bodyFor() {
+      if (tab === "lang") return '<div class="placeholder">语言包管理（这页未改）</div>';
+      if (tab === "keys") return '<div class="placeholder">快捷键设置（这页未改）</div>';
+      if (tab === "help") return '<div class="placeholder">帮助（这页未改）</div>';
+      if (tab === "pairs") return pairsPage();
+      if (tab === "extra") return extraPage();
+      if (tab === "config") return configChecks(current().key === "A");
+      return "";
+    }
+
+    function rectEl(cls, r, tag) {
+      if (!r) return "";
+      return '<div class="rect ' + cls + '" style="left:' + r.x + "%;top:" + r.y + "%;width:" + r.w + "%;height:" + r.h + '%">' +
+        (tag ? '<span class="tag">' + tag + "</span>" : "") + "</div>";
+    }
+    function liveRect(cls, r, tag, target) {
+      if (!r) return "";
+      return '<div class="rect ' + cls + ' live" data-drag="' + target + '" style="left:' + r.x + "%;top:" + r.y + "%;width:" + r.w + "%;height:" + r.h + '%">' +
+        (tag ? '<span class="tag">' + tag + "</span>" : "") + "</div>";
+    }
+
+    function pairRects() {
+      return rectEl("cap", PAIR1.cap, "对 1") + rectEl("dis", PAIR1.dis, "对 1") +
+        rectEl("cap", PAIR2.cap, "对 2") + rectEl("dis", PAIR2.dis, "对 2");
+    }
+
+    function extraRects() {
+      const v = current().key;
+      let html = "";
+      const showOpt = isGenshin() && (optOn || optDis);
+      if (v === "A") {
+        if (darkDis) html += rectEl("dark solid", darkDis, "暗屏");
+        else if (darkOn && candLive) html += rectEl("dark", CAND, "检测带");
+        if (showOpt && optDis) html += rectEl("opt solid", optDis, "选项");
+      } else if (v === "B") {
+        if (darkOn && candLive) html += rectEl("fill-dark", CAND, "检测带");
+        if (darkDis) html += rectEl("fill-dark", darkDis, "暗屏");
+        if (showOpt && optDis) html += rectEl("fill-opt", optDis, "选项");
+        else if (showOpt && optOn && !optDis) {
+          const echo = { x: PAIR1.dis.x, y: PAIR1.dis.y - 6, w: PAIR1.dis.w, h: 6 };
+          html += rectEl("fill-opt", echo, "选项·跟配音主区");
+        }
+      } else {
+        if (darkDis) html += rectEl("ice", darkDis, "暗屏");
+        else if (darkOn && candLive) html += rectEl("cand", CAND, "检测带");
+        if (showOpt && optDis) html += rectEl("ice", optDis, "选项");
+      }
+      return html;
+    }
+
+    function subtitles() {
+      const p1 = '<div class="sub" style="left:' + PAIR1.dis.x + "%;top:" + PAIR1.dis.y + "%;width:" + PAIR1.dis.w + '%">派蒙　所以嘛，每次我们前往下一个国家的时候…</div>';
+      let echo = "";
+      if (isGenshin() && optOn) {
+        if (optDis) {
+          echo = '<div class="sub echo" style="left:' + optDis.x + "%;top:" + optDis.y + "%;width:" + optDis.w + '%">◆ 关于那个方向…</div>';
+        } else {
+          echo = '<div class="sub echo" style="left:' + PAIR1.dis.x + "%;top:" + (PAIR1.dis.y - 5) + "%;width:" + PAIR1.dis.w + '%">◆ 关于那个方向…</div>';
+        }
+      }
+      let dark = "";
+      if (darkOn) {
+        const r = darkDis || (candLive ? CAND : null);
+        if (r) dark = '<div class="sub" style="left:' + r.x + "%;top:" + r.y + "%;width:" + r.w + '%">在那之后，旅途仍会继续。</div>';
+      }
+      return p1 + echo + dark;
+    }
+
+    function overlayView() {
+      const v = current().key;
+      let banner = "";
+      let mask = "";
+      let extra = extraRects();
+      let bar = "";
+      if (mode === "preview") {
+        banner = '<div class="banner">预览全部 · 10 秒 · 点穿</div>';
+      } else if (mode === "boxing") {
+        mask = '<div class="mask"></div>';
+        const who = boxing && boxing.target === "opt" ? "对话选项显示区" : "暗屏显示区";
+        banner = '<div class="banner">框选' + who + "（没有候选带，空拉一块）</div>";
+        if (rubber) extra += rectEl("rubber", rubber, "新显示区");
+        if (v !== "A") {
+          bar = '<div class="ov-bar"><button type="button" class="hl" data-act="box" data-target="' + (boxing ? boxing.target : "dark") + '">框选显示区</button>' +
+            '<button type="button" data-act="cancel">取消</button></div>';
+        }
+      } else if (mode === "adjust") {
+        banner = '<div class="banner">调整显示区 · 拖这个框 · Esc 结束</div>';
+        extra = pairRects();
+        if (boxing && boxing.target === "dark" && darkDis) extra += liveRect("dark solid live", darkDis, "暗屏", "dark");
+        if (boxing && boxing.target === "opt" && optDis) extra += liveRect("opt solid live", optDis, "选项", "opt");
+        return '<div class="desk game"><div class="game-stage" id="stage">' + mask + banner + extra + subtitles() + bar + "</div></div>";
+      } else if (scene === "firstAdjust" && v !== "A") {
+        banner = '<div class="banner">没有活着的候选带。「调整显示区」不可用，请先框选。</div>';
+        bar = '<div class="ov-bar">' +
+          '<button type="button" class="hl" data-act="box" data-target="dark">框选显示区</button>' +
+          (v === "B" ? '<button type="button" data-act="pin" disabled>钉成显示区</button>' : "") +
+          '<button type="button" data-act="cancel">回设置</button></div>';
+      }
+      const pairs = (mode === "preview" || mode === "boxing" || mode === "adjust") ? pairRects() : pairRects();
+      return '<div class="desk game"><div class="game-stage" id="stage">' + mask + banner + pairs + extra + subtitles() + bar + "</div></div>";
+    }
+
+    function settingsView() {
+      const t = tabs();
+      return '<div class="desk"><div class="win">' +
+        '<div class="win-title"><span class="dot"></span> 设置</div>' +
+        '<div class="tabs">' +
+          t.map(x => '<button type="button" data-tab="' + x.id + '"' + (x.id === tab ? ' class="on"' : "") + ">" + x.label + "</button>").join("") +
+        "</div>" +
+        '<div class="tab-body">' + bodyFor() + "</div></div></div>";
+    }
+
+    function bind() {
+      window.onmousemove = null;
+      window.onmouseup = null;
+      document.querySelectorAll(".tabs button").forEach(btn => {
+        btn.onclick = () => setTab(btn.getAttribute("data-tab"));
+      });
+      document.querySelectorAll("[data-act=preview]").forEach(btn => {
+        btn.onclick = () => {
+          mode = "preview";
+          candLive = candLive || !darkDis;
+          last = "预览全部";
+          scene = darkDis && candLive ? "previewBoth" : "previewFollow";
+          render();
+        };
+      });
+      document.querySelectorAll("[data-act=box]").forEach(btn => {
+        btn.onclick = () => startBox(btn.getAttribute("data-target"));
+      });
+      document.querySelectorAll("[data-act=adj]").forEach(btn => {
+        btn.onclick = () => startAdjust(btn.getAttribute("data-target"));
+      });
+      document.querySelectorAll("[data-act=clr]").forEach(btn => {
+        btn.onclick = () => clearDis(btn.getAttribute("data-target"));
+      });
+      document.querySelectorAll("[data-act=pin]").forEach(btn => {
+        btn.onclick = pinFromCandidate;
+      });
+      document.querySelectorAll("[data-act=cancel]").forEach(btn => {
+        btn.onclick = () => {
+          mode = "settings";
+          boxing = null;
+          rubber = null;
+          last = "取消框选";
+          render();
+        };
+      });
+      const d = document.getElementById("darkOn");
+      if (d) d.onchange = () => { darkOn = d.checked; last = darkOn ? "识别暗屏开" : "识别暗屏关"; scene = "custom"; render(); };
+      const o = document.getElementById("optOn");
+      if (o) o.onchange = () => { optOn = o.checked; last = optOn ? "识别对话选项开" : "识别对话选项关"; scene = "custom"; render(); };
+
+      const stage = document.getElementById("stage");
+      if (stage && (mode === "boxing" || mode === "adjust")) bindStage(stage);
+    }
+
+    function pct(ev, stage) {
+      const b = stage.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(100, (ev.clientX - b.left) / b.width * 100)),
+        y: Math.max(0, Math.min(100, (ev.clientY - b.top) / b.height * 100))
+      };
+    }
+    function bindStage(stage) {
+      stage.onmousedown = (ev) => {
+        if (mode === "preview") return;
+        const t = ev.target;
+        if (mode === "adjust" && t.closest && t.closest("[data-drag]")) {
+          const who = t.closest("[data-drag]").getAttribute("data-drag");
+          const r = who === "dark" ? darkDis : optDis;
+          const p = pct(ev, stage);
+          drag = { who: who, dx: p.x - r.x, dy: p.y - r.y };
+          return;
+        }
+        if (mode !== "boxing") return;
+        const p = pct(ev, stage);
+        rubber = { x: p.x, y: p.y, w: 0, h: 0, x0: p.x, y0: p.y };
+        renderRubber();
+      };
+      window.onmousemove = (ev) => {
+        if (drag && mode === "adjust") {
+          const p = pct(ev, stage);
+          const r = drag.who === "dark" ? darkDis : optDis;
+          r.x = Math.max(0, Math.min(100 - r.w, p.x - drag.dx));
+          r.y = Math.max(0, Math.min(100 - r.h, p.y - drag.dy));
+          const el = stage.querySelector("[data-drag='" + drag.who + "']");
+          if (el) {
+            el.style.left = r.x + "%";
+            el.style.top = r.y + "%";
+          }
+          return;
+        }
+        if (!rubber || mode !== "boxing") return;
+        const p = pct(ev, stage);
+        const x = Math.min(rubber.x0, p.x);
+        const y = Math.min(rubber.y0, p.y);
+        rubber = { x: x, y: y, w: Math.abs(p.x - rubber.x0), h: Math.abs(p.y - rubber.y0), x0: rubber.x0, y0: rubber.y0 };
+        renderRubber();
+      };
+      window.onmouseup = () => {
+        if (drag) {
+          drag = null;
+          last = "拖过显示区";
+          renderStateOnly();
+          return;
+        }
+        if (!rubber || mode !== "boxing") return;
+        if (rubber.w < 4 || rubber.h < 3) { rubber = null; render(); return; }
+        const r = { x: rubber.x, y: rubber.y, w: rubber.w, h: rubber.h };
+        if (boxing && boxing.target === "opt") optDis = r;
+        else darkDis = r;
+        last = boxing && boxing.target === "opt" ? "拉好对话选项显示区，回显拆到这里" : "拉好暗屏显示区，字改住这块";
+        rubber = null;
+        boxing = null;
+        mode = "preview";
+        candLive = false;
+        scene = "custom";
+        render();
+      };
+    }
+    function renderRubber() {
+      const stage = document.getElementById("stage");
+      if (!stage || !rubber) return;
+      let el = document.getElementById("rubber");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "rubber";
+        el.className = "rect rubber";
+        el.innerHTML = '<span class="tag">新显示区</span>';
+        stage.appendChild(el);
+      }
+      el.style.left = rubber.x + "%";
+      el.style.top = rubber.y + "%";
+      el.style.width = rubber.w + "%";
+      el.style.height = rubber.h + "%";
+    }
+
+    function renderStateOnly() {
+      const v = current();
+      document.getElementById("stVariant").textContent = v.key + " · " + v.name;
+      document.getElementById("stScene").textContent = SCENE_LABEL[scene] || "自由点";
+      const t = tabs().find(x => x.id === tab);
+      document.getElementById("stTab").textContent = isOverlayScene() && mode !== "settings" ? ("叠加层 · " + mode) : (t ? t.label : tab);
+      document.getElementById("stGame").textContent = isGenshin() ? "原神" : "鸣潮";
+      document.getElementById("stDarkOn").textContent = darkOn ? "开" : "关";
+      document.getElementById("stOptOn").textContent = isGenshin() ? (optOn ? "开" : "关") : "不提供";
+      document.getElementById("stDarkDis").textContent = darkStatus() + (darkDis ? " · " + fmtRect(darkDis) : "");
+      document.getElementById("stOptDis").textContent = isGenshin() ? (optStatus() + (optDis ? " · " + fmtRect(optDis) : "")) : "—";
+      document.getElementById("stCand").textContent = candLive ? "活着" : "没有";
+      const lastEl = document.getElementById("stLast");
+      lastEl.textContent = last;
+      lastEl.classList.remove("flash-dd");
+      void lastEl.offsetWidth;
+      lastEl.classList.add("flash-dd");
+      document.querySelectorAll(".scenes button").forEach(btn => {
+        btn.classList.toggle("on", btn.getAttribute("data-scene") === scene);
+      });
+    }
+
+    function render() {
+      const showOverlay = mode === "preview" || mode === "boxing" || mode === "adjust" ||
+        scene === "previewFollow" || scene === "previewBoth" ||
+        (scene === "firstAdjust" && current().key === "A" && mode !== "settings");
+      if (showOverlay && mode !== "settings") {
+        document.getElementById("root").innerHTML = overlayView();
+      } else {
+        document.getElementById("root").innerHTML = settingsView();
+      }
+      bind();
+      renderStateOnly();
+    }
+
+    document.getElementById("prev").onclick = () => setVariant(variantIndex - 1);
+    document.getElementById("next").onclick = () => setVariant(variantIndex + 1);
+    document.getElementById("togGame").onclick = () => {
+      game = isGenshin() ? "wuthering" : "genshin";
+      if (!isGenshin()) optOn = false;
+      last = isGenshin() ? "切回原神，对话选项回来" : "切到鸣潮，对话选项整项消失";
+      scene = "custom";
+      render();
+    };
+    document.getElementById("togDark").onclick = () => { darkOn = !darkOn; last = darkOn ? "识别暗屏开" : "识别暗屏关"; scene = "custom"; render(); };
+    document.getElementById("togOpt").onclick = () => {
+      if (!isGenshin()) { last = "鸣潮不提供对话选项"; render(); return; }
+      optOn = !optOn; last = optOn ? "识别对话选项开" : "识别对话选项关"; scene = "custom"; render();
+    };
+    document.getElementById("pinDark").onclick = () => {
+      if (darkDis) { darkDis = null; last = "清掉暗屏显示区"; }
+      else { darkDis = Object.assign({}, DARK_PIN); last = "钉一块暗屏显示区"; }
+      scene = "custom"; render();
+    };
+    document.getElementById("pinOpt").onclick = () => {
+      if (!isGenshin()) { last = "鸣潮不提供对话选项显示区"; render(); return; }
+      if (optDis) { optDis = null; last = "清掉对话选项显示区"; }
+      else { optDis = Object.assign({}, OPT_PIN); last = "钉一块对话选项显示区"; }
+      scene = "custom"; render();
+    };
+    document.getElementById("togCand").onclick = () => { candLive = !candLive; last = candLive ? "检测带活着" : "检测带没有"; scene = "custom"; render(); };
+    document.querySelectorAll(".scenes button").forEach(btn => {
+      btn.onclick = () => loadScene(btn.getAttribute("data-scene"));
+    });
+    document.addEventListener("keydown", (e) => {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") setVariant(variantIndex - 1);
+      if (e.key === "ArrowRight") setVariant(variantIndex + 1);
+      if (e.key === "Escape" && (mode === "boxing" || mode === "adjust" || mode === "preview")) {
+        mode = "settings";
+        boxing = null;
+        rubber = null;
+        last = "Esc 回设置";
+        render();
+      }
+    });
+
+    loadScene(scene);
+  </script>
+</body>
+</html>
