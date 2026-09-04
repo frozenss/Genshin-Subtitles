@@ -41,8 +41,8 @@ Today's one-shot secondary capture after repeated misses on the primary capture,
 _Avoid_: Second region pair; 第二识别区域
 
 **Voice-primary region**:
-The one capture region among region pairs allowed to trigger voice playback. The operator designates which region pair that capture belongs to; it defaults to the first pair. Other pairs never speak. Dark-screen subtitles and the dialogue-choice echo may still speak when voice playback is on; they do not change this designation.
-_Avoid_: 主区域 without 配音; primary region when you mean the fallback probe's primary capture; letting another pair speak because this one is empty
+The region pair whose capture may trigger voice playback. Designation is that pair, not a list index: default is the first pair; an empty list has none; deleting the designated pair rebinds to the first remaining pair; deleting another pair does not move it. Other pairs never speak. Dark-screen subtitles and the dialogue-choice echo may still speak when voice playback is on; they do not change this designation.
+_Avoid_: 主区域 without 配音; primary region when you mean the fallback probe's primary capture; letting another pair speak because this one is empty; treating the designation as “whoever is currently index 0”
 
 **OCR cadence**:
 The live timing stack that samples frames on one clock, diffs each capture region against its own previous frame, and runs OCR only for regions that changed. Dark-screen scan and dialogue-option scan ride the same clock and the same serial OCR queue; they do not pause region pairs. OCR is one engine on one queue.
