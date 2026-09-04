@@ -292,7 +292,7 @@ namespace GI_Subtitles.Views
         private void UpdateOcrIntervalWarning()
         {
             if (OcrIntervalOutOfRangeWarning == null || _ocrIntervalView == null
-                || string.IsNullOrEmpty(_ocrIntervalView.OutOfRangeWarning))
+                || !_ocrIntervalView.IsOutOfRange)
             {
                 if (OcrIntervalOutOfRangeWarning != null)
                 {
@@ -304,7 +304,7 @@ namespace GI_Subtitles.Views
 
             string format = TryFindResource("Config_OcrInterval_OutOfRange") as string;
             OcrIntervalOutOfRangeWarning.Text = string.IsNullOrEmpty(format)
-                ? _ocrIntervalView.OutOfRangeWarning
+                ? string.Empty
                 : string.Format(format, _ocrIntervalView.BoxText);
             OcrIntervalOutOfRangeWarning.Visibility = Visibility.Visible;
         }

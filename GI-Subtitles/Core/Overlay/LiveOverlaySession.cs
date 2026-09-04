@@ -22,15 +22,6 @@ namespace GI_Subtitles.Core.Overlay
         private const string HintResourceVoiceSpeed = "Hint_VoiceSpeed";
         private const string HintResourceCaptureRegionMissing = "Hint_CaptureRegionMissing";
 
-        private const string CopyRecognitionRunning = "识别中";
-        private const string CopyRecognitionStopped = "已停止";
-        private const string CopyCaptureRegionBoxed = "已选识别区";
-        private const string CopySubtitlesHidden = "字幕已隐藏";
-        private const string CopySubtitlesShown = "字幕已显示";
-        private const string CopyRefreshed = "已刷新";
-        private const string CopyRefreshFoundNoText = "未识别到文本";
-        private const string CopyCaptureRegionMissing = "未设置识别区";
-
         private readonly IOcrIntervalStore _store;
         private readonly Func<DateTime> _utcNow;
         private int _storedMs;
@@ -53,8 +44,6 @@ namespace GI_Subtitles.Core.Overlay
 
         public bool HintVisible { get; private set; }
 
-        public string HintText { get; private set; }
-
         public string HintResourceKey { get; private set; }
 
         public object[] HintFormatArguments { get; private set; }
@@ -68,45 +57,45 @@ namespace GI_Subtitles.Core.Overlay
             Tick();
             if (!hasCaptureRegion)
             {
-                ShowHint(CopyCaptureRegionMissing, HintResourceCaptureRegionMissing);
+                ShowHint(HintResourceCaptureRegionMissing);
                 return;
             }
 
             RecognitionRunning = true;
-            ShowHint(CopyRecognitionRunning, HintResourceRecognitionRunning);
+            ShowHint(HintResourceRecognitionRunning);
         }
 
         public void StopRecognition()
         {
             Tick();
             RecognitionRunning = false;
-            ShowHint(CopyRecognitionStopped, HintResourceRecognitionStopped);
+            ShowHint(HintResourceRecognitionStopped);
         }
 
         public void HideSubtitles()
         {
             Tick();
             SubtitlesVisible = false;
-            ShowHint(CopySubtitlesHidden, HintResourceSubtitlesHidden);
+            ShowHint(HintResourceSubtitlesHidden);
         }
 
         public void ShowSubtitles()
         {
             Tick();
             SubtitlesVisible = true;
-            ShowHint(CopySubtitlesShown, HintResourceSubtitlesShown);
+            ShowHint(HintResourceSubtitlesShown);
         }
 
         public void CaptureRegionSelected()
         {
             Tick();
-            ShowHint(CopyCaptureRegionBoxed, HintResourceCaptureRegionBoxed);
+            ShowHint(HintResourceCaptureRegionBoxed);
         }
 
         public void CaptureRegionSelectionCancelled()
         {
             Tick();
-            ShowHint(CopyCaptureRegionMissing, HintResourceCaptureRegionMissing);
+            ShowHint(HintResourceCaptureRegionMissing);
         }
 
         public void PreviewCaptureRegion(bool hasCaptureRegion)
@@ -114,7 +103,7 @@ namespace GI_Subtitles.Core.Overlay
             Tick();
             if (!hasCaptureRegion)
             {
-                ShowHint(CopyCaptureRegionMissing, HintResourceCaptureRegionMissing);
+                ShowHint(HintResourceCaptureRegionMissing);
             }
         }
 
@@ -123,17 +112,17 @@ namespace GI_Subtitles.Core.Overlay
             Tick();
             if (!hasCaptureRegion)
             {
-                ShowHint(CopyCaptureRegionMissing, HintResourceCaptureRegionMissing);
+                ShowHint(HintResourceCaptureRegionMissing);
                 return;
             }
 
             if (foundText)
             {
-                ShowHint(CopyRefreshed, HintResourceRefreshed);
+                ShowHint(HintResourceRefreshed);
             }
             else
             {
-                ShowHint(CopyRefreshFoundNoText, HintResourceRefreshFoundNoText);
+                ShowHint(HintResourceRefreshFoundNoText);
             }
         }
 
@@ -141,10 +130,7 @@ namespace GI_Subtitles.Core.Overlay
         {
             Tick();
             string speedText = speed.ToString("0.##", CultureInfo.InvariantCulture);
-            ShowHint(
-                "倍速 " + speedText + "×",
-                HintResourceVoiceSpeed,
-                speedText);
+            ShowHint(HintResourceVoiceSpeed, speedText);
         }
 
         public void NoteOcrMiss()
@@ -186,11 +172,12 @@ namespace GI_Subtitles.Core.Overlay
             _store.Write(milliseconds);
         }
 
-        private void ShowHint(string text, string resourceKey, params object[] formatArguments)
+        private void ShowHint(string resourceKey, params object[] formatArguments)
         {
-            HintText = text;
             HintResourceKey = resourceKey;
-            HintFormatArguments = formatArguments;
+            HintFormatArguments = formatArguments == null || formatArguments.Length == 0
+                ? null
+                : formatArguments;
             HintVisible = true;
             _hintExpiresAt = _utcNow().AddMilliseconds(HintDurationMs);
             HintChanged?.Invoke(this, EventArgs.Empty);
@@ -199,7 +186,6 @@ namespace GI_Subtitles.Core.Overlay
         private void ClearHint()
         {
             HintVisible = false;
-            HintText = null;
             HintResourceKey = null;
             HintFormatArguments = null;
             _hintExpiresAt = null;
@@ -220,7 +206,7 @@ namespace GI_Subtitles.Core.Overlay
 
         public string BoxText { get; set; }
 
-        public string OutOfRangeWarning { get; private set; }
+        public bool IsOutOfRange { get; private set; }
 
         public void Commit()
         {
@@ -248,14 +234,8 @@ namespace GI_Subtitles.Core.Overlay
         {
             _rawMs = rawMs;
             BoxText = rawMs.ToString(CultureInfo.InvariantCulture);
-            bool outOfRange = rawMs < LiveOverlaySession.UiMinOcrIntervalMs
+            IsOutOfRange = rawMs < LiveOverlaySession.UiMinOcrIntervalMs
                 || rawMs > LiveOverlaySession.UiMaxOcrIntervalMs;
-            OutOfRangeWarning = outOfRange
-                ? string.Format(
-                    CultureInfo.InvariantCulture,
-                    "当前 {0}ms，超出 200–1000。引擎仍按此值跑。改动后会夹进范围。",
-                    rawMs)
-                : null;
         }
     }
 }

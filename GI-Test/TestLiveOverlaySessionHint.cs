@@ -15,7 +15,7 @@ namespace GI_Test
             session.StartRecognition(hasCaptureRegion: true);
 
             Assert.IsTrue(session.HintVisible);
-            Assert.AreEqual("识别中", session.HintText);
+            Assert.AreEqual("Hint_RecognitionRunning", session.HintResourceKey);
         }
 
         [TestMethod]
@@ -24,13 +24,13 @@ namespace GI_Test
             LiveOverlaySession session = CreateSession();
 
             session.StartRecognition(hasCaptureRegion: true);
-            Assert.AreEqual("识别中", session.HintText);
+            Assert.AreEqual("Hint_RecognitionRunning", session.HintResourceKey);
 
             session.StopRecognition();
-            Assert.AreEqual("已停止", session.HintText);
+            Assert.AreEqual("Hint_RecognitionStopped", session.HintResourceKey);
 
             session.StartRecognition(hasCaptureRegion: true);
-            Assert.AreEqual("识别中", session.HintText);
+            Assert.AreEqual("Hint_RecognitionRunning", session.HintResourceKey);
             Assert.IsTrue(session.RecognitionRunning);
         }
 
@@ -41,11 +41,11 @@ namespace GI_Test
             LiveOverlaySession session = CreateSession(() => now);
 
             session.StartRecognition(hasCaptureRegion: true);
-            Assert.AreEqual("识别中", session.HintText);
+            Assert.AreEqual("Hint_RecognitionRunning", session.HintResourceKey);
 
             now = now.AddSeconds(1);
             session.HideSubtitles();
-            Assert.AreEqual("字幕已隐藏", session.HintText);
+            Assert.AreEqual("Hint_SubtitlesHidden", session.HintResourceKey);
             Assert.IsTrue(session.HintVisible);
 
             now = now.AddSeconds(1);
@@ -55,7 +55,7 @@ namespace GI_Test
             now = now.AddSeconds(1);
             session.Tick();
             Assert.IsFalse(session.HintVisible);
-            Assert.IsNull(session.HintText);
+            Assert.IsNull(session.HintResourceKey);
         }
 
         [TestMethod]
@@ -68,12 +68,12 @@ namespace GI_Test
 
             Assert.IsFalse(session.SubtitlesVisible);
             Assert.IsTrue(session.HintVisible);
-            Assert.AreEqual("字幕已隐藏", session.HintText);
+            Assert.AreEqual("Hint_SubtitlesHidden", session.HintResourceKey);
 
             session.ShowSubtitles();
             Assert.IsTrue(session.SubtitlesVisible);
             Assert.IsTrue(session.HintVisible);
-            Assert.AreEqual("字幕已显示", session.HintText);
+            Assert.AreEqual("Hint_SubtitlesShown", session.HintResourceKey);
         }
 
         [TestMethod]
@@ -84,7 +84,7 @@ namespace GI_Test
             session.PreviewCaptureRegion(hasCaptureRegion: true);
 
             Assert.IsFalse(session.HintVisible);
-            Assert.IsNull(session.HintText);
+            Assert.IsNull(session.HintResourceKey);
         }
 
         [TestMethod]
@@ -95,7 +95,7 @@ namespace GI_Test
             session.StartRecognition(hasCaptureRegion: true);
             session.PreviewCaptureRegion(hasCaptureRegion: true);
 
-            Assert.AreEqual("识别中", session.HintText);
+            Assert.AreEqual("Hint_RecognitionRunning", session.HintResourceKey);
             Assert.IsTrue(session.HintVisible);
         }
 
@@ -105,20 +105,20 @@ namespace GI_Test
             LiveOverlaySession session = CreateSession();
 
             session.StartRecognition(hasCaptureRegion: false);
-            Assert.AreEqual("未设置识别区", session.HintText);
+            Assert.AreEqual("Hint_CaptureRegionMissing", session.HintResourceKey);
             Assert.IsFalse(session.RecognitionRunning);
 
             session.CaptureRegionSelectionCancelled();
-            Assert.AreEqual("未设置识别区", session.HintText);
+            Assert.AreEqual("Hint_CaptureRegionMissing", session.HintResourceKey);
 
             session.Refresh(hasCaptureRegion: true, foundText: false);
-            Assert.AreEqual("未识别到文本", session.HintText);
+            Assert.AreEqual("Hint_RefreshFoundNoText", session.HintResourceKey);
 
             session.Refresh(hasCaptureRegion: false, foundText: false);
-            Assert.AreEqual("未设置识别区", session.HintText);
+            Assert.AreEqual("Hint_CaptureRegionMissing", session.HintResourceKey);
 
             session.PreviewCaptureRegion(hasCaptureRegion: false);
-            Assert.AreEqual("未设置识别区", session.HintText);
+            Assert.AreEqual("Hint_CaptureRegionMissing", session.HintResourceKey);
         }
 
         [TestMethod]
@@ -130,35 +130,38 @@ namespace GI_Test
             session.NoteMatchMiss();
 
             Assert.IsFalse(session.HintVisible);
-            Assert.IsNull(session.HintText);
+            Assert.IsNull(session.HintResourceKey);
 
             session.StartRecognition(hasCaptureRegion: true);
             session.NoteOcrMiss();
             session.NoteMatchMiss();
 
-            Assert.AreEqual("识别中", session.HintText);
+            Assert.AreEqual("Hint_RecognitionRunning", session.HintResourceKey);
             Assert.IsTrue(session.HintVisible);
         }
 
         [TestMethod]
-        public void OperatorActions_ShowLockedResultCopy()
+        public void OperatorActions_SelectTheMatchingHintKeys()
         {
             LiveOverlaySession session = CreateSession();
 
             session.CaptureRegionSelected();
-            Assert.AreEqual("已选识别区", session.HintText);
+            Assert.AreEqual("Hint_CaptureRegionBoxed", session.HintResourceKey);
 
             session.Refresh(hasCaptureRegion: true, foundText: true);
-            Assert.AreEqual("已刷新", session.HintText);
+            Assert.AreEqual("Hint_Refreshed", session.HintResourceKey);
 
             session.ChangeVoiceSpeed(1.5);
-            Assert.AreEqual("倍速 1.5×", session.HintText);
+            Assert.AreEqual("Hint_VoiceSpeed", session.HintResourceKey);
+            CollectionAssert.AreEqual(new object[] { "1.5" }, session.HintFormatArguments);
 
             session.ChangeVoiceSpeed(1.25);
-            Assert.AreEqual("倍速 1.25×", session.HintText);
+            Assert.AreEqual("Hint_VoiceSpeed", session.HintResourceKey);
+            CollectionAssert.AreEqual(new object[] { "1.25" }, session.HintFormatArguments);
 
             session.ChangeVoiceSpeed(2.0);
-            Assert.AreEqual("倍速 2×", session.HintText);
+            Assert.AreEqual("Hint_VoiceSpeed", session.HintResourceKey);
+            CollectionAssert.AreEqual(new object[] { "2" }, session.HintFormatArguments);
         }
 
         private static LiveOverlaySession CreateSession(Func<DateTime> utcNow = null)

@@ -6,9 +6,6 @@ namespace GI_Test
     [TestClass]
     public class TestLiveOverlaySessionOcrInterval
     {
-        private const string OutOfRangeWarningFormat =
-            "当前 {0}ms，超出 200–1000。引擎仍按此值跑。改动后会夹进范围。";
-
         [TestMethod]
         public void InRangeEdit_AppliesToConfigAndEngineOnNextGate()
         {
@@ -17,13 +14,13 @@ namespace GI_Test
 
             var view = session.OpenOcrIntervalSettings();
             Assert.AreEqual("400", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
 
             view.BoxText = "500";
             view.Commit();
 
             Assert.AreEqual("500", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
             Assert.AreEqual(500, store.Stored);
             Assert.AreEqual(1, store.WriteCount);
             Assert.AreEqual(500, session.EngineOcrIntervalMs);
@@ -38,7 +35,7 @@ namespace GI_Test
             var view = session.OpenOcrIntervalSettings();
 
             Assert.AreEqual("400", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
             Assert.IsNull(store.Stored);
             Assert.AreEqual(0, store.WriteCount);
             Assert.AreEqual(400, session.EngineOcrIntervalMs);
@@ -52,14 +49,14 @@ namespace GI_Test
             var view = session.OpenOcrIntervalSettings();
 
             Assert.AreEqual("200", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
 
             store.Stored = 1000;
             session = new LiveOverlaySession(store);
             view = session.OpenOcrIntervalSettings();
 
             Assert.AreEqual("1000", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
             Assert.AreEqual(0, store.WriteCount);
         }
 
@@ -72,7 +69,7 @@ namespace GI_Test
             var view = session.OpenOcrIntervalSettings();
 
             Assert.AreEqual("50", view.BoxText);
-            Assert.AreEqual(string.Format(OutOfRangeWarningFormat, 50), view.OutOfRangeWarning);
+            Assert.IsTrue(view.IsOutOfRange);
             Assert.AreEqual(50, store.Stored);
             Assert.AreEqual(0, store.WriteCount);
             Assert.AreEqual(50, session.EngineOcrIntervalMs);
@@ -89,7 +86,7 @@ namespace GI_Test
             view.Commit();
 
             Assert.AreEqual("200", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
             Assert.AreEqual(200, store.Stored);
             Assert.AreEqual(1, store.WriteCount);
             Assert.AreEqual(200, session.EngineOcrIntervalMs);
@@ -103,7 +100,7 @@ namespace GI_Test
             var view = session.OpenOcrIntervalSettings();
 
             Assert.AreEqual("0", view.BoxText);
-            Assert.AreEqual(string.Format(OutOfRangeWarningFormat, 0), view.OutOfRangeWarning);
+            Assert.IsTrue(view.IsOutOfRange);
             Assert.AreEqual(1, session.EngineOcrIntervalMs);
             Assert.AreEqual(0, store.WriteCount);
 
@@ -123,7 +120,7 @@ namespace GI_Test
             var view = session.OpenOcrIntervalSettings();
 
             Assert.AreEqual("1500", view.BoxText);
-            Assert.AreEqual(string.Format(OutOfRangeWarningFormat, 1500), view.OutOfRangeWarning);
+            Assert.IsTrue(view.IsOutOfRange);
             Assert.AreEqual(1500, session.EngineOcrIntervalMs);
             Assert.AreEqual(0, store.WriteCount);
 
@@ -131,7 +128,7 @@ namespace GI_Test
             view.Commit();
 
             Assert.AreEqual("1000", view.BoxText);
-            Assert.IsNull(view.OutOfRangeWarning);
+            Assert.IsFalse(view.IsOutOfRange);
             Assert.AreEqual(1000, session.EngineOcrIntervalMs);
             Assert.AreEqual(1000, store.Stored);
         }
@@ -147,7 +144,7 @@ namespace GI_Test
             view.Commit();
 
             Assert.AreEqual("50", view.BoxText);
-            Assert.AreEqual(string.Format(OutOfRangeWarningFormat, 50), view.OutOfRangeWarning);
+            Assert.IsTrue(view.IsOutOfRange);
             Assert.AreEqual(50, store.Stored);
             Assert.AreEqual(0, store.WriteCount);
             Assert.AreEqual(50, session.EngineOcrIntervalMs);

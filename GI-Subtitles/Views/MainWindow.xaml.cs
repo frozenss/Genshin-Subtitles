@@ -1644,13 +1644,13 @@ namespace GI_Subtitles.Views
         {
             if (string.IsNullOrEmpty(_overlaySession.HintResourceKey))
             {
-                return _overlaySession.HintText;
+                return string.Empty;
             }
 
             string format = TryFindResource(_overlaySession.HintResourceKey) as string;
             if (string.IsNullOrEmpty(format))
             {
-                return _overlaySession.HintText;
+                return string.Empty;
             }
 
             object[] args = _overlaySession.HintFormatArguments;
@@ -1665,7 +1665,7 @@ namespace GI_Subtitles.Views
             }
             catch (FormatException)
             {
-                return _overlaySession.HintText;
+                return format;
             }
         }
 
