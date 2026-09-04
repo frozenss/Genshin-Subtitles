@@ -13,8 +13,8 @@ A short-lived overlay notice that a hotkey or button ran. It is not a notice tha
 _Avoid_: 操作日志, 侧边框, log (the overlay is not a log); Region-pair preview (that outline is not a hint); announcing each OCR or subtitle change
 
 **Region-pair preview**:
-A short-lived outline of every region pair's capture region and display region, drawn together over the game. It also outlines a set dark-screen display or dialogue-option display, and the live dark-screen candidate when that scan is on and no dark-screen display is set.
-_Avoid_: Capture region preview (that named a capture-only outline); Hint; 预览全部 as a second concept (that is the button label for this)
+A short-lived outline of every region pair's capture region and display region, drawn together over the game. It also outlines a set dark-screen display (labelled 暗屏) or dialogue-option display (labelled 选项), and the live dark-screen candidate (labelled 检测带) when that scan is on and no dark-screen display is set. Extra paths are not numbered as pairs.
+_Avoid_: Capture region preview (that named a capture-only outline); Hint; 预览全部 as a second concept (that is the button label for this); labelling extra paths 对 N
 
 **Activity log**:
 The complete visible record of what the pipeline did this session: operator actions, background jobs, detection results, and matched subtitle lookups.
@@ -29,8 +29,8 @@ The screen rectangle where that capture's subtitle is placed. It is a rectangle 
 _Avoid_: 字幕窗 when you mean the pair; overlay when you mean placement rather than the window; Pad, 字幕偏移 when you mean this rectangle
 
 **Display-region adjust**:
-The settings-armed state in which one display region accepts mouse drag — a region pair's, or the optional dark-screen display or dialogue-option display. Off, the overlay is click-through.
-_Avoid_: dragging subtitles at any time; hover handle; treating this as a hint
+The settings-armed state in which one existing display region accepts mouse drag — a region pair's, or the optional dark-screen display or dialogue-option display. It does not create a rectangle; the first extra-path display is boxed. Off, the overlay is click-through.
+_Avoid_: dragging subtitles at any time; hover handle; treating this as a hint; using adjust to pull the first dark-screen or dialogue-option display
 
 **Region pair**:
 One capture region bound to one display region. The live overlay keeps a list of pairs; every pair with a valid capture region runs at the same time.
