@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PROTOTYPE · 行为记录窗长什么样</title>
+  <!--
+    Three variants of the activity-log window, switchable via ?variant=.
+    Hosted next to SettingsWindow.xaml / MainWindow.xaml. Throwaway. Do not ship.
+  -->
+  <style>
+    :root {
+      --gold: #e6c35c;
+      --ink: #0c1018;
+      --panel: #161b27;
+      --muted: #8b93a7;
+      --fail: #c04232;
+      --wpf: #f0f0f0;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      background: #07090e;
+      color: #e8ecf4;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto auto 1fr;
+      height: 100%;
+    }
+    header.chrome {
+      grid-column: 1 / -1;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid #252b3a;
+      background: #0e121b;
+    }
+    header.chrome .kicker {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: #d7a84b;
+      font-weight: 700;
+    }
+    header.chrome h1 { margin: 2px 0 4px; font-size: 16px; font-weight: 650; }
+    header.chrome p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 110ch;
+    }
+    .scenes {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #0e121b;
+      border-bottom: 1px solid #252b3a;
+      align-items: center;
+    }
+    .scenes .lab {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      margin-right: 4px;
+    }
+    .scenes button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .scenes button.on {
+      background: #3a2f14;
+      border-color: var(--gold);
+      color: #ffe9a8;
+    }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #root { flex: 1; min-height: 0; position: relative; width: 100%; display: flex; flex-direction: column; }
+    .desk {
+      margin: 12px;
+      flex: 1;
+      min-height: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      background:
+        radial-gradient(ellipse at 20% 10%, #2a3344 0, transparent 50%),
+        linear-gradient(180deg, #1a2230 0%, #121820 60%, #0b0e14 100%);
+      box-shadow: inset 0 0 0 1px #2a3144;
+    }
+    .game-bg {
+      position: absolute;
+      inset: 18px 24px 56px;
+      border-radius: 4px;
+      background:
+        linear-gradient(180deg, rgba(40,70,90,0.35), rgba(10,12,16,0.2)),
+        repeating-linear-gradient(90deg, #1e2836 0 40px, #1b2430 40px 80px);
+      border: 1px solid #2c3648;
+    }
+    .game-bg .sub {
+      position: absolute;
+      left: 50%;
+      bottom: 18%;
+      transform: translateX(-50%);
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
+      text-shadow: 0 1px 4px #000;
+      font-size: 18px;
+      pointer-events: none;
+    }
+    .game-bg .hint {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(12,16,24,0.92);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 2px;
+    }
+    .win {
+      position: absolute;
+      background: var(--wpf);
+      color: #222;
+      border: 1px solid #7a7a7a;
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      min-width: 0;
+    }
+    .win.log-a { width: 720px; height: 480px; left: 36px; top: 36px; }
+    .win.log-b { width: 520px; height: 640px; left: 80px; top: 16px; max-height: calc(100% - 72px); }
+    .win.log-c { width: 900px; height: 520px; left: 20px; top: 28px; max-width: calc(100% - 40px); }
+    .win.settings-peek {
+      width: 420px;
+      height: 220px;
+      right: 18px;
+      bottom: 58px;
+      left: auto;
+      top: auto;
+    }
+    .win-title {
+      height: 28px;
+      background: linear-gradient(#fff, #ececec);
+      border-bottom: 1px solid #c8c8c8;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 12px;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+    .win-title .dot { width: 14px; height: 14px; background: #5b8def; border-radius: 2px; }
+    .win-title .grow { flex: 1; }
+    .win-title .meta { color: #666; font-size: 11px; }
+    .win-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #fff; }
+    .status-bar {
+      flex: 0 0 auto;
+      height: 22px;
+      border-top: 1px solid #d0d0d0;
+      background: #f3f3f3;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 11px;
+      color: #555;
+      gap: 10px;
+    }
+    .grip {
+      margin-left: auto;
+      width: 12px; height: 12px;
+      background:
+        linear-gradient(135deg, transparent 50%, #999 50%) no-repeat 100% 100% / 6px 6px,
+        linear-gradient(135deg, transparent 50%, #bbb 50%) no-repeat 70% 70% / 6px 6px;
+    }
+    table.grid {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    table.grid th {
+      position: sticky; top: 0;
+      background: #f5f5f5;
+      text-align: left;
+      font-weight: 650;
+      border-bottom: 1px solid #d8d8d8;
+      padding: 4px 8px;
+      white-space: nowrap;
+    }
+    table.grid td {
+      padding: 4px 8px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+      font-variant-numeric: tabular-nums;
+    }
+    table.grid tr.fail td { background: #fff1f0; }
+    table.grid tr.miss td { color: #666; }
+    table.grid .pair { white-space: nowrap; }
+    table.grid .jobs { white-space: nowrap; color: #333; }
+    table.grid .res { line-height: 1.35; }
+    .list-scroll { flex: 1; min-height: 0; overflow: auto; background: #fff; }
+    .empty {
+      margin: 24px 16px;
+      padding: 18px 12px;
+      border: 1px dashed #c8c8c8;
+      background: #fafafa;
+      color: #555;
+      text-align: center;
+      font-size: 12px;
+    }
+    .empty strong { color: #333; }
+    .newbar {
+      flex: 0 0 auto;
+      background: #fff8dc;
+      border-top: 1px solid #e0c060;
+      color: #5a4300;
+      font-size: 12px;
+      padding: 4px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .newbar button {
+      font: inherit;
+      background: #fff;
+      border: 1px solid #c9a227;
+      border-radius: 2px;
+      padding: 1px 8px;
+      cursor: pointer;
+    }
+    .btn {
+      font: inherit;
+      background: #f8f8f8;
+      border: 1px solid #adadad;
+      border-radius: 2px;
+      padding: 3px 10px;
+      cursor: pointer;
+      color: #222;
+    }
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 2px;
+      background: #fff4ce;
+      color: #7a5a00;
+      border: 1px solid #e0c060;
+      white-space: nowrap;
+    }
+    .chip.job { background: #eef3fb; color: #2a4a7a; border-color: #c5d2e8; }
+    .chip.miss { background: #f3f3f3; color: #555; border-color: #ccc; }
+    .chip.fail { background: #ffe8e4; color: #8a1f1f; border-color: #f0b0a8; }
+    .chip.voice { background: #fff4ce; }
+    .timeline { padding: 8px 10px 16px; }
+    .card {
+      border: 1px solid #d8d8d8;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin: 0 0 8px;
+      background: #fafafa;
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 6px 10px;
+    }
+    .card.fail { border-color: #f0b0a8; background: #fff7f6; }
+    .card .when { font-variant-numeric: tabular-nums; color: #666; font-size: 11px; }
+    .card .head { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .card .body { grid-column: 2; font-size: 12px; line-height: 1.4; }
+    .card .k { color: #888; }
+    .split { flex: 1; min-height: 0; display: grid; grid-template-columns: 280px 1fr; }
+    .split .left { border-right: 1px solid #d0d0d0; overflow: auto; }
+    .split .right { overflow: auto; padding: 10px 12px; font-size: 12px; }
+    .rowitem {
+      padding: 6px 8px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .rowitem.on { background: #dce8f8; }
+    .rowitem .l1 { display: flex; justify-content: space-between; gap: 8px; }
+    .rowitem .l2 { color: #666; font-size: 11px; margin-top: 2px; }
+    .detail dt { color: #666; }
+    .detail dd { margin: 0 0 8px; }
+    .detail dl { display: grid; grid-template-columns: 6.5em 1fr; gap: 2px 8px; margin: 0; }
+    .toolbar {
+      flex: 0 0 auto;
+      padding: 6px 8px;
+      border-bottom: 1px solid #d8d8d8;
+      background: #f7f7f7;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .tray {
+      position: absolute;
+      right: 24px;
+      bottom: 18px;
+      background: #f2f2f2;
+      color: #222;
+      border: 1px solid #9a9a9a;
+      min-width: 168px;
+      font-size: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .tray div { padding: 5px 12px; }
+    .tray div.hi { background: #dce8f8; }
+    .tray .sep { height: 1px; background: #d0d0d0; padding: 0; }
+    .peek-body { padding: 10px; font-size: 12px; }
+    .peek-body .row { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+    aside.chrome {
+      border-left: 1px solid #252b3a;
+      background: var(--panel);
+      padding: 12px 14px 72px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    aside h2 {
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      text-transform: uppercase;
+    }
+    .state {
+      background: #0e121b;
+      border: 1px solid #252b3a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .state dl { margin: 0; display: grid; grid-template-columns: 7em 1fr; gap: 4px 8px; }
+    .state dt { color: var(--muted); }
+    .state dd { margin: 0; font-variant-numeric: tabular-nums; }
+    fieldset {
+      border: 1px solid #2a3144;
+      border-radius: 6px;
+      margin: 0 0 12px;
+      padding: 8px 8px 10px;
+    }
+    legend { color: var(--muted); padding: 0 4px; }
+    .note { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0 0 12px; }
+    aside button {
+      font: inherit;
+      color: #e8ecf4;
+      background: #232a3b;
+      border: 1px solid #3a4358;
+      border-radius: 4px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+    aside button:hover { background: #2c354a; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .switcher {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #111;
+      color: #f5f5f5;
+      border: 2px solid #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      z-index: 20;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .switcher button {
+      width: 32px; height: 28px;
+      border-radius: 999px;
+      background: #222;
+      color: #fff;
+      border: 1px solid #666;
+      font-size: 16px;
+      padding: 0;
+      cursor: pointer;
+    }
+    .switcher .label { min-width: 230px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="kicker">PROTOTYPE · 非产品代码</div>
+    <h1>行为记录窗长什么样</h1>
+    <p>
+      内容、入口、生命周期已锁定：独立非模态不置顶窗；托盘和设置按钮打开同一扇窗；不加热键；
+      应用在跑就记，关窗不停，退出丢掉。这里只比一行怎么排、窗默认多大放哪、新行钉底还是保持滚动、
+      以及空记录 / 刚打开 / 刷得很快时长什么样。推荐走实现最简单、风险最低的变体。
+    </p>
+  </header>
+
+  <div class="scenes" id="scenes">
+    <span class="lab">场景</span>
+    <button type="button" data-scene="empty">空记录</button>
+    <button type="button" data-scene="opened">刚打开</button>
+    <button type="button" data-scene="running">跑了一会儿</button>
+    <button type="button" data-scene="flood">刷得很快</button>
+    <button type="button" data-scene="scrolled">往上翻着看</button>
+    <button type="button" data-scene="settings">从设置打开</button>
+    <button type="button" data-scene="tray">从托盘打开</button>
+  </div>
+
+  <div class="stage-wrap">
+    <div id="root"></div>
+    <div class="switcher" id="switcher">
+      <button type="button" id="prev" aria-label="上一变体">←</button>
+      <div class="label" id="switcherLabel">A</div>
+      <button type="button" id="next" aria-label="下一变体">→</button>
+    </div>
+  </div>
+
+  <aside class="chrome">
+    <h2>当前状态</h2>
+    <div class="state">
+      <dl>
+        <dt>变体</dt><dd id="stVariant">A</dd>
+        <dt>场景</dt><dd id="stScene">刚打开</dd>
+        <dt>窗</dt><dd id="stOpen">开</dd>
+        <dt>条数</dt><dd id="stCount">0</dd>
+        <dt>钉在底部</dt><dd id="stPin">是</dd>
+        <dt>未读新行</dt><dd id="stUnread">0</dd>
+        <dt>默认尺寸</dt><dd id="stSize">720 × 480</dd>
+        <dt>刚才</dt><dd id="stLast">（无）</dd>
+      </dl>
+    </div>
+    <p class="note" id="variantNote"></p>
+    <fieldset>
+      <legend>进进出出</legend>
+      <div class="btns">
+        <button type="button" id="closeWin">关掉窗</button>
+        <button type="button" id="openWin">再打开</button>
+        <button type="button" id="addAction">记一条操作</button>
+        <button type="button" id="addJob">记一条识别</button>
+        <button type="button" id="addFail">记一条失败</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>刷</legend>
+      <div class="btns">
+        <button type="button" id="toggleFlood">开始快刷</button>
+      </div>
+      <p class="note">快刷大约按最小识图间隔往下堆。变体 A 只在已经在底部时跟着走；往上翻会停住并出「有新记录」。</p>
+    </fieldset>
+  </aside>
+
+  <script>
+    const VARIANTS = [
+      {
+        key: "A",
+        name: "普通列表",
+        size: "720 × 480",
+        note: "WPF ListView 四列：时间、区域对、作业、结果。首次屏幕居中、任务栏可见、不置顶。关窗是藏起来，位置这会话还在，不写进配置。已经在底部就钉住；往上翻就停，底下一根「有新记录」。空记录一行说明。实现最简单：现成 ListView + 是否贴底判断。"
+      },
+      {
+        key: "B",
+        name: "时间线卡片",
+        size: "520 × 640",
+        note: "竖卡片：时间在左，配音主区/作业用徽章，OCR 和原文译文分行。永远钉在最新，没法停。空记录大块说明。看起来更像会话，WPF 可变高卡片虚拟化麻烦，快刷时容易抖。"
+      },
+      {
+        key: "C",
+        name: "左右分栏",
+        size: "900 × 520",
+        note: "左窄列表，右看选中那条的全文。勾上「跟随最新」才钉底。长译文不挤一行。多一列选择状态：快刷时要保住当前选中，比 A 多一截状态。"
+      }
+    ];
+
+    const LINES = [
+      "旅行者，这边。",
+      "那是什么声音？",
+      "我们先去看看吧。",
+      "……（沉默）",
+      "派蒙，你有没有听见？",
+      "这座岛上好像有人。"
+    ];
+    const ORIG = [
+      "Traveler, over here.",
+      "What was that sound?",
+      "Let's go take a look.",
+      "…",
+      "Paimon, did you hear that?",
+      "Someone seems to be on this island."
+    ];
+
+    const params = new URLSearchParams(location.search);
+    let variantIndex = VARIANTS.findIndex(v => v.key === (params.get("variant") || "A").toUpperCase());
+    if (variantIndex < 0) variantIndex = 0;
+
+    let scene = params.get("scene") || "opened";
+    let records = [];
+    let nextId = 1;
+    let open = true;
+    let pinned = true;
+    let unread = 0;
+    let selectedId = null;
+    let followC = true;
+    let flooding = false;
+    let floodTimer = null;
+    let last = "（无）";
+    let clock = new Date(2026, 8, 4, 14, 2, 1);
+    let lineI = 0;
+
+    function current() { return VARIANTS[variantIndex]; }
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function stamp() {
+      const t = new Date(clock.getTime());
+      return pad(t.getHours()) + ":" + pad(t.getMinutes()) + ":" + pad(t.getSeconds());
+    }
+    function tick(ms) { clock = new Date(clock.getTime() + ms); }
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+    function rec(partial) {
+      const r = Object.assign({
+        id: nextId++,
+        t: stamp(),
+        pair: "全局",
+        jobs: [],
+        ocr: "",
+        orig: "",
+        trans: "",
+        miss: "",
+        fail: false
+      }, partial);
+      records.push(r);
+      return r;
+    }
+
+    function seedStory() {
+      records = [];
+      nextId = 1;
+      clock = new Date(2026, 8, 4, 14, 2, 1);
+      rec({ jobs: ["开始"] });
+      tick(1800);
+      rec({ pair: "区域对 1（配音主区）", jobs: ["选区"], ocr: "识别区 763,1797 2226×110" });
+      tick(400);
+      rec({ pair: "区域对 1（配音主区）", jobs: ["选区"], ocr: "显示区 780,1880 2180×72" });
+      tick(2200);
+      rec({ pair: "区域对 2", jobs: ["选区"], ocr: "识别区 80,420 640×90" });
+      tick(900);
+      rec({
+        pair: "区域对 1（配音主区）",
+        jobs: ["截屏", "OCR", "匹配", "配音"],
+        ocr: "旅行者，这边。",
+        orig: "Traveler, over here.",
+        trans: "旅行者，这边。"
+      });
+      tick(400);
+      rec({ pair: "区域对 2", jobs: ["截屏", "OCR"], ocr: "", miss: "ocr" });
+      tick(1600);
+      rec({ jobs: ["语言包加载"], ocr: "开始 日文" });
+      tick(2100);
+      rec({ jobs: ["语言包加载"], ocr: "完成 日文" });
+      tick(800);
+      rec({
+        pair: "全局",
+        jobs: ["截屏", "OCR", "匹配", "配音"],
+        ocr: "夜空下的 impromptu",
+        orig: "An impromptu under the night sky",
+        trans: "夜空下的即兴"
+      });
+      tick(700);
+      rec({ jobs: ["切倍速"], ocr: "1.5×" });
+      tick(500);
+      rec({ jobs: ["刷新"], fail: true, ocr: "当前没有可刷新的字幕" });
+      tick(900);
+      rec({
+        jobs: ["截屏", "OCR", "匹配"],
+        ocr: "要不要去那边看看？",
+        orig: "Shall we take a look over there?",
+        trans: "要不要去那边看看？",
+        pair: "全局"
+      });
+      selectedId = records[records.length - 1].id;
+      unread = 0;
+      pinned = true;
+    }
+
+    function addJobRow() {
+      tick(400);
+      const i = lineI++ % LINES.length;
+      const primary = (i % 3) !== 1;
+      if (primary) {
+        rec({
+          pair: "区域对 1（配音主区）",
+          jobs: ["截屏", "OCR", "匹配", "配音"],
+          ocr: LINES[i],
+          orig: ORIG[i],
+          trans: LINES[i]
+        });
+      } else {
+        rec({ pair: "区域对 2", jobs: ["截屏", "OCR"], miss: "ocr" });
+      }
+    }
+
+    function addActionRow() {
+      tick(300);
+      rec({ jobs: ["显隐字幕"], ocr: "已隐藏" });
+    }
+
+    function addFailRow() {
+      tick(300);
+      rec({ pair: "区域对 1（配音主区）", jobs: ["选区"], fail: true, ocr: "框选取消" });
+    }
+
+    function loadScene(name) {
+      scene = name;
+      flooding = false;
+      clearInterval(floodTimer);
+      floodTimer = null;
+      open = true;
+      if (name === "empty") {
+        records = [];
+        nextId = 1;
+        selectedId = null;
+        unread = 0;
+        pinned = true;
+        last = "空记录：本会话还没有行";
+      } else {
+        seedStory();
+        if (name === "running") {
+          for (let i = 0; i < 8; i++) addJobRow();
+          last = "跑了一会儿：流水已经比刚打开时长";
+        } else {
+          last = name === "opened" ? "刚打开：已有本会话流水，滚到最新" : "载入场景 " + name;
+        }
+      }
+      if (name === "flood" || name === "scrolled") {
+        for (let i = 0; i < 18; i++) addJobRow();
+        startFlood();
+      }
+      if (name === "scrolled") {
+        pinned = false;
+        followC = false;
+        unread = 6;
+        selectedId = records[Math.max(0, records.length - 14)].id;
+        last = "往上翻着看：快刷还在记，列表不跟着跳";
+      } else {
+        pinned = true;
+        followC = true;
+        unread = 0;
+        if (records.length) selectedId = records[records.length - 1].id;
+      }
+      const url = new URL(location.href);
+      url.searchParams.set("scene", scene);
+      history.replaceState(null, "", url);
+      render();
+      afterRenderScroll();
+    }
+
+    function startFlood() {
+      flooding = true;
+      clearInterval(floodTimer);
+      floodTimer = setInterval(function () {
+        const wasPin = pinned;
+        addJobRow();
+        if (current().key === "A") {
+          if (wasPin) unread = 0;
+          else unread += 1;
+        } else if (current().key === "B") {
+          pinned = true;
+          unread = 0;
+        } else {
+          if (followC) {
+            pinned = true;
+            unread = 0;
+            selectedId = records[records.length - 1].id;
+          } else {
+            unread += 1;
+            pinned = false;
+          }
+        }
+        last = "快刷 +1，现在 " + records.length + " 条";
+        render();
+        afterRenderScroll();
+      }, 380);
+      document.getElementById("toggleFlood").textContent = "停快刷";
+    }
+
+    function stopFlood() {
+      flooding = false;
+      clearInterval(floodTimer);
+      floodTimer = null;
+      document.getElementById("toggleFlood").textContent = "开始快刷";
+    }
+
+    function jobsText(r) {
+      return r.jobs.join(" · ") || "—";
+    }
+
+    function resultText(r) {
+      if (r.fail) return "失败：" + (r.ocr || "动作失败");
+      if (r.miss === "ocr") return "检测 miss";
+      if (r.miss === "match") return "OCR「" + r.ocr + "」  匹配 miss";
+      const bits = [];
+      if (r.ocr) bits.push("OCR「" + r.ocr + "」");
+      if (r.orig) bits.push("原文 " + r.orig);
+      if (r.trans) bits.push("译文 " + r.trans);
+      return bits.join("  ") || "—";
+    }
+
+    function renderLogA() {
+      const rows = records.map(function (r) {
+        const cls = r.fail ? "fail" : (r.miss ? "miss" : "");
+        return "<tr class=\"" + cls + "\"><td>" + escapeHtml(r.t) + "</td>" +
+          "<td class=\"pair\">" + escapeHtml(r.pair) + "</td>" +
+          "<td class=\"jobs\">" + escapeHtml(jobsText(r)) + "</td>" +
+          "<td class=\"res\">" + escapeHtml(resultText(r)) + "</td></tr>";
+      }).join("");
+      const body = records.length === 0
+        ? "<div class=\"empty\"><strong>本会话还没有记录。</strong><br>开始识别、框选或加载语言包后会出现在这里。关掉这扇窗也不会停记。</div>"
+        : "<table class=\"grid\"><thead><tr><th>时间</th><th>区域对</th><th>作业</th><th>结果</th></tr></thead><tbody>" + rows + "</tbody></table>";
+      const bar = (!pinned && unread > 0)
+        ? "<div class=\"newbar\">有 " + unread + " 条新记录 <button type=\"button\" data-act=\"jump\">跳到最新</button></div>"
+        : "";
+      return "<div class=\"win log-a\" id=\"logWin\">" +
+        "<div class=\"win-title\"><span class=\"dot\"></span><span>行为记录</span><span class=\"grow\"></span><span class=\"meta\">720 × 480 · 不置顶 · 屏幕居中</span></div>" +
+        "<div class=\"win-body\"><div class=\"list-scroll\" id=\"listScroll\">" + body + "</div>" + bar +
+        "<div class=\"status-bar\"><span>本会话 " + records.length + " 条</span><span>退出后丢掉</span><span class=\"grip\"></span></div></div></div>";
+    }
+
+    function renderLogB() {
+      const cards = records.map(function (r) {
+        const chips = ["<span class=\"chip\">" + escapeHtml(r.pair) + "</span>"]
+          .concat(r.jobs.map(function (j) { return "<span class=\"chip job\">" + escapeHtml(j) + "</span>"; }));
+        if (r.miss) chips.push("<span class=\"chip miss\">" + (r.miss === "ocr" ? "检测 miss" : "匹配 miss") + "</span>");
+        if (r.fail) chips.push("<span class=\"chip fail\">失败</span>");
+        let body = "";
+        if (r.ocr) body += "<div><span class=\"k\">OCR </span>" + escapeHtml(r.ocr) + "</div>";
+        if (r.orig) body += "<div><span class=\"k\">原文 </span>" + escapeHtml(r.orig) + "</div>";
+        if (r.trans) body += "<div><span class=\"k\">译文 </span>" + escapeHtml(r.trans) + "</div>";
+        if (!body && !r.miss) body = "<div class=\"k\">（无检测结果）</div>";
+        return "<div class=\"card" + (r.fail ? " fail" : "") + "\"><div class=\"when\">" + escapeHtml(r.t) +
+          "</div><div class=\"head\">" + chips.join(" ") + "</div><div class=\"body\">" + body + "</div></div>";
+      }).join("");
+      const body = records.length === 0
+        ? "<div class=\"empty\"><strong>还没有发生任何事。</strong><br>这扇窗只看本会话的作业过程，不是 app.log。</div>"
+        : "<div class=\"timeline\">" + cards + "</div>";
+      return "<div class=\"win log-b\" id=\"logWin\">" +
+        "<div class=\"win-title\"><span class=\"dot\"></span><span>行为记录</span><span class=\"grow\"></span><span class=\"meta\">520 × 640 · 永远钉住最新</span></div>" +
+        "<div class=\"win-body\"><div class=\"list-scroll\" id=\"listScroll\">" + body + "</div>" +
+        "<div class=\"status-bar\"><span>" + records.length + " 条 · 新行总是跳到底</span><span class=\"grip\"></span></div></div></div>";
+    }
+
+    function renderLogC() {
+      const items = records.map(function (r) {
+        const on = r.id === selectedId ? " on" : "";
+        return "<div class=\"rowitem" + on + "\" data-act=\"sel\" data-id=\"" + r.id + "\">" +
+          "<div class=\"l1\"><span>" + escapeHtml(r.t) + "</span><span>" + escapeHtml(jobsText(r)) + "</span></div>" +
+          "<div class=\"l2\">" + escapeHtml(r.pair) + (r.fail ? " · 失败" : r.miss ? " · miss" : "") + "</div></div>";
+      }).join("");
+      const r = records.find(function (x) { return x.id === selectedId; });
+      let detail;
+      if (!r) {
+        detail = "<div class=\"empty\"><strong>选一行看详情。</strong><br>左边是本会话流水，右边只展示选中的那条。</div>";
+      } else {
+        detail = "<dl class=\"detail\">" +
+          "<dt>时间</dt><dd>" + escapeHtml(r.t) + "</dd>" +
+          "<dt>区域对</dt><dd>" + escapeHtml(r.pair) + "</dd>" +
+          "<dt>作业</dt><dd>" + escapeHtml(jobsText(r)) + "</dd>" +
+          "<dt>检测</dt><dd>" + escapeHtml(r.miss === "ocr" ? "miss" : (r.ocr || "—")) + "</dd>" +
+          "<dt>原文</dt><dd>" + escapeHtml(r.orig || (r.miss === "match" ? "匹配 miss" : "—")) + "</dd>" +
+          "<dt>译文</dt><dd>" + escapeHtml(r.trans || "—") + "</dd>" +
+          "<dt>结果</dt><dd>" + escapeHtml(r.fail ? "动作失败" : "正常") + "</dd></dl>";
+      }
+      const left = records.length === 0
+        ? "<div class=\"empty\"><strong>本会话还没有记录。</strong></div>"
+        : items;
+      const bar = (!followC && unread > 0)
+        ? "<div class=\"newbar\">列表没跟着走，有 " + unread + " 条新的 <button type=\"button\" data-act=\"jump\">跟随最新</button></div>"
+        : "";
+      return "<div class=\"win log-c\" id=\"logWin\">" +
+        "<div class=\"win-title\"><span class=\"dot\"></span><span>行为记录</span><span class=\"grow\"></span><span class=\"meta\">900 × 520 · 勾选才跟随</span></div>" +
+        "<div class=\"win-body\">" +
+        "<div class=\"toolbar\"><label><input type=\"checkbox\" id=\"followBox\"" + (followC ? " checked" : "") + "> 跟随最新</label>" +
+        "<span class=\"meta\">本会话 " + records.length + " 条，退出丢掉</span></div>" +
+        "<div class=\"split\"><div class=\"left\" id=\"listScroll\">" + left + "</div><div class=\"right\">" + detail + "</div></div>" +
+        bar + "</div></div>";
+    }
+
+    function peekHtml() {
+      if (scene === "settings") {
+        return "<div class=\"win settings-peek\"><div class=\"win-title\"><span class=\"dot\"></span><span>程序设置</span></div>" +
+          "<div class=\"peek-body\"><div class=\"row\">其他配置选项 · 入口已定，不在这张票里改。</div>" +
+          "<div class=\"row\"><button class=\"btn\" type=\"button\" data-act=\"open\">行为记录</button>" +
+          "<span style=\"color:#666\">打开同一扇不置顶的窗</span></div></div></div>";
+      }
+      if (scene === "tray") {
+        return "<div class=\"tray\"><div>1.2.0</div><div class=\"sep\"></div>" +
+          "<div>Language</div><div>字号选择</div>" +
+          "<div class=\"hi\" data-act=\"open\">行为记录</div>" +
+          "<div>程序设定</div><div>退出程序</div></div>";
+      }
+      return "";
+    }
+
+    function render() {
+      const v = current();
+      const log = !open ? "" : (v.key === "A" ? renderLogA() : v.key === "B" ? renderLogB() : renderLogC());
+      document.getElementById("root").innerHTML =
+        "<div class=\"desk\"><div class=\"game-bg\">" +
+        "<div class=\"hint\">刷新成功</div>" +
+        "<div class=\"sub\">旅行者，这边。<br>Traveler, over here.</div></div>" +
+        log + peekHtml() + "</div>";
+      document.getElementById("stVariant").textContent = v.key + " · " + v.name;
+      document.getElementById("stScene").textContent = scene;
+      document.getElementById("stOpen").textContent = open ? "开（关是藏）" : "藏着，仍在记";
+      document.getElementById("stCount").textContent = String(records.length);
+      document.getElementById("stPin").textContent = (v.key === "C" ? followC : pinned) ? "是" : "否";
+      document.getElementById("stUnread").textContent = String(unread);
+      document.getElementById("stSize").textContent = v.size + " · 首次屏幕居中";
+      document.getElementById("stLast").textContent = last;
+      document.getElementById("variantNote").textContent = v.note;
+      document.getElementById("switcherLabel").textContent = v.key + " · " + v.name;
+      document.getElementById("toggleFlood").textContent = flooding ? "停快刷" : "开始快刷";
+      Array.prototype.forEach.call(document.querySelectorAll(".scenes button"), function (b) {
+        b.classList.toggle("on", b.getAttribute("data-scene") === scene);
+      });
+      const box = document.getElementById("followBox");
+      if (box) {
+        box.addEventListener("change", function () {
+          followC = box.checked;
+          if (followC) {
+            pinned = true;
+            unread = 0;
+            if (records.length) selectedId = records[records.length - 1].id;
+          }
+          last = followC ? "勾上跟随最新" : "取消跟随，保持当前选中";
+          render();
+          afterRenderScroll();
+        });
+      }
+      const sc = document.getElementById("listScroll");
+      if (sc) {
+        sc.addEventListener("scroll", function () {
+          const atBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 28;
+          if (current().key === "B") return;
+          if (current().key === "A") {
+            const was = pinned;
+            pinned = atBottom;
+            if (atBottom) unread = 0;
+            if (was !== pinned) {
+              document.getElementById("stPin").textContent = pinned ? "是" : "否";
+            }
+          }
+        });
+      }
+    }
+
+    function afterRenderScroll() {
+      const sc = document.getElementById("listScroll");
+      if (!sc) return;
+      const v = current();
+      const should = v.key === "B" || (v.key === "A" && pinned) || (v.key === "C" && followC);
+      if (should) sc.scrollTop = sc.scrollHeight;
+      if (v.key === "C" && !followC && selectedId) {
+        const el = sc.querySelector("[data-id=\"" + selectedId + "\"]");
+        if (el) el.scrollIntoView({ block: "nearest" });
+      }
+      if (v.key === "A" && scene === "scrolled" && !pinned) {
+        sc.scrollTop = Math.max(0, sc.scrollHeight * 0.35);
+      }
+    }
+
+    function setVariant(i) {
+      variantIndex = (i + VARIANTS.length) % VARIANTS.length;
+      const v = current();
+      const url = new URL(location.href);
+      url.searchParams.set("variant", v.key);
+      url.searchParams.set("scene", scene);
+      history.replaceState(null, "", url);
+      if (v.key === "B") { pinned = true; unread = 0; }
+      last = "切到变体 " + v.key;
+      render();
+      afterRenderScroll();
+    }
+
+    document.getElementById("prev").addEventListener("click", function () { setVariant(variantIndex - 1); });
+    document.getElementById("next").addEventListener("click", function () { setVariant(variantIndex + 1); });
+    document.getElementById("scenes").addEventListener("click", function (e) {
+      const b = e.target.closest("button");
+      if (!b) return;
+      loadScene(b.getAttribute("data-scene"));
+    });
+    document.getElementById("closeWin").addEventListener("click", function () {
+      open = false;
+      last = "关掉窗：停看不停记";
+      render();
+    });
+    document.getElementById("openWin").addEventListener("click", function () {
+      open = true;
+      last = "再打开：还是刚才那批记录";
+      render();
+      afterRenderScroll();
+    });
+    document.getElementById("addAction").addEventListener("click", function () {
+      addActionRow();
+      onManualAdd("记了一条操作");
+    });
+    document.getElementById("addJob").addEventListener("click", function () {
+      addJobRow();
+      onManualAdd("记了一条识别");
+    });
+    document.getElementById("addFail").addEventListener("click", function () {
+      addFailRow();
+      onManualAdd("记了一条失败");
+    });
+    document.getElementById("toggleFlood").addEventListener("click", function () {
+      if (flooding) { stopFlood(); last = "停快刷"; render(); }
+      else { startFlood(); last = "开始快刷"; render(); }
+    });
+    document.getElementById("root").addEventListener("click", function (e) {
+      const t = e.target.closest("[data-act]");
+      if (!t) return;
+      const act = t.getAttribute("data-act");
+      if (act === "open") {
+        open = true;
+        last = "从入口打开同一扇窗";
+        render();
+        afterRenderScroll();
+      } else if (act === "jump") {
+        pinned = true;
+        followC = true;
+        unread = 0;
+        if (records.length) selectedId = records[records.length - 1].id;
+        last = "跳到最新";
+        render();
+        afterRenderScroll();
+      } else if (act === "sel") {
+        selectedId = Number(t.getAttribute("data-id"));
+        followC = selectedId === records[records.length - 1].id;
+        pinned = followC;
+        if (followC) unread = 0;
+        last = "选中第 " + selectedId + " 条";
+        render();
+      }
+    });
+    function onManualAdd(msg) {
+      if (current().key === "A") {
+        if (pinned) unread = 0;
+        else unread += 1;
+      } else if (current().key === "B") {
+        pinned = true; unread = 0;
+      } else if (followC) {
+        unread = 0;
+        selectedId = records[records.length - 1].id;
+      } else unread += 1;
+      last = msg;
+      render();
+      afterRenderScroll();
+    }
+    document.addEventListener("keydown", function (e) {
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+      if (e.key === "ArrowLeft") setVariant(variantIndex - 1);
+      if (e.key === "ArrowRight") setVariant(variantIndex + 1);
+    });
+
+    loadScene(scene);
+    setVariant(variantIndex);
+  </script>
+</body>
+</html>
