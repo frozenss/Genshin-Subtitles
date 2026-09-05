@@ -1,0 +1,49 @@
+<Window x:Class="GI_Subtitles.Views.ActivityLogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource ActivityLog_Title}"
+        Width="720"
+        Height="480"
+        MinWidth="480"
+        MinHeight="280"
+        Icon="../Resources/mask.ico"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        Topmost="False"
+        ResizeMode="CanResize">
+    <Grid>
+        <ListView x:Name="LogList">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Time}"
+                                    DisplayMemberBinding="{Binding Time}"
+                                    Width="90"/>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_RegionPair}"
+                                    DisplayMemberBinding="{Binding RegionPair}"
+                                    Width="90"/>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Job}"
+                                    DisplayMemberBinding="{Binding Job}"
+                                    Width="140"/>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Result}"
+                                    DisplayMemberBinding="{Binding Result}"
+                                    Width="360"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <TextBlock x:Name="EmptyState"
+                   Text="{DynamicResource ActivityLog_Empty}"
+                   Margin="16,36,16,0"
+                   TextWrapping="Wrap"
+                   Foreground="#555555"
+                   VerticalAlignment="Top"
+                   IsHitTestVisible="False"/>
+        <Button x:Name="NewRecordsButton"
+                Content="{DynamicResource ActivityLog_NewRecords}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,16"
+                Padding="14,4"
+                Visibility="Collapsed"
+                Click="NewRecordsButton_Click"/>
+    </Grid>
+</Window>

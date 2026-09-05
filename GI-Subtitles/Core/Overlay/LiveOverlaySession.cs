@@ -4,14 +4,13 @@ using System.Globalization;
 
 namespace GI_Subtitles.Core.Overlay
 {
-    public sealed class LiveOverlaySession
+    public sealed partial class LiveOverlaySession
     {
         public const int DefaultOcrIntervalMs = 400;
         public const int UiMinOcrIntervalMs = 200;
         public const int UiMaxOcrIntervalMs = 1000;
         public const int EngineFloorOcrIntervalMs = 1;
         public const string OcrIntervalConfigKey = "OCRInterval";
-        public const int HintDurationMs = 2000;
         public const int PreviewDurationMs = 10000;
         public const int DialogueChoiceEchoDurationMs = 3000;
         public const int DarkScreenScanIntervalMs = 500;
@@ -21,16 +20,6 @@ namespace GI_Subtitles.Core.Overlay
         public const int EnginePairCap = 8;
         public const int SettingsPairCap = 4;
         private const string DialogueChoiceEchoPrefix = "◆ ";
-
-        private const string HintResourceRecognitionRunning = "Hint_RecognitionRunning";
-        private const string HintResourceRecognitionStopped = "Hint_RecognitionStopped";
-        private const string HintResourceCaptureRegionBoxed = "Hint_CaptureRegionBoxed";
-        private const string HintResourceSubtitlesHidden = "Hint_SubtitlesHidden";
-        private const string HintResourceSubtitlesShown = "Hint_SubtitlesShown";
-        private const string HintResourceRefreshed = "Hint_Refreshed";
-        private const string HintResourceRefreshFoundNoText = "Hint_RefreshFoundNoText";
-        private const string HintResourceVoiceSpeed = "Hint_VoiceSpeed";
-        private const string HintResourceCaptureRegionMissing = "Hint_CaptureRegionMissing";
 
         private readonly IOcrIntervalStore _store;
         private readonly IRegionPairStore _pairStore;
@@ -43,7 +32,6 @@ namespace GI_Subtitles.Core.Overlay
         private readonly List<RegionOutline> _previewOutlines = new List<RegionOutline>();
         private readonly List<RegionOutline> _adjustOutlines = new List<RegionOutline>();
         private int _storedMs;
-        private DateTime? _hintExpiresAt;
         private DateTime? _previewExpiresAt;
         private DateTime? _echoExpiresAt;
         private OverlayRect _darkScreenBand = OverlayRect.Invalid;
@@ -201,8 +189,6 @@ namespace GI_Subtitles.Core.Overlay
             }
         }
 
-        public event EventHandler HintChanged;
-
         public event EventHandler PreviewChanged;
 
         public event EventHandler AdjustChanged;
@@ -231,12 +217,6 @@ namespace GI_Subtitles.Core.Overlay
             get { return IndexOfPair(ArmedPairId); }
         }
 
-        public bool HintVisible { get; private set; }
-
-        public string HintResourceKey { get; private set; }
-
-        public object[] HintFormatArguments { get; private set; }
-
         public bool RecognitionRunning { get; private set; }
 
         public bool SubtitlesVisible { get; private set; }
@@ -249,52 +229,6 @@ namespace GI_Subtitles.Core.Overlay
 
         public int VoicePlaybackToken { get; private set; }
 
-        public void StartRecognition(bool hasCaptureRegion)
-        {
-            Tick();
-            if (!hasCaptureRegion)
-            {
-                ShowHint(HintResourceCaptureRegionMissing);
-                return;
-            }
-
-            RecognitionRunning = true;
-            ShowHint(HintResourceRecognitionRunning);
-        }
-
-        public void StopRecognition()
-        {
-            Tick();
-            RecognitionRunning = false;
-            ShowHint(HintResourceRecognitionStopped);
-        }
-
-        public void HideSubtitles()
-        {
-            Tick();
-            SubtitlesVisible = false;
-            ShowHint(HintResourceSubtitlesHidden);
-        }
-
-        public void ShowSubtitles()
-        {
-            Tick();
-            SubtitlesVisible = true;
-            ShowHint(HintResourceSubtitlesShown);
-        }
-
-        public void CaptureRegionSelected()
-        {
-            Tick();
-            ShowHint(HintResourceCaptureRegionBoxed);
-        }
-
-        public void CaptureRegionSelectionCancelled()
-        {
-            Tick();
-            ShowHint(HintResourceCaptureRegionMissing);
-        }
-
         public void PreviewCaptureRegion(bool hasCaptureRegion)
         {
             PreviewCaptureRegion(hasCaptureRegion, darkScreenScanOn: false);
@@ -305,7 +239,7 @@ namespace GI_Subtitles.Core.Overlay
             Tick();
             if (!hasCaptureRegion)
             {
-                ShowHint(HintResourceCaptureRegionMissing);
+                WriteOperatorAction(OperatorJob.Preview, null, HintResourceCaptureRegionMissing);
                 ClearPreview();
                 return;
             }
@@ -374,42 +308,6 @@ namespace GI_Subtitles.Core.Overlay
         {
             Tick();
             ClearArm();
-        }
-
-        public void Refresh(bool hasCaptureRegion, bool foundText)
-        {
-            Tick();
-            if (!hasCaptureRegion)
-            {
-                ShowHint(HintResourceCaptureRegionMissing);
-                return;
-            }
-
-            if (foundText)
-            {
-                ShowHint(HintResourceRefreshed);
-            }
-            else
-            {
-                ShowHint(HintResourceRefreshFoundNoText);
-            }
-        }
-
-        public void ChangeVoiceSpeed(double speed)
-        {
-            Tick();
-            string speedText = speed.ToString("0.##", CultureInfo.InvariantCulture);
-            ShowHint(HintResourceVoiceSpeed, speedText);
-        }
-
-        public void NoteOcrMiss()
-        {
-            Tick();
-        }
-
-        public void NoteMatchMiss()
-        {
-            Tick();
         }
 
         public void Tick()
@@ -1287,14 +1185,6 @@ namespace GI_Subtitles.Core.Overlay
             _lastOcrTime = DateTime.MinValue;
         }
 
-        private void ExpireHintIfNeeded()
-        {
-            if (HintVisible && _hintExpiresAt.HasValue && _utcNow() >= _hintExpiresAt.Value)
-            {
-                ClearHint();
-            }
-        }
-
         private void ExpirePreviewIfNeeded()
         {
             if (_previewExpiresAt.HasValue && _utcNow() >= _previewExpiresAt.Value)
@@ -1434,26 +1324,6 @@ namespace GI_Subtitles.Core.Overlay
             ArmedPairId = 0;
             _adjustOutlines.Clear();
             AdjustChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void ShowHint(string resourceKey, params object[] formatArguments)
-        {
-            HintResourceKey = resourceKey;
-            HintFormatArguments = formatArguments == null || formatArguments.Length == 0
-                ? null
-                : formatArguments;
-            HintVisible = true;
-            _hintExpiresAt = _utcNow().AddMilliseconds(HintDurationMs);
-            HintChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void ClearHint()
-        {
-            HintVisible = false;
-            HintResourceKey = null;
-            HintFormatArguments = null;
-            _hintExpiresAt = null;
-            HintChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 

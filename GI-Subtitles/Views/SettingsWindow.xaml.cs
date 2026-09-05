@@ -92,6 +92,8 @@ namespace GI_Subtitles.Views
         {
             get { return _pairSettings; }
         }
+
+        public event EventHandler OpenActivityLogRequested;
         // Windows API functions for registering and unregistering hotkeys
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -1887,6 +1889,11 @@ namespace GI_Subtitles.Views
 
             // Directly open the explorer and locate to the directory
             Process.Start("explorer.exe", dir);
+        }
+
+        private void OpenActivityLog_Click(object sender, RoutedEventArgs e)
+        {
+            OpenActivityLogRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void ConvertButton_Click(object sender, RoutedEventArgs e)

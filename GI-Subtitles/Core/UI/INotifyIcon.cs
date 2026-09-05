@@ -23,6 +23,7 @@ namespace GI_Subtitles.Core.UI
         ToolStripMenuItem fontSizeSelector;
         ToolStripMenuItem languageSelector;
         ToolStripMenuItem settingItem;
+        ToolStripMenuItem activityLogItem;
         ToolStripMenuItem exitItem;
         ToolStripMenuItem availableUpdateItem;
         private EventHandler availableUpdateClick;
@@ -36,6 +37,7 @@ namespace GI_Subtitles.Core.UI
         string version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
         public bool isContextMenuOpen = false;
         private Views.SettingsWindow data;
+        private Action _openActivityLog;
 
         public NotifyIcon InitializeNotifyIcon(double scale)
         {
@@ -44,6 +46,7 @@ namespace GI_Subtitles.Core.UI
             // Localized tray menu texts (fallback to Chinese)
             string trayFontSize = GetLocalizedString("Tray_FontSize", "字号选择");
             string trayLanguage = GetLocalizedString("Tray_Language", "Language");
+            string trayActivityLog = GetLocalizedString("Tray_ActivityLog", "活动日志");
             string traySettings = GetLocalizedString("Tray_Settings", "程序设定");
             string trayExit = GetLocalizedString("Tray_Exit", "退出程序");
 
@@ -61,6 +64,7 @@ namespace GI_Subtitles.Core.UI
             languageSelector.DropDownItems.Add(CreateLanguageItem("English", "en-US"));
             languageSelector.DropDownItems.Add(CreateLanguageItem("日本語", "ja-JP"));
 
+            activityLogItem = new ToolStripMenuItem(trayActivityLog);
             settingItem = new ToolStripMenuItem(traySettings);
             exitItem = new ToolStripMenuItem(trayExit);
             ToolStripMenuItem versionItem = new ToolStripMenuItem(version)
@@ -72,6 +76,7 @@ namespace GI_Subtitles.Core.UI
                 Visible = false
             };
             availableUpdateItem.Click += (sender, e) => availableUpdateClick?.Invoke(sender, e);
+            activityLogItem.Click += (sender, e) => _openActivityLog?.Invoke();
             settingItem.Click += (sender, e) =>
             {
                 data.ShowDialog();
@@ -82,6 +87,7 @@ namespace GI_Subtitles.Core.UI
             contextMenuStrip.Items.Add(new ToolStripSeparator());
             contextMenuStrip.Items.Add(languageSelector);
             contextMenuStrip.Items.Add(fontSizeSelector);
+            contextMenuStrip.Items.Add(activityLogItem);
             contextMenuStrip.Items.Add(settingItem);
             contextMenuStrip.Items.Add(exitItem);
             contextMenuStrip.Opening += ContextMenuStrip_Opening; // The menu is opened before triggering
@@ -128,6 +134,11 @@ namespace GI_Subtitles.Core.UI
         public void SetSession(LiveOverlaySession session)
         {
             _overlaySession = session;
+        }
+
+        public void SetActivityLogOpener(Action opener)
+        {
+            _openActivityLog = opener;
         }
 
         public string[] Region
@@ -230,6 +241,11 @@ namespace GI_Subtitles.Core.UI
                     languageSelector.Text = trayLanguage;
                 }
 
+                if (activityLogItem != null)
+                {
+                    activityLogItem.Text = GetLocalizedString("Tray_ActivityLog", "活动日志");
+                }
+
                 // Update settings menu item text
                 string traySettings = GetLocalizedString("Tray_Settings", "程序设定");
                 settingItem.Text = traySettings;
@@ -270,9 +286,17 @@ namespace GI_Subtitles.Core.UI
 
         public bool ChooseRegion()
         {
+            int pairId;
+            return ChooseRegion(out pairId);
+        }
+
+        public bool ChooseRegion(out int pairId)
+        {
+            pairId = 0;
             Views.RegionPairSettings settings = data != null ? data.PairSettings : null;
-            if (settings == null || !settings.TryGetHotkeyTarget(out _, out _, out int ordinal))
+            if (settings == null || !settings.TryGetHotkeyTarget(out _, out pairId, out int ordinal))
             {
+                pairId = 0;
                 return false;
             }
 

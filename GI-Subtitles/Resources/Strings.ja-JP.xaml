@@ -85,6 +85,24 @@
     <sys:String x:Key="Hint_RefreshFoundNoText" xmlns:sys="clr-namespace:System;assembly=mscorlib">テキストなし</sys:String>
     <sys:String x:Key="Hint_VoiceSpeed" xmlns:sys="clr-namespace:System;assembly=mscorlib">倍速 {0}×</sys:String>
     <sys:String x:Key="Hint_CaptureRegionMissing" xmlns:sys="clr-namespace:System;assembly=mscorlib">認識領域が未設定</sys:String>
+    <sys:String x:Key="ActivityLog_Title" xmlns:sys="clr-namespace:System;assembly=mscorlib">活動ログ</sys:String>
+    <sys:String x:Key="ActivityLog_Column_Time" xmlns:sys="clr-namespace:System;assembly=mscorlib">時刻</sys:String>
+    <sys:String x:Key="ActivityLog_Column_RegionPair" xmlns:sys="clr-namespace:System;assembly=mscorlib">領域ペア</sys:String>
+    <sys:String x:Key="ActivityLog_Column_Job" xmlns:sys="clr-namespace:System;assembly=mscorlib">作業</sys:String>
+    <sys:String x:Key="ActivityLog_Column_Result" xmlns:sys="clr-namespace:System;assembly=mscorlib">結果</sys:String>
+    <sys:String x:Key="ActivityLog_Scope_Global" xmlns:sys="clr-namespace:System;assembly=mscorlib">全体</sys:String>
+    <sys:String x:Key="ActivityLog_Job_StartRecognition" xmlns:sys="clr-namespace:System;assembly=mscorlib">認識開始</sys:String>
+    <sys:String x:Key="ActivityLog_Job_StopRecognition" xmlns:sys="clr-namespace:System;assembly=mscorlib">認識停止</sys:String>
+    <sys:String x:Key="ActivityLog_Job_HideSubtitles" xmlns:sys="clr-namespace:System;assembly=mscorlib">字幕を非表示</sys:String>
+    <sys:String x:Key="ActivityLog_Job_ShowSubtitles" xmlns:sys="clr-namespace:System;assembly=mscorlib">字幕を表示</sys:String>
+    <sys:String x:Key="ActivityLog_Job_BoxCapture" xmlns:sys="clr-namespace:System;assembly=mscorlib">認識区を枠選</sys:String>
+    <sys:String x:Key="ActivityLog_Job_Refresh" xmlns:sys="clr-namespace:System;assembly=mscorlib">更新</sys:String>
+    <sys:String x:Key="ActivityLog_Job_VoiceSpeed" xmlns:sys="clr-namespace:System;assembly=mscorlib">音声倍速</sys:String>
+    <sys:String x:Key="ActivityLog_Job_Preview" xmlns:sys="clr-namespace:System;assembly=mscorlib">プレビュー</sys:String>
+    <sys:String x:Key="ActivityLog_Empty" xmlns:sys="clr-namespace:System;assembly=mscorlib">このセッションにはまだ記録がありません。認識開始、枠選、または（後で）言語パックを読み込むとここに表示されます。</sys:String>
+    <sys:String x:Key="ActivityLog_NewRecords" xmlns:sys="clr-namespace:System;assembly=mscorlib">新しい記録</sys:String>
+    <sys:String x:Key="Btn_ActivityLog" xmlns:sys="clr-namespace:System;assembly=mscorlib">活動ログを開く</sys:String>
+    <sys:String x:Key="Tray_ActivityLog" xmlns:sys="clr-namespace:System;assembly=mscorlib">活動ログ</sys:String>
     <sys:String x:Key="Config_Pad_Label" xmlns:sys="clr-namespace:System;assembly=mscorlib">字幕のオフセット（Pad）</sys:String>
     <sys:String x:Key="Config_Pad_Hint" xmlns:sys="clr-namespace:System;assembly=mscorlib">認識領域の下に表示される字幕のピクセル数</sys:String>
     <sys:String x:Key="Config_Pad_Horizontal" xmlns:sys="clr-namespace:System;assembly=mscorlib">水平方向オフセット：</sys:String>

@@ -163,6 +163,7 @@ namespace GI_Subtitles.Views
         string dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GI-Subtitles");
         INotifyIcon notify;
         SettingsWindow data;
+        ActivityLogWindow _activityLogWindow;
         SoundPlayer player = new SoundPlayer();
         private System.Drawing.Rectangle screenBounds = Screen.PrimaryScreen.Bounds;
         bool ShowText = true;
@@ -275,6 +276,16 @@ namespace GI_Subtitles.Views
             data = new SettingsWindow(version, notify, Scale, _overlaySession);
             data.InitializeKey(handle);
             notify.SetData(data);
+            _activityLogWindow = new ActivityLogWindow(_overlaySession);
+            notify.SetActivityLogOpener(ShowActivityLog);
+            data.OpenActivityLogRequested += (sender, args) => ShowActivityLog();
+            data.IsVisibleChanged += (sender, args) =>
+            {
+                if (!data.IsVisible)
+                {
+                    _activityLogWindow.ClearStayAbove();
+                }
+            };
             CleanupOldUpdatePackages();
             _ = CheckForUpdateAsync();
             if (!data.FileExists())
@@ -1952,6 +1963,17 @@ namespace GI_Subtitles.Views
                 Config.Get("RecognizeDarkScreenSubtitles", true));
         }
 
+        private void ShowActivityLog()
+        {
+            if (_activityLogWindow == null)
+            {
+                _activityLogWindow = new ActivityLogWindow(_overlaySession);
+            }
+
+            bool settingsOpen = data != null && data.IsVisible;
+            _activityLogWindow.ShowOrFocus(settingsOpen);
+        }
+
         private void OnHintChanged()
         {
             EnsureChromeTimer();
@@ -2373,10 +2395,10 @@ namespace GI_Subtitles.Views
                     if (!ChooseRegion)
                     {
                         ChooseRegion = true;
-                        bool selected = notify.ChooseRegion();
+                        bool selected = notify.ChooseRegion(out int pairId);
                         if (selected)
                         {
-                            _overlaySession.CaptureRegionSelected();
+                            _overlaySession.CaptureRegionSelected(pairId);
                         }
                         else
                         {

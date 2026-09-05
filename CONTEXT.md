@@ -9,8 +9,8 @@ The always-on-top layer drawn over the game. It can show subtitles and short-liv
 _Avoid_: Main window, 主窗口 (that name also fits the settings window)
 
 **Hint**:
-A short-lived overlay notice that a hotkey or button ran. It is not a notice that OCR produced a new subtitle.
-_Avoid_: 操作日志, 侧边框, log (the overlay is not a log); Region-pair preview (that outline is not a hint); announcing each OCR or subtitle change
+A short-lived overlay notice that a hotkey or button ran. It is not a notice that OCR produced a new subtitle, and it is not an activity log row.
+_Avoid_: 操作日志, 侧边框, log (the overlay is not a log); Region-pair preview (that outline is not a hint); announcing each OCR or subtitle change; treating hint expiry as a new row
 
 **Region-pair preview**:
 A short-lived outline of every region pair's capture region and display region, drawn together over the game. It also outlines a set dark-screen display (labelled 暗屏) or dialogue-option display (labelled 选项), and the live dark-screen candidate (labelled 检测带) when that scan is on and no dark-screen display is set. Extra paths are not numbered as pairs.
@@ -19,6 +19,14 @@ _Avoid_: Capture region preview (that named a capture-only outline); Hint; 预�
 **Activity log**:
 The complete visible record of what the pipeline did this session: operator actions, background jobs, detection results, and matched subtitle lookups.
 _Avoid_: 操作日志 when you mean a hint; debug console; log4net log (the file logger is not this); overlay when you mean this record
+
+**Activity log row**:
+One snapshot in the activity log: the time, which region pair or extra path (or a global row), the job or operator action, and the result. Deleting or renumbering pairs later does not rewrite it. The job is not the hint copy (识别中 is a result, not the job name).
+_Avoid_: Hint; a live pointer to a region pair; putting the window's empty-state sentence in the log
+
+**Global row**:
+An activity log row that is not about one region pair or extra path. Start/stop recognition, hide/show subtitles, and voice speed are this. The window labels the region-pair column 全局.
+_Avoid_: labelling 暗屏 or 对话选项 as 全局; a boxing row when a pair was actually boxed
 
 **Capture region**:
 The screen rectangle OCR reads from.

@@ -85,6 +85,24 @@
     <sys:String x:Key="Hint_RefreshFoundNoText" xmlns:sys="clr-namespace:System;assembly=mscorlib">No text recognized</sys:String>
     <sys:String x:Key="Hint_VoiceSpeed" xmlns:sys="clr-namespace:System;assembly=mscorlib">Speed {0}×</sys:String>
     <sys:String x:Key="Hint_CaptureRegionMissing" xmlns:sys="clr-namespace:System;assembly=mscorlib">No capture region</sys:String>
+    <sys:String x:Key="ActivityLog_Title" xmlns:sys="clr-namespace:System;assembly=mscorlib">Activity log</sys:String>
+    <sys:String x:Key="ActivityLog_Column_Time" xmlns:sys="clr-namespace:System;assembly=mscorlib">Time</sys:String>
+    <sys:String x:Key="ActivityLog_Column_RegionPair" xmlns:sys="clr-namespace:System;assembly=mscorlib">Region pair</sys:String>
+    <sys:String x:Key="ActivityLog_Column_Job" xmlns:sys="clr-namespace:System;assembly=mscorlib">Job</sys:String>
+    <sys:String x:Key="ActivityLog_Column_Result" xmlns:sys="clr-namespace:System;assembly=mscorlib">Result</sys:String>
+    <sys:String x:Key="ActivityLog_Scope_Global" xmlns:sys="clr-namespace:System;assembly=mscorlib">Global</sys:String>
+    <sys:String x:Key="ActivityLog_Job_StartRecognition" xmlns:sys="clr-namespace:System;assembly=mscorlib">Start recognition</sys:String>
+    <sys:String x:Key="ActivityLog_Job_StopRecognition" xmlns:sys="clr-namespace:System;assembly=mscorlib">Stop recognition</sys:String>
+    <sys:String x:Key="ActivityLog_Job_HideSubtitles" xmlns:sys="clr-namespace:System;assembly=mscorlib">Hide subtitles</sys:String>
+    <sys:String x:Key="ActivityLog_Job_ShowSubtitles" xmlns:sys="clr-namespace:System;assembly=mscorlib">Show subtitles</sys:String>
+    <sys:String x:Key="ActivityLog_Job_BoxCapture" xmlns:sys="clr-namespace:System;assembly=mscorlib">Box capture</sys:String>
+    <sys:String x:Key="ActivityLog_Job_Refresh" xmlns:sys="clr-namespace:System;assembly=mscorlib">Refresh</sys:String>
+    <sys:String x:Key="ActivityLog_Job_VoiceSpeed" xmlns:sys="clr-namespace:System;assembly=mscorlib">Voice speed</sys:String>
+    <sys:String x:Key="ActivityLog_Job_Preview" xmlns:sys="clr-namespace:System;assembly=mscorlib">Preview</sys:String>
+    <sys:String x:Key="ActivityLog_Empty" xmlns:sys="clr-namespace:System;assembly=mscorlib">This session has no records yet. Start recognition, box a capture, or (later) load a language pack and they will show here.</sys:String>
+    <sys:String x:Key="ActivityLog_NewRecords" xmlns:sys="clr-namespace:System;assembly=mscorlib">New records</sys:String>
+    <sys:String x:Key="Btn_ActivityLog" xmlns:sys="clr-namespace:System;assembly=mscorlib">Open activity log</sys:String>
+    <sys:String x:Key="Tray_ActivityLog" xmlns:sys="clr-namespace:System;assembly=mscorlib">Activity log</sys:String>
     <sys:String x:Key="Config_Pad_Label" xmlns:sys="clr-namespace:System;assembly=mscorlib">Subtitle Offset (Pad)</sys:String>
     <sys:String x:Key="Config_Pad_Hint" xmlns:sys="clr-namespace:System;assembly=mscorlib">Vertical pixel offset below the recognition area</sys:String>
     <sys:String x:Key="Config_Pad_Horizontal" xmlns:sys="clr-namespace:System;assembly=mscorlib">Horizontal Offset:</sys:String>
