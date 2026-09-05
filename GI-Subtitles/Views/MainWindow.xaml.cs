@@ -215,6 +215,7 @@ namespace GI_Subtitles.Views
         {
             public string LocalFilePath { get; set; }
             public string RemoteUrl { get; set; }
+            public bool LogActivity { get; set; }
         }
 
 
@@ -1174,9 +1175,11 @@ namespace GI_Subtitles.Views
             string header = "";
             string content = "";
             string key = "";
+            string original = "";
+            bool matchMiss = false;
             if (usable)
             {
-                MatchOcrText(recognizedText, out header, out content, out key);
+                matchMiss = !TryMatchOcrText(recognizedText, out header, out content, out key, out original);
             }
 
             int appliedPair = pairIndex ?? 0;
@@ -1185,7 +1188,14 @@ namespace GI_Subtitles.Views
                 if (usable)
                 {
                     _forceVoiceReplayRequested = true;
-                    _overlaySession.ApplyPairResult(appliedPair, miss: false, content, header);
+                    _overlaySession.ApplyPairResult(
+                        appliedPair,
+                        miss: false,
+                        content,
+                        header,
+                        recognizedText,
+                        original,
+                        matchMiss);
                     MaybePlayPairVoice(key, content, header);
                     ApplyPairOverlay();
                     _overlaySession.Refresh(hasCaptureRegion: true, foundText: true);
@@ -1208,7 +1218,13 @@ namespace GI_Subtitles.Views
                     return;
                 }
 
-                _overlaySession.CompleteOcr(miss: false, content, header);
+                _overlaySession.CompleteOcr(
+                    miss: false,
+                    content,
+                    header,
+                    recognizedText,
+                    original,
+                    matchMiss);
                 MaybePlayPairVoice(key, content, header);
                 ApplyPairOverlay();
                 return;
@@ -1223,7 +1239,13 @@ namespace GI_Subtitles.Views
                     return;
                 }
 
-                _overlaySession.CompleteOcr(miss: false, content, header);
+                _overlaySession.CompleteOcr(
+                    miss: false,
+                    content,
+                    header,
+                    recognizedText,
+                    original,
+                    matchMiss);
                 MaybePlayPairVoice(key, content, header);
                 ApplyPairOverlay();
                 return;
@@ -1235,24 +1257,38 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            _overlaySession.ApplyPairResult(0, miss: false, content, header);
+            _overlaySession.ApplyPairResult(
+                0,
+                miss: false,
+                content,
+                header,
+                recognizedText,
+                original,
+                matchMiss);
             MaybePlayPairVoice(key, content, header);
             ApplyPairOverlay();
         }
 
-        private void MatchOcrText(string recognizedText, out string header, out string content, out string key)
+        private bool TryMatchOcrText(
+            string recognizedText,
+            out string header,
+            out string content,
+            out string key,
+            out string original)
         {
             header = "";
             content = "";
             key = "";
+            original = "";
             if (string.IsNullOrEmpty(recognizedText) || recognizedText.Length <= 1)
             {
-                return;
+                return false;
             }
 
             if (resDict.TryGetValue(recognizedText, out string cachedRes))
             {
                 key = resDict[cachedRes];
+                original = key ?? "";
                 string[] parts = cachedRes.Split(new[] { "\n\n" }, StringSplitOptions.None);
                 if (parts.Length >= 2)
                 {
@@ -1263,12 +1299,19 @@ namespace GI_Subtitles.Views
                 {
                     content = cachedRes;
                 }
-                return;
+
+                return !string.IsNullOrEmpty(header) || !string.IsNullOrEmpty(content);
             }
 
             MatchResult matchResult = data.Matcher.FindMatchWithHeaderSeparated(recognizedText, out key);
             header = matchResult.Header ?? "";
             content = matchResult.Content ?? "";
+            original = JoinSubtitleParts(matchResult.MatchedHeader, matchResult.MatchedContent);
+            if (string.IsNullOrEmpty(original))
+            {
+                original = key ?? "";
+            }
+
             string res = string.IsNullOrEmpty(header) ? content : (header + "\n\n" + content);
             Logger.Log.Debug($"Convert ocrResult for {recognizedText}: header={header}, content={content}, key={key}");
             if (!resDict.ContainsKey(recognizedText))
@@ -1277,10 +1320,28 @@ namespace GI_Subtitles.Views
                 resDict[res] = key;
             }
 
-            if (string.IsNullOrEmpty(header) && string.IsNullOrEmpty(content))
+            bool matched = !string.IsNullOrEmpty(header) || !string.IsNullOrEmpty(content);
+            if (!matched)
             {
                 _overlaySession.NoteMatchMiss();
             }
+
+            return matched;
+        }
+
+        private static string JoinSubtitleParts(string header, string content)
+        {
+            if (string.IsNullOrWhiteSpace(header))
+            {
+                return content ?? string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return header;
+            }
+
+            return header + "\n" + content;
         }
 
         private void MaybePlayPairVoice(string key, string content, string header)
@@ -1300,7 +1361,7 @@ namespace GI_Subtitles.Views
                 }
 
                 string extraAudioKey = VoiceContentHelper.CalculateMd5Hash(key);
-                PlayDialogueOptionAudio(extraAudioKey);
+                PlayDialogueOptionAudio(extraAudioKey, logActivity: true);
                 return;
             }
 
@@ -1322,7 +1383,7 @@ namespace GI_Subtitles.Views
             }
 
             string audioKey = VoiceContentHelper.CalculateMd5Hash(key);
-            PlayMainAudio(audioKey);
+            PlayMainAudio(audioKey, logActivity: true);
             if (!AudioList.Contains(key))
             {
                 AudioList.Add(key);
@@ -1649,6 +1710,7 @@ namespace GI_Subtitles.Views
         {
             _isOcrRunning = true;
             bool miss = true;
+            string ocrText = null;
             try
             {
                 OCRResult result = await Task.Run(() => data.engine.DetectTextFromMat(frame));
@@ -1683,6 +1745,7 @@ namespace GI_Subtitles.Views
                 }
                 Logger.Log.Debug(
                     $"Dialogue options detected: count={candidates.Count}, templateConfidence={templateConfidence:F3}");
+                ocrText = string.Join(" / ", candidates.Select(candidate => candidate.Text));
             }
             catch (Exception ex)
             {
@@ -1693,7 +1756,7 @@ namespace GI_Subtitles.Views
                 frame?.Dispose();
                 bitmap?.Dispose();
                 _isOcrRunning = false;
-                _overlaySession.CompleteOcr(miss);
+                _overlaySession.CompleteOcr(miss, ocrText: miss ? null : ocrText);
                 _ = Dispatcher.BeginInvoke(new Action(TryStartBusyOcr));
             }
         }
@@ -2458,7 +2521,7 @@ namespace GI_Subtitles.Views
             player.Play();
         }
 
-        private VoiceAudioSource CreateVoiceAudioSource(string audioKey)
+        private VoiceAudioSource CreateVoiceAudioSource(string audioKey, bool logActivity = false)
         {
             string localFilePath = null;
             if (string.Equals(Game, "Genshin", StringComparison.OrdinalIgnoreCase))
@@ -2469,13 +2532,14 @@ namespace GI_Subtitles.Views
             return new VoiceAudioSource
             {
                 LocalFilePath = localFilePath,
-                RemoteUrl = $"{server}?md5={audioKey}&token={token}"
+                RemoteUrl = $"{server}?md5={audioKey}&token={token}",
+                LogActivity = logActivity
             };
         }
 
-        private void PlayDialogueOptionAudio(string audioKey)
+        private void PlayDialogueOptionAudio(string audioKey, bool logActivity = false)
         {
-            VoiceAudioSource source = CreateVoiceAudioSource(audioKey);
+            VoiceAudioSource source = CreateVoiceAudioSource(audioKey, logActivity);
             bool shouldStart;
             int generation;
             lock (_audioPlaybackQueueLock)
@@ -2500,9 +2564,9 @@ namespace GI_Subtitles.Views
             }
         }
 
-        private void PlayMainAudio(string audioKey)
+        private void PlayMainAudio(string audioKey, bool logActivity = false)
         {
-            VoiceAudioSource source = CreateVoiceAudioSource(audioKey);
+            VoiceAudioSource source = CreateVoiceAudioSource(audioKey, logActivity);
             int generation;
             lock (_audioPlaybackQueueLock)
             {
@@ -2545,7 +2609,8 @@ namespace GI_Subtitles.Views
         private void StartAudioPlayback(
             string filePath,
             int generation,
-            bool allowTempoProcessing = true)
+            bool allowTempoProcessing = true,
+            bool logActivity = false)
         {
             DisposeCurrentAudioPlayback();
             bool usingSoundTouch =
@@ -2590,7 +2655,7 @@ namespace GI_Subtitles.Views
                         {
                             Logger.Log.Warn(
                                 $"SoundTouch playback failed; retrying at normal speed: {args.Exception.Message}");
-                            StartAudioPlayback(filePath, generation, allowTempoProcessing: false);
+                            StartAudioPlayback(filePath, generation, allowTempoProcessing: false, logActivity: logActivity);
                             return;
                         }
 
@@ -2601,13 +2666,17 @@ namespace GI_Subtitles.Views
                 waveOut.PlaybackStopped += _playbackStoppedHandler;
                 waveOut.Init(playbackSource);
                 waveOut.Play();
+                if (logActivity)
+                {
+                    _overlaySession.NoteVoicePlaybackStarted();
+                }
             }
             catch (Exception ex) when (usingSoundTouch)
             {
                 Logger.Log.Warn(
                     $"SoundTouch initialization failed; retrying at normal speed: {ex.Message}");
                 DisposeCurrentAudioPlayback();
-                StartAudioPlayback(filePath, generation, allowTempoProcessing: false);
+                StartAudioPlayback(filePath, generation, allowTempoProcessing: false, logActivity: logActivity);
             }
         }
 
@@ -2660,7 +2729,7 @@ namespace GI_Subtitles.Views
                             }
 
                             tempFilePath = source.LocalFilePath;
-                            StartAudioPlayback(source.LocalFilePath, generation);
+                            StartAudioPlayback(source.LocalFilePath, generation, logActivity: source.LogActivity);
                         });
                         return;
                     }
@@ -2696,7 +2765,7 @@ namespace GI_Subtitles.Views
                         }
 
                         tempFilePath = tempFile;
-                        StartAudioPlayback(tempFile, generation);
+                        StartAudioPlayback(tempFile, generation, logActivity: source.LogActivity);
                     });
                     return;
                 }

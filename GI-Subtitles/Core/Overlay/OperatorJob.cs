@@ -9,6 +9,20 @@ namespace GI_Subtitles.Core.Overlay
         BoxCapture,
         Refresh,
         VoiceSpeed,
-        Preview
+        Preview,
+        Capture,
+        Ocr,
+        Match,
+        Voice,
+        LanguagePackLoad,
+        LanguagePackDownload
+    }
+
+    public enum ActivityLogScope
+    {
+        Global,
+        Pair,
+        DarkScreen,
+        DialogueOptions
     }
 }

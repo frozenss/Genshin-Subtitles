@@ -18,8 +18,14 @@ namespace GI_Subtitles.Core.Overlay
         private const string HintResourceVoiceSpeed = "Hint_VoiceSpeed";
         private const string HintResourceCaptureRegionMissing = "Hint_CaptureRegionMissing";
 
+        private const string ResultResourceDetectionMiss = "ActivityLog_Result_DetectionMiss";
+        private const string ResultResourceLanguagePackStart = "ActivityLog_Result_LanguagePackStart";
+        private const string ResultResourceLanguagePackDone = "ActivityLog_Result_LanguagePackDone";
+        private const string ResultResourceLanguagePackFailed = "ActivityLog_Result_LanguagePackFailed";
+
         private readonly List<ActivityLogRow> _activityLog = new List<ActivityLogRow>();
         private DateTime? _hintExpiresAt;
+        private int _pendingVoiceLogIndex = -1;
 
         public event EventHandler HintChanged;
 
@@ -125,6 +131,43 @@ namespace GI_Subtitles.Core.Overlay
             Tick();
         }
 
+        public void NoteVoicePlaybackStarted()
+        {
+            if (_pendingVoiceLogIndex >= 0 && _pendingVoiceLogIndex < _activityLog.Count)
+            {
+                _activityLog[_pendingVoiceLogIndex].IncludeVoiceJob();
+                ActivityLogChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            _pendingVoiceLogIndex = -1;
+        }
+
+        public void NoteLanguagePackLoadStarted(string language)
+        {
+            WriteLanguagePackRow(OperatorJob.LanguagePackLoad, ResultResourceLanguagePackStart, language);
+        }
+
+        public void NoteLanguagePackLoadFinished(string language, bool succeeded)
+        {
+            WriteLanguagePackRow(
+                OperatorJob.LanguagePackLoad,
+                succeeded ? ResultResourceLanguagePackDone : ResultResourceLanguagePackFailed,
+                language);
+        }
+
+        public void NoteLanguagePackDownloadStarted(string language)
+        {
+            WriteLanguagePackRow(OperatorJob.LanguagePackDownload, ResultResourceLanguagePackStart, language);
+        }
+
+        public void NoteLanguagePackDownloadFinished(string language, bool succeeded)
+        {
+            WriteLanguagePackRow(
+                OperatorJob.LanguagePackDownload,
+                succeeded ? ResultResourceLanguagePackDone : ResultResourceLanguagePackFailed,
+                language);
+        }
+
         private void ExpireHintIfNeeded()
         {
             if (HintVisible && _hintExpiresAt.HasValue && _utcNow() >= _hintExpiresAt.Value)
@@ -149,8 +192,184 @@ namespace GI_Subtitles.Core.Overlay
             _hintExpiresAt = now.AddMilliseconds(HintDurationMs);
             HintChanged?.Invoke(this, EventArgs.Empty);
 
-            _activityLog.Add(new ActivityLogRow(now, job, pairOrdinal, resultResourceKey, args));
+            bool voicePrimary = false;
+            if (pairOrdinal.HasValue)
+            {
+                int index = pairOrdinal.Value - 1;
+                if (index >= 0 && index < _pairs.Count)
+                {
+                    voicePrimary = _pairs[index].Id == VoicePrimaryId;
+                }
+            }
+
+            AppendActivityLogRow(
+                now,
+                new[] { job },
+                pairOrdinal.HasValue ? ActivityLogScope.Pair : ActivityLogScope.Global,
+                pairOrdinal,
+                voicePrimary,
+                resultResourceKey,
+                args,
+                null,
+                null,
+                null,
+                false,
+                false);
+        }
+
+        private void WritePipelineForSlot(
+            int slot,
+            bool miss,
+            string content,
+            string ocrText,
+            string original,
+            bool matchMiss)
+        {
+            ActivityLogScope scope;
+            int? pairOrdinal = null;
+            bool voicePrimary = false;
+            if (slot == DarkScreenOcrSlot)
+            {
+                scope = ActivityLogScope.DarkScreen;
+            }
+            else if (slot == DialogueOptionsOcrSlot)
+            {
+                scope = ActivityLogScope.DialogueOptions;
+            }
+            else
+            {
+                scope = ActivityLogScope.Pair;
+                pairOrdinal = slot + 1;
+                if (slot >= 0 && slot < _pairs.Count)
+                {
+                    voicePrimary = _pairs[slot].Id == VoicePrimaryId;
+                }
+            }
+
+            WritePipelineResult(scope, pairOrdinal, voicePrimary, miss, content, ocrText, original, matchMiss);
+        }
+
+        private void WritePipelineResult(
+            ActivityLogScope scope,
+            int? pairOrdinal,
+            bool voicePrimary,
+            bool miss,
+            string content,
+            string ocrText,
+            string original,
+            bool matchMiss)
+        {
+            var jobs = new List<OperatorJob> { OperatorJob.Capture, OperatorJob.Ocr };
+            string translation = null;
+            string resultKey = null;
+            bool detectionMiss = miss;
+            if (detectionMiss)
+            {
+                resultKey = ResultResourceDetectionMiss;
+                matchMiss = false;
+                ocrText = null;
+                original = null;
+            }
+            else
+            {
+                translation = string.IsNullOrEmpty(content) ? null : content;
+                if (matchMiss || !string.IsNullOrEmpty(original) || !string.IsNullOrEmpty(translation))
+                {
+                    jobs.Add(OperatorJob.Match);
+                }
+                else
+                {
+                    matchMiss = false;
+                }
+            }
+
+            AppendActivityLogRow(
+                _utcNow(),
+                jobs,
+                scope,
+                pairOrdinal,
+                voicePrimary,
+                resultKey,
+                null,
+                ocrText,
+                original,
+                translation,
+                detectionMiss,
+                matchMiss);
+        }
+
+        private void WriteDialogueChoiceRow(string ocrText)
+        {
+            AppendActivityLogRow(
+                _utcNow(),
+                new[] { OperatorJob.Match },
+                ActivityLogScope.DialogueOptions,
+                null,
+                false,
+                null,
+                null,
+                ocrText,
+                null,
+                null,
+                false,
+                false);
+        }
+
+        private void WriteLanguagePackRow(OperatorJob job, string resultResourceKey, string language)
+        {
+            AppendActivityLogRow(
+                _utcNow(),
+                new[] { job },
+                ActivityLogScope.Global,
+                null,
+                false,
+                resultResourceKey,
+                new object[] { language ?? string.Empty },
+                null,
+                null,
+                null,
+                false,
+                false);
+        }
+
+        private void AppendActivityLogRow(
+            DateTime utcTimestamp,
+            IReadOnlyList<OperatorJob> jobs,
+            ActivityLogScope scope,
+            int? pairOrdinal,
+            bool voicePrimary,
+            string resultResourceKey,
+            object[] resultFormatArguments,
+            string ocrText,
+            string original,
+            string translation,
+            bool detectionMiss,
+            bool matchMiss)
+        {
+            _activityLog.Add(new ActivityLogRow(
+                utcTimestamp,
+                jobs,
+                scope,
+                pairOrdinal,
+                voicePrimary,
+                resultResourceKey,
+                resultFormatArguments,
+                ocrText,
+                original,
+                translation,
+                detectionMiss,
+                matchMiss));
             ActivityLogChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void RememberVoiceLogRow()
+        {
+            _pendingVoiceLogIndex = _activityLog.Count - 1;
+        }
+
+        private void ClearPendingVoiceLog()
+        {
+            _pendingVoiceLogIndex = -1;
         }
 
         private void ClearHint()

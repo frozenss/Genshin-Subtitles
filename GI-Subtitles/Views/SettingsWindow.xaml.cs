@@ -1100,53 +1100,82 @@ namespace GI_Subtitles.Views
                 string outputLanguage = OutputLanguage;
                 string outputLanguage2 = OutputLanguage2;
                 string userName = (outputLanguage == "CHS") ? "旅行者" : "Traveler";
+                string packLabel = string.IsNullOrEmpty(outputLanguage2)
+                    ? $"{inputLanguage} -> {outputLanguage}"
+                    : $"{inputLanguage} -> {outputLanguage}+{outputLanguage2}";
 
                 if (FileExists())
                 {
                     string inputFilePath = $"{Path.Combine(dataDir, game)}\\TextMap{inputLanguage}.json";
                     string outputFilePath1 = $"{Path.Combine(dataDir, game)}\\TextMap{outputLanguage}.json";
 
-                    LoadedMatchData loaded = await Task.Run(() =>
-                    {
-                        string effectiveOutputPath = outputFilePath1;
-                        if (!string.IsNullOrEmpty(outputLanguage2))
-                        {
-                            string outputFilePath2 = $"{Path.Combine(dataDir, game)}\\TextMap{outputLanguage2}.json";
-                            effectiveOutputPath = VoiceContentHelper.BuildMultiOutputJson(
-                                inputFilePath,
-                                outputFilePath1,
-                                outputFilePath2);
-                        }
-
-                        string contentJsonPath = Path.Combine(
-                            Path.GetDirectoryName(inputFilePath),
-                            $"{Path.GetFileNameWithoutExtension(inputFilePath)}_{Path.GetFileNameWithoutExtension(effectiveOutputPath)}.json");
-
-                        return MatchDataLoader.Load(
-                            inputFilePath,
-                            effectiveOutputPath,
-                            contentJsonPath,
-                            inputLanguage,
-                            userName,
-                            renew);
-                    });
-
                     await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                     {
-                        contentDict = loaded.Content;
-                        Matcher = loaded.Matcher;
-                        if (string.IsNullOrEmpty(outputLanguage2))
+                        _overlaySession.NoteLanguagePackLoadStarted(packLabel);
+                    });
+
+                    LoadedMatchData loaded;
+                    try
+                    {
+                        loaded = await Task.Run(() =>
                         {
-                            Status.Content = $"Loaded {contentDict.Count} key-values，{inputLanguage} -> {outputLanguage}";
-                        }
-                        else
+                            string effectiveOutputPath = outputFilePath1;
+                            if (!string.IsNullOrEmpty(outputLanguage2))
+                            {
+                                string outputFilePath2 = $"{Path.Combine(dataDir, game)}\\TextMap{outputLanguage2}.json";
+                                effectiveOutputPath = VoiceContentHelper.BuildMultiOutputJson(
+                                    inputFilePath,
+                                    outputFilePath1,
+                                    outputFilePath2);
+                            }
+
+                            string contentJsonPath = Path.Combine(
+                                Path.GetDirectoryName(inputFilePath),
+                                $"{Path.GetFileNameWithoutExtension(inputFilePath)}_{Path.GetFileNameWithoutExtension(effectiveOutputPath)}.json");
+
+                            return MatchDataLoader.Load(
+                                inputFilePath,
+                                effectiveOutputPath,
+                                contentJsonPath,
+                                inputLanguage,
+                                userName,
+                                renew);
+                        });
+
+                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
                         {
-                            Status.Content = $"Loaded {contentDict.Count} key-values，{inputLanguage} -> {outputLanguage}+{outputLanguage2}";
-                        }
-                        Logger.Log.Debug(Status.Content);
-                        Logger.Log.Debug(loaded.LoadedFromMatcherCache
-                            ? "Loaded OptimizedMatcher from cache."
-                            : "Built and cached OptimizedMatcher.");
+                            contentDict = loaded.Content;
+                            Matcher = loaded.Matcher;
+                            if (string.IsNullOrEmpty(outputLanguage2))
+                            {
+                                Status.Content = $"Loaded {contentDict.Count} key-values，{inputLanguage} -> {outputLanguage}";
+                            }
+                            else
+                            {
+                                Status.Content = $"Loaded {contentDict.Count} key-values，{inputLanguage} -> {outputLanguage}+{outputLanguage2}";
+                            }
+                            Logger.Log.Debug(Status.Content);
+                            Logger.Log.Debug(loaded.LoadedFromMatcherCache
+                                ? "Loaded OptimizedMatcher from cache."
+                                : "Built and cached OptimizedMatcher.");
+                            _overlaySession.NoteLanguagePackLoadFinished(packLabel, true);
+                        });
+                    }
+                    catch
+                    {
+                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            _overlaySession.NoteLanguagePackLoadFinished(packLabel, false);
+                        });
+                        throw;
+                    }
+                }
+                else
+                {
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        _overlaySession.NoteLanguagePackLoadStarted(packLabel);
+                        _overlaySession.NoteLanguagePackLoadFinished(packLabel, false);
                     });
                 }
 
@@ -1404,6 +1433,12 @@ namespace GI_Subtitles.Views
             string tmpUpdateFile = fullPath + ".update.tmp";
             string mediumFilePath = VoiceContentHelper.GetGenshinMediumFilePath(fullPath);
             string tmpMediumFile = string.IsNullOrEmpty(mediumFilePath) ? string.Empty : mediumFilePath + ".tmp";
+            string packLabel = string.IsNullOrEmpty(language) ? fileName : language;
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                _overlaySession.NoteLanguagePackDownloadStarted(packLabel);
+            });
 
             while (attempt < MaxRetries && !success)
             {
@@ -1504,6 +1539,11 @@ namespace GI_Subtitles.Views
                     });
                 }
             }
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                _overlaySession.NoteLanguagePackDownloadFinished(packLabel, success);
+            });
         }
 
         private async Task DownloadAndMergeStarRailKoreanPartAsync(Uri firstPartUri, string destinationPath)

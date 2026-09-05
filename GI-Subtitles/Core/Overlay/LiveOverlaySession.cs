@@ -321,6 +321,7 @@ namespace GI_Subtitles.Core.Overlay
         public void NoteVoicePlaybackEnded()
         {
             VoicePlaybackActive = false;
+            ClearPendingVoiceLog();
         }
 
         public void SetCapture(int pairIndex, OverlayRect capture)
@@ -577,7 +578,13 @@ namespace GI_Subtitles.Core.Overlay
             TryStartNextOcr();
         }
 
-        public void CompleteOcr(bool miss, string content = null, string header = null)
+        public void CompleteOcr(
+            bool miss,
+            string content = null,
+            string header = null,
+            string ocrText = null,
+            string original = null,
+            bool matchMiss = false)
         {
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
@@ -588,6 +595,7 @@ namespace GI_Subtitles.Core.Overlay
             }
 
             int busy = _busyPairIndex.Value;
+            WritePipelineForSlot(busy, miss, content, ocrText, original, matchMiss);
             if (busy == DarkScreenOcrSlot)
             {
                 ApplyDarkScreenResult(miss, content, header);
@@ -603,11 +611,31 @@ namespace GI_Subtitles.Core.Overlay
             ApplyPairResult(busy, miss, content, header);
         }
 
-        public void ApplyPairResult(int pairIndex, bool miss, string content = null, string header = null)
+        public void ApplyPairResult(
+            int pairIndex,
+            bool miss,
+            string content = null,
+            string header = null,
+            string ocrText = null,
+            string original = null,
+            bool matchMiss = false)
         {
             if (pairIndex < 0 || pairIndex >= _pairs.Count)
             {
                 return;
+            }
+
+            if (_busyPairIndex != pairIndex)
+            {
+                WritePipelineResult(
+                    ActivityLogScope.Pair,
+                    pairIndex + 1,
+                    _pairs[pairIndex].Id == VoicePrimaryId,
+                    miss,
+                    content,
+                    ocrText,
+                    original,
+                    matchMiss);
             }
 
             if (!miss)
@@ -959,6 +987,7 @@ namespace GI_Subtitles.Core.Overlay
                 _headers[pairIndex],
                 _contents[pairIndex],
                 VoicePlaybackToken);
+            RememberVoiceLogRow();
         }
 
         private void SyncPairRuntime()
@@ -981,7 +1010,17 @@ namespace GI_Subtitles.Core.Overlay
 
         private void ApplyExtraPathSample(ExtraPathSample extra)
         {
-            if (extra == null || extra == ExtraPathSample.None || !HasValidCapture)
+            if (extra == null || extra == ExtraPathSample.None)
+            {
+                return;
+            }
+
+            if (extra.DialogueChoiceSelected)
+            {
+                ShowDialogueChoiceEcho(extra.DialogueChoiceContent);
+            }
+
+            if (!HasValidCapture)
             {
                 return;
             }
@@ -1009,31 +1048,27 @@ namespace GI_Subtitles.Core.Overlay
             {
                 insertAt = EnqueueOcrAt(insertAt, DialogueOptionsOcrSlot);
             }
-
-            if (extra.DialogueChoiceSelected)
-            {
-                ShowDialogueChoiceEcho(extra.DialogueChoiceContent);
-            }
         }
 
         private void ShowDialogueChoiceEcho(string content)
         {
-            if (!ResolveEchoDisplay().IsValid)
-            {
-                ClearEcho();
-                return;
-            }
-
             string trimmed = content ?? string.Empty;
-            if (string.IsNullOrEmpty(trimmed))
+            string echo = string.Empty;
+            if (!string.IsNullOrEmpty(trimmed))
+            {
+                echo = trimmed.StartsWith(DialogueChoiceEchoPrefix, StringComparison.Ordinal)
+                    ? trimmed
+                    : DialogueChoiceEchoPrefix + trimmed;
+                WriteDialogueChoiceRow(echo);
+            }
+
+            if (!HasValidCapture || !ResolveEchoDisplay().IsValid || string.IsNullOrEmpty(trimmed))
             {
                 ClearEcho();
                 return;
             }
 
-            _echoContent = trimmed.StartsWith(DialogueChoiceEchoPrefix, StringComparison.Ordinal)
-                ? trimmed
-                : DialogueChoiceEchoPrefix + trimmed;
+            _echoContent = echo;
             _recognitionSequence++;
             _echoRecognitionOrder = _recognitionSequence;
             _echoExpiresAt = _utcNow().AddMilliseconds(DialogueChoiceEchoDurationMs);
@@ -1088,6 +1123,7 @@ namespace GI_Subtitles.Core.Overlay
             VoicePlaybackToken++;
             VoicePlaybackActive = true;
             _pendingVoicePlay = new VoicePlayRequest(0, header, content, VoicePlaybackToken, extraPath: true);
+            RememberVoiceLogRow();
         }
 
         private void ReleaseBusySlot()

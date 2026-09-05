@@ -12,7 +12,17 @@
         Topmost="False"
         ResizeMode="CanResize">
     <Grid>
-        <ListView x:Name="LogList">
+        <ListView x:Name="LogList"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  VirtualizingPanel.ScrollUnit="Pixel"
+                  ScrollViewer.CanContentScroll="True">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                    <Setter Property="VerticalContentAlignment" Value="Top"/>
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.View>
                 <GridView>
                     <GridViewColumn Header="{DynamicResource ActivityLog_Column_Time}"
@@ -20,13 +30,18 @@
                                     Width="90"/>
                     <GridViewColumn Header="{DynamicResource ActivityLog_Column_RegionPair}"
                                     DisplayMemberBinding="{Binding RegionPair}"
-                                    Width="90"/>
+                                    Width="150"/>
                     <GridViewColumn Header="{DynamicResource ActivityLog_Column_Job}"
                                     DisplayMemberBinding="{Binding Job}"
-                                    Width="140"/>
-                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Result}"
-                                    DisplayMemberBinding="{Binding Result}"
-                                    Width="360"/>
+                                    Width="160"/>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Result}" Width="280">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Result}"
+                                           TextWrapping="Wrap"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                 </GridView>
             </ListView.View>
         </ListView>
