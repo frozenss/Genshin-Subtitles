@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using GI_Subtitles.Core.Cache;
 
 namespace GI_Subtitles.Core.Overlay
 {
@@ -52,6 +53,8 @@ namespace GI_Subtitles.Core.Overlay
         private OverlayRect _addCapture = OverlayRect.Invalid;
         private OverlayRect _addDisplay = OverlayRect.Invalid;
         private VoicePlayRequest _pendingVoicePlay;
+        private string _appliedGame;
+        private readonly LRUCache<string, string> _matchCache = new LRUCache<string, string>(100);
 
         public LiveOverlaySession(IOcrIntervalStore store)
             : this(store, null, null)
@@ -69,10 +72,20 @@ namespace GI_Subtitles.Core.Overlay
         }
 
         public LiveOverlaySession(IOcrIntervalStore store, IRegionPairStore pairStore, Func<DateTime> utcNow)
+            : this(store, pairStore, utcNow, null)
+        {
+        }
+
+        public LiveOverlaySession(
+            IOcrIntervalStore store,
+            IRegionPairStore pairStore,
+            Func<DateTime> utcNow,
+            string appliedGame)
         {
             _store = store ?? throw new ArgumentNullException(nameof(store));
             _pairStore = pairStore;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
+            _appliedGame = OverlayLayoutPersistence.NormalizeGame(appliedGame);
             _storedMs = _store.Read(DefaultOcrIntervalMs);
             SubtitlesVisible = true;
             LoadPairs();
@@ -141,6 +154,26 @@ namespace GI_Subtitles.Core.Overlay
         public bool DialogueOptionScanOn
         {
             get { return _dialogueOptionScanOn; }
+        }
+
+        public string AppliedGame
+        {
+            get { return _appliedGame; }
+        }
+
+        public bool AllowsDialogueOptionScan
+        {
+            get { return IsAppliedGenshin && _dialogueOptionScanOn; }
+        }
+
+        public bool AllowsGenshinLocalVoice
+        {
+            get { return IsAppliedGenshin; }
+        }
+
+        public bool IsAppliedGenshin
+        {
+            get { return string.Equals(_appliedGame, "Genshin", StringComparison.Ordinal); }
         }
 
         public ExtraPathBody DialogueChoiceEcho
@@ -518,6 +551,39 @@ namespace GI_Subtitles.Core.Overlay
             }
 
             PersistExtraPathScans();
+        }
+
+        public void ApplyGame(string game)
+        {
+            string normalized = OverlayLayoutPersistence.NormalizeGame(game);
+            if (string.Equals(_appliedGame, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _appliedGame = normalized;
+            _matchCache.Clear();
+        }
+
+        public bool TryGetCachedMatch(string ocrText, out string cachedRes)
+        {
+            return _matchCache.TryGetValue(ocrText, out cachedRes);
+        }
+
+        public string GetCachedMatchKey(string cachedRes)
+        {
+            return _matchCache[cachedRes];
+        }
+
+        public void RememberMatch(string ocrText, string res, string key)
+        {
+            if (string.IsNullOrEmpty(ocrText) || _matchCache.ContainsKey(ocrText))
+            {
+                return;
+            }
+
+            _matchCache[ocrText] = res ?? string.Empty;
+            _matchCache[res ?? string.Empty] = key;
         }
 
         public bool TryGetVoicePrimaryCapture(out int pairIndex, out OverlayRect capture)
@@ -1064,7 +1130,7 @@ namespace GI_Subtitles.Core.Overlay
                 return;
             }
 
-            if (extra.DialogueChoiceSelected)
+            if (extra.DialogueChoiceSelected && IsAppliedGenshin)
             {
                 ShowDialogueChoiceEcho(extra.DialogueChoiceContent);
             }
@@ -1093,7 +1159,7 @@ namespace GI_Subtitles.Core.Overlay
                 }
             }
 
-            if (extra.DialogueOptionsNeedOcr)
+            if (extra.DialogueOptionsNeedOcr && IsAppliedGenshin)
             {
                 insertAt = EnqueueOcrAt(insertAt, DialogueOptionsOcrSlot);
             }

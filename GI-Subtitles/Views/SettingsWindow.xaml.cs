@@ -1407,6 +1407,8 @@ namespace GI_Subtitles.Views
             Config.Set("Input", InputLanguage);
             Config.Set("Output", OutputLanguage);
             Config.Set("Output2", OutputLanguage2 ?? "");
+            _overlaySession.ApplyGame(Game);
+            RefreshExtraPathDisplayRows();
 
             DisplayLocalFileDates();
 
@@ -2355,7 +2357,7 @@ namespace GI_Subtitles.Views
                 _overlaySession.DarkScreenDisplay.IsValid,
                 _overlaySession.ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay);
 
-            bool genshin = string.Equals(Config.Get("Game", "Genshin"), "Genshin", StringComparison.Ordinal);
+            bool genshin = _overlaySession.IsAppliedGenshin;
             if (!genshin && _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
             {
                 _overlaySession.CancelDisplayAdjust();

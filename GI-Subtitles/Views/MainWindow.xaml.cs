@@ -78,7 +78,9 @@ namespace GI_Subtitles.Views
         private readonly double ChangeThreshold = Math.Max(0, Math.Min(1, Config.Get<double>("OCRThreshold", 0.01)));
         private readonly LiveOverlaySession _overlaySession = new LiveOverlaySession(
             new ConfigOcrIntervalStore(),
-            new ConfigRegionPairStore());
+            new ConfigRegionPairStore(),
+            utcNow: null,
+            appliedGame: Config.Get("Game", "Genshin"));
         private readonly List<Mat> _pairLastBinary = new List<Mat>();
         private readonly List<Mat> _pairLastOcrBinary = new List<Mat>();
         private readonly List<Bitmap> _pairCapturedBitmaps = new List<Bitmap>();
@@ -110,8 +112,6 @@ namespace GI_Subtitles.Views
         private NotifyIcon notifyIcon;
         string lastHeader = null;
         string lastContent = null;
-        // Use an LRU cache to limit memory usage to 100 entries
-        readonly LRUCache<string, string> resDict = new LRUCache<string, string>(100);
         public System.Windows.Threading.DispatcherTimer OCRTimer = new System.Windows.Threading.DispatcherTimer();
         public System.Windows.Threading.DispatcherTimer UITimer = new System.Windows.Threading.DispatcherTimer();
         readonly bool debug = Config.Get<bool>("Debug", false);
@@ -1285,9 +1285,9 @@ namespace GI_Subtitles.Views
                 return false;
             }
 
-            if (resDict.TryGetValue(recognizedText, out string cachedRes))
+            if (_overlaySession.TryGetCachedMatch(recognizedText, out string cachedRes))
             {
-                key = resDict[cachedRes];
+                key = _overlaySession.GetCachedMatchKey(cachedRes);
                 original = key ?? "";
                 string[] parts = cachedRes.Split(new[] { "\n\n" }, StringSplitOptions.None);
                 if (parts.Length >= 2)
@@ -1314,11 +1314,7 @@ namespace GI_Subtitles.Views
 
             string res = string.IsNullOrEmpty(header) ? content : (header + "\n\n" + content);
             Logger.Log.Debug($"Convert ocrResult for {recognizedText}: header={header}, content={content}, key={key}");
-            if (!resDict.ContainsKey(recognizedText))
-            {
-                resDict[recognizedText] = res;
-                resDict[res] = key;
-            }
+            _overlaySession.RememberMatch(recognizedText, res, key);
 
             bool matched = !string.IsNullOrEmpty(header) || !string.IsNullOrEmpty(content);
             if (!matched)
@@ -1626,8 +1622,7 @@ namespace GI_Subtitles.Views
         private ExtraPathSample ObserveDialogueOptions(System.Drawing.Rectangle screen, ExtraPathSample extra)
         {
             extra = extra ?? ExtraPathSample.None;
-            if (!string.Equals(Game, "Genshin", StringComparison.OrdinalIgnoreCase) ||
-                !_overlaySession.DialogueOptionScanOn ||
+            if (!_overlaySession.AllowsDialogueOptionScan ||
                 DateTime.UtcNow - _lastDialogueOptionScanTime < DialogueOptionScanInterval)
             {
                 return extra;
@@ -2524,7 +2519,7 @@ namespace GI_Subtitles.Views
         private VoiceAudioSource CreateVoiceAudioSource(string audioKey, bool logActivity = false)
         {
             string localFilePath = null;
-            if (string.Equals(Game, "Genshin", StringComparison.OrdinalIgnoreCase))
+            if (_overlaySession.AllowsGenshinLocalVoice)
             {
                 _genshinVoiceFileResolver.TryResolve(audioKey, out localFilePath);
             }
