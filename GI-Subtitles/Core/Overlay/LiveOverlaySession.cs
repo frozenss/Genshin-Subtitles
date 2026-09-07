@@ -717,7 +717,7 @@ namespace GI_Subtitles.Core.Overlay
                 IsRepeatResult(busy, miss, matchMiss, header, content, ocrText));
             if (busy == DarkScreenOcrSlot)
             {
-                ApplyDarkScreenResult(miss, content, header);
+                ApplyDarkScreenResult(miss, matchMiss, content, header);
                 return;
             }
 
@@ -754,8 +754,11 @@ namespace GI_Subtitles.Core.Overlay
                 _lastResults[pairIndex] = result;
             }
 
-            if (!miss && !folded)
+            if (!miss && !matchMiss && !folded)
             {
+                // A match miss has no subtitle to apply: a partial line mid-typewriter
+                // cannot match yet, so the display keeps what it shows until the region
+                // goes empty-stable or a new match lands.
                 _headers[pairIndex] = header ?? string.Empty;
                 _contents[pairIndex] = content ?? string.Empty;
                 _recognitionSequence++;
@@ -1245,9 +1248,9 @@ namespace GI_Subtitles.Core.Overlay
             EmitExtraPathVoice(string.Empty, _echoContent);
         }
 
-        private void ApplyDarkScreenResult(bool miss, string content, string header)
+        private void ApplyDarkScreenResult(bool miss, bool matchMiss, string content, string header)
         {
-            if (!miss && _darkScreenActive)
+            if (!miss && !matchMiss && _darkScreenActive)
             {
                 _darkScreenHeader = header ?? string.Empty;
                 _darkScreenContent = content ?? string.Empty;
