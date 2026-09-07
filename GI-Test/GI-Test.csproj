@@ -104,6 +104,7 @@
     <Compile Include="TestDarkScreenSubtitleDetector.cs" />
     <Compile Include="TestLiveOverlaySessionOcrInterval.cs" />
     <Compile Include="TestLiveOverlaySessionHint.cs" />
+    <Compile Include="TestHintScreenSelection.cs" />
     <Compile Include="TestLiveOverlaySessionActivityLog.cs" />
     <Compile Include="TestLiveOverlaySessionPipelineLog.cs" />
     <Compile Include="TestDuplicatePipelineLogDiagnosis.cs" />

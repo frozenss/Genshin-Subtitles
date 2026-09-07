@@ -2418,12 +2418,44 @@ namespace GI_Subtitles.Views
         {
             if (_overlaySession.HintVisible)
             {
-                _hintChrome.Show(ResolveHintText());
+                _hintChrome.Show(ResolveHintText(), ResolveHintScreen());
             }
             else
             {
                 _hintChrome.Hide();
             }
+        }
+
+        private System.Windows.Rect ResolveHintScreen()
+        {
+            System.Windows.Forms.Screen[] screens = System.Windows.Forms.Screen.AllScreens;
+            var screenRects = new List<OverlayRect>(screens.Length);
+            int primaryIndex = 0;
+            for (int i = 0; i < screens.Length; i++)
+            {
+                System.Drawing.Rectangle bounds = screens[i].Bounds;
+                screenRects.Add(new OverlayRect(bounds.X, bounds.Y, bounds.Width, bounds.Height));
+                if (screens[i].Primary)
+                {
+                    primaryIndex = i;
+                }
+            }
+
+            OverlayRect target = HintScreenSelection.Select(
+                screenRects,
+                primaryIndex,
+                _overlaySession.HintDisplayCandidates);
+            if (!target.IsValid)
+            {
+                return System.Windows.Rect.Empty;
+            }
+
+            // Same mixed-DPI treatment as subtitle placement: physical px over system scale.
+            return new System.Windows.Rect(
+                target.X / Scale,
+                target.Y / Scale,
+                target.Width / Scale,
+                target.Height / Scale);
         }
 
         private string ResolveHintText()

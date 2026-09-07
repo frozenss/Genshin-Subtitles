@@ -164,6 +164,47 @@ namespace GI_Test
             CollectionAssert.AreEqual(new object[] { "2" }, session.HintFormatArguments);
         }
 
+        [TestMethod]
+        public void HintDisplayCandidates_LeadWithTheVoicePrimaryPairDisplay()
+        {
+            LiveOverlaySession session = CreateSession();
+            session.SetCapture(0, new OverlayRect(10, 100, 80, 20));
+            session.SetDisplay(0, new OverlayRect(10, 500, 800, 200));
+            session.SetCapture(1, new OverlayRect(2100, 100, 80, 20));
+            session.SetDisplay(1, new OverlayRect(2100, 500, 800, 200));
+            session.SetVoicePrimary(session.Pairs[1].Id);
+
+            System.Collections.Generic.IReadOnlyList<OverlayRect> candidates = session.HintDisplayCandidates;
+
+            Assert.AreEqual(2, candidates.Count);
+            Assert.AreEqual(2100, candidates[0].X, "The voice-primary pair's display is the first hint anchor candidate.");
+            Assert.AreEqual(10, candidates[1].X);
+        }
+
+        [TestMethod]
+        public void HintDisplayCandidates_KeepInvalidDisplaysInPlace()
+        {
+            LiveOverlaySession session = CreateSession();
+            session.SetCapture(0, new OverlayRect(10, 100, 80, 20));
+            session.SetDisplay(0, OverlayRect.Invalid);
+            session.SetCapture(1, new OverlayRect(2100, 100, 80, 20));
+            session.SetDisplay(1, new OverlayRect(2100, 500, 800, 200));
+
+            System.Collections.Generic.IReadOnlyList<OverlayRect> candidates = session.HintDisplayCandidates;
+
+            Assert.AreEqual(2, candidates.Count);
+            Assert.IsFalse(candidates[0].IsValid);
+            Assert.IsTrue(candidates[1].IsValid);
+        }
+
+        [TestMethod]
+        public void HintDisplayCandidates_NoPairs_IsEmpty()
+        {
+            LiveOverlaySession session = CreateSession();
+
+            Assert.AreEqual(0, session.HintDisplayCandidates.Count);
+        }
+
         private static LiveOverlaySession CreateSession(Func<DateTime> utcNow = null)
         {
             return new LiveOverlaySession(new MemoryOcrIntervalStore(), utcNow);

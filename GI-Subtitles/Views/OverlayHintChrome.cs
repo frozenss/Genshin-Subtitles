@@ -62,19 +62,36 @@ namespace GI_Subtitles.Views
                 Focusable = false,
                 IsHitTestVisible = false,
                 ResizeMode = ResizeMode.NoResize,
-                Width = SystemParameters.VirtualScreenWidth,
-                Height = SystemParameters.VirtualScreenHeight,
-                Left = SystemParameters.VirtualScreenLeft,
-                Top = SystemParameters.VirtualScreenTop,
+                Width = SystemParameters.PrimaryScreenWidth,
+                Height = SystemParameters.PrimaryScreenHeight,
+                Left = 0,
+                Top = 0,
                 Content = hint,
                 Visibility = Visibility.Hidden
             };
             _window.SourceInitialized += (sender, args) => ApplyClickThrough();
         }
 
-        public void Show(string text)
+        public void Show(string text, Rect screen)
         {
             _text.Text = text ?? string.Empty;
+            // Recomputed per show so the hint follows the applied game's layout
+            // and self-heals after resolution or screen-layout changes.
+            if (screen.IsEmpty || screen.Width <= 0 || screen.Height <= 0)
+            {
+                // The hint never straddles monitors, so even a degenerate rect
+                // falls back to the primary screen, not the combined desktop.
+                screen = new Rect(
+                    0,
+                    0,
+                    SystemParameters.PrimaryScreenWidth,
+                    SystemParameters.PrimaryScreenHeight);
+            }
+
+            _window.Left = screen.Left;
+            _window.Top = screen.Top;
+            _window.Width = screen.Width;
+            _window.Height = screen.Height;
             if (!_shown)
             {
                 _window.Show();

@@ -17,8 +17,8 @@ One game's region pairs, voice-primary designation, extra-path displays, and ext
 _Avoid_: Config; RegionPairs as the name of this concept; per-game settings when you mean language-pack URLs; a second overlay
 
 **Hint**:
-A short-lived overlay notice that a hotkey or button ran. It is not a notice that OCR produced a new subtitle, and it is not an activity log row.
-_Avoid_: 操作日志, 侧边框, log (the overlay is not a log); Region-pair preview (that outline is not a hint); announcing each OCR or subtitle change; treating hint expiry as a new row
+A short-lived overlay notice that a hotkey or button ran. It is not a notice that OCR produced a new subtitle, and it is not an activity log row. It appears on one monitor — the one carrying the voice-primary region's display, falling back to the primary monitor only when no region is set — never straddling two monitors.
+_Avoid_: 操作日志, 侧边框, log (the overlay is not a log); Region-pair preview (that outline is not a hint); announcing each OCR or subtitle change; treating hint expiry as a new row; pinning the hint to the primary screen when a display region exists; centering the hint on the combined desktop
 
 **Region-pair preview**:
 A short-lived outline of every region pair's capture region and display region, drawn together over the game. It also outlines a set dark-screen display (labelled 暗屏) or dialogue-option display (labelled 选项), and the live dark-screen candidate (labelled 检测带) when that scan is on and no dark-screen display is set. Extra paths are not numbered as pairs.

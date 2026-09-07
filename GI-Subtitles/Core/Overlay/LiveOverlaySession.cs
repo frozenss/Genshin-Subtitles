@@ -235,6 +235,29 @@ namespace GI_Subtitles.Core.Overlay
             }
         }
 
+        public IReadOnlyList<OverlayRect> HintDisplayCandidates
+        {
+            get
+            {
+                var candidates = new List<OverlayRect>(_pairs.Count);
+                int primaryIndex = IndexOfPair(VoicePrimaryId);
+                if (primaryIndex >= 0)
+                {
+                    candidates.Add(_pairs[primaryIndex].Display);
+                }
+
+                for (int i = 0; i < _pairs.Count; i++)
+                {
+                    if (i != primaryIndex)
+                    {
+                        candidates.Add(_pairs[i].Display);
+                    }
+                }
+
+                return candidates;
+            }
+        }
+
         public event EventHandler PreviewChanged;
 
         public event EventHandler AdjustChanged;
