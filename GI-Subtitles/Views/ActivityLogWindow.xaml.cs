@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using GI_Subtitles.Core.Config;
 using GI_Subtitles.Core.Overlay;
 
 namespace GI_Subtitles.Views
@@ -12,11 +14,12 @@ namespace GI_Subtitles.Views
     {
         private readonly LiveOverlaySession _session;
         private readonly ObservableCollection<ActivityLogRowView> _rows = new ObservableCollection<ActivityLogRowView>();
+        private readonly List<ActivityLogRow> _rowSources = new List<ActivityLogRow>();
         private ScrollViewer _scrollViewer;
         private bool _followTail = true;
         private bool _forceClose;
         private bool _opened;
-        private int _projectedCount;
+        private ActivityLogRowFilter _filter = new ActivityLogRowFilter(ReadLogDenoise());
 
         public ActivityLogWindow(LiveOverlaySession session)
         {
@@ -66,6 +69,30 @@ namespace GI_Subtitles.Views
             Topmost = false;
         }
 
+        private static bool ReadLogDenoise()
+        {
+            return Config.Get("LogDenoise", true);
+        }
+
+        public void ApplyLogDenoiseSetting()
+        {
+            // The settings checkbox toggled: re-project now while the window is
+            // open; a hidden window picks the setting up in its next Rebuild.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!IsVisible || ReadLogDenoise() == _filter.HideRepeats)
+                {
+                    return;
+                }
+
+                Rebuild();
+                if (_followTail)
+                {
+                    ScrollToEnd();
+                }
+            }));
+        }
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             _scrollViewer = FindScrollViewer(LogList);
@@ -110,23 +137,23 @@ namespace GI_Subtitles.Views
 
         private void Rebuild()
         {
+            _filter = new ActivityLogRowFilter(ReadLogDenoise());
             _rows.Clear();
-            _projectedCount = 0;
+            _rowSources.Clear();
             SyncRows();
         }
 
         private void SyncRows()
         {
-            while (_projectedCount < _session.ActivityLog.Count)
+            foreach (ActivityLogRow row in _filter.Consume(_session.ActivityLog))
             {
-                _rows.Add(Project(_session.ActivityLog[_projectedCount]));
-                _projectedCount++;
+                _rows.Add(Project(row));
+                _rowSources.Add(row);
             }
 
-            int n = Math.Min(_projectedCount, _session.ActivityLog.Count);
-            for (int i = 0; i < n; i++)
+            for (int i = 0; i < _rowSources.Count; i++)
             {
-                ApplyProjection(_rows[i], _session.ActivityLog[i]);
+                ApplyProjection(_rows[i], _rowSources[i]);
             }
 
             EmptyState.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -145,6 +172,7 @@ namespace GI_Subtitles.Views
             view.RegionPair = ResolveRegionPair(row);
             view.Job = ResolveJobs(row);
             view.Result = ResolveResult(row);
+            view.IsRepeat = row.IsRepeat;
         }
 
         private string ResolveRegionPair(ActivityLogRow row)
@@ -190,7 +218,17 @@ namespace GI_Subtitles.Views
                 parts[i] = ResolveText(JobResourceKey(jobs[i]), null);
             }
 
-            return string.Join(separator, parts);
+            string joined = string.Join(separator, parts);
+            if (row.IsRepeat)
+            {
+                string repeatBadge = ResolveText("ActivityLog_RepeatBadge", null);
+                if (!string.IsNullOrEmpty(repeatBadge))
+                {
+                    joined += separator + repeatBadge;
+                }
+            }
+
+            return joined;
         }
 
         private string ResolveResult(ActivityLogRow row)
@@ -382,6 +420,7 @@ namespace GI_Subtitles.Views
         private string _regionPair;
         private string _job;
         private string _result;
+        private bool _isRepeat;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -409,9 +448,15 @@ namespace GI_Subtitles.Views
             set { SetField(ref _result, value, nameof(Result)); }
         }
 
-        private void SetField(ref string field, string value, string propertyName)
+        public bool IsRepeat
         {
-            if (field == value)
+            get { return _isRepeat; }
+            set { SetField(ref _isRepeat, value, nameof(IsRepeat)); }
+        }
+
+        private void SetField<T>(ref T field, T value, string propertyName)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
             {
                 return;
             }

@@ -95,6 +95,7 @@ namespace GI_Subtitles.Views
         }
 
         public event EventHandler OpenActivityLogRequested;
+        public event EventHandler LogDenoiseChanged;
         // Windows API functions for registering and unregistering hotkeys
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -259,6 +260,7 @@ namespace GI_Subtitles.Views
             // Boolean flags
             AutoStartCheckBox.IsChecked = Config.Get("AutoStart", false);
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
+            LogDenoiseCheckBox.IsChecked = Config.Get("LogDenoise", true);
             BindOcrIntervalSettings();
             RefreshAppliedLayoutUi();
             IsVisibleChanged += SettingsWindow_IsVisibleChanged;
@@ -2265,6 +2267,17 @@ namespace GI_Subtitles.Views
                 Config.Set("Server", "https://mp3.2langs.com/download");
                 Config.Set("Token", "ENGI");
             }
+        }
+
+        private void LogDenoiseCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_uiLangInitialized)
+            {
+                return;
+            }
+
+            Config.Set("LogDenoise", LogDenoiseCheckBox.IsChecked == true);
+            LogDenoiseChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void TestVoice_Click(object sender, RoutedEventArgs e)
