@@ -25,6 +25,7 @@ namespace GI_Subtitles.Core.Overlay
                 null,
                 null,
                 false,
+                false,
                 false)
         {
         }
@@ -41,7 +42,8 @@ namespace GI_Subtitles.Core.Overlay
             string original,
             string translation,
             bool detectionMiss,
-            bool matchMiss)
+            bool matchMiss,
+            bool isRepeat)
         {
             _jobs = jobs == null || jobs.Count == 0
                 ? new List<OperatorJob>()
@@ -57,6 +59,7 @@ namespace GI_Subtitles.Core.Overlay
             Translation = translation;
             DetectionMiss = detectionMiss;
             MatchMiss = matchMiss;
+            IsRepeat = isRepeat;
         }
 
         public DateTime UtcTimestamp { get; }
@@ -90,6 +93,8 @@ namespace GI_Subtitles.Core.Overlay
         public bool DetectionMiss { get; }
 
         public bool MatchMiss { get; }
+
+        public bool IsRepeat { get; }
 
         internal void IncludeVoiceJob()
         {

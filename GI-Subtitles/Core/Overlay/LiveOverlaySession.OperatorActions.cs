@@ -214,6 +214,7 @@ namespace GI_Subtitles.Core.Overlay
                 null,
                 null,
                 false,
+                false,
                 false);
         }
 
@@ -223,7 +224,8 @@ namespace GI_Subtitles.Core.Overlay
             string content,
             string ocrText,
             string original,
-            bool matchMiss)
+            bool matchMiss,
+            bool isRepeat)
         {
             ActivityLogScope scope;
             int? pairOrdinal = null;
@@ -246,7 +248,16 @@ namespace GI_Subtitles.Core.Overlay
                 }
             }
 
-            WritePipelineResult(scope, pairOrdinal, voicePrimary, miss, content, ocrText, original, matchMiss);
+            WritePipelineResult(
+                scope,
+                pairOrdinal,
+                voicePrimary,
+                miss,
+                content,
+                ocrText,
+                original,
+                matchMiss,
+                isRepeat);
         }
 
         private void WritePipelineResult(
@@ -257,7 +268,8 @@ namespace GI_Subtitles.Core.Overlay
             string content,
             string ocrText,
             string original,
-            bool matchMiss)
+            bool matchMiss,
+            bool isRepeat)
         {
             var jobs = new List<OperatorJob> { OperatorJob.Capture, OperatorJob.Ocr };
             string translation = null;
@@ -295,7 +307,8 @@ namespace GI_Subtitles.Core.Overlay
                 original,
                 translation,
                 detectionMiss,
-                matchMiss);
+                matchMiss,
+                isRepeat);
         }
 
         private void WriteDialogueChoiceRow(string ocrText)
@@ -311,6 +324,7 @@ namespace GI_Subtitles.Core.Overlay
                 ocrText,
                 null,
                 null,
+                false,
                 false,
                 false);
         }
@@ -329,6 +343,7 @@ namespace GI_Subtitles.Core.Overlay
                 null,
                 null,
                 false,
+                false,
                 false);
         }
 
@@ -344,7 +359,8 @@ namespace GI_Subtitles.Core.Overlay
             string original,
             string translation,
             bool detectionMiss,
-            bool matchMiss)
+            bool matchMiss,
+            bool isRepeat)
         {
             _activityLog.Add(new ActivityLogRow(
                 utcTimestamp,
@@ -358,7 +374,8 @@ namespace GI_Subtitles.Core.Overlay
                 original,
                 translation,
                 detectionMiss,
-                matchMiss));
+                matchMiss,
+                isRepeat));
             ActivityLogChanged?.Invoke(this, EventArgs.Empty);
         }
 

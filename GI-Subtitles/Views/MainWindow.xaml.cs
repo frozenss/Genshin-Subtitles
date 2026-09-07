@@ -1211,7 +1211,8 @@ namespace GI_Subtitles.Views
                         header,
                         recognizedText,
                         original,
-                        matchMiss);
+                        matchMiss,
+                        force: true);
                     MaybePlayPairVoice(key, content, header);
                     ApplyPairOverlay();
                     _overlaySession.Refresh(hasCaptureRegion: true, foundText: true);
@@ -1219,7 +1220,7 @@ namespace GI_Subtitles.Views
                 else
                 {
                     Logger.Log.Warn("Forced OCR refresh produced no usable text; keeping the current subtitle without replay.");
-                    _overlaySession.ApplyPairResult(appliedPair, miss: true);
+                    _overlaySession.ApplyPairResult(appliedPair, miss: true, force: true);
                     _overlaySession.Refresh(hasCaptureRegion: true, foundText: false);
                 }
                 return;
@@ -1246,35 +1247,19 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            if (pairIndex.HasValue)
+            if (!pairIndex.HasValue)
             {
-                if (!usable)
-                {
-                    _overlaySession.NoteOcrMiss();
-                    _overlaySession.CompleteOcr(miss: true);
-                    return;
-                }
-
-                _overlaySession.CompleteOcr(
-                    miss: false,
-                    content,
-                    header,
-                    recognizedText,
-                    original,
-                    matchMiss);
-                MaybePlayPairVoice(key, content, header);
-                ApplyPairOverlay();
                 return;
             }
 
             if (!usable)
             {
                 _overlaySession.NoteOcrMiss();
+                _overlaySession.CompleteOcr(miss: true);
                 return;
             }
 
-            _overlaySession.ApplyPairResult(
-                0,
+            _overlaySession.CompleteOcr(
                 miss: false,
                 content,
                 header,

@@ -36,6 +36,22 @@ _Avoid_: Hint; a live pointer to a region pair; putting the window's empty-state
 An activity log row that is not about one region pair or extra path. Start/stop recognition, hide/show subtitles, and voice speed are this. The window labels the region-pair column 全局.
 _Avoid_: labelling 暗屏 or 对话选项 as 全局; a boxing row when a pair was actually boxed
 
+**Recognition result**:
+What one pipeline run concluded for one capture: no text found, text the pack could not match, or the matched subtitle with its header and content. Two runs with different OCR text can conclude the same result.
+_Avoid_: OCR text (that is the run's input); 查询结果 when you mean only the matched subtitle
+
+**Result fold**:
+Keeping the current subtitle and skipping voice replay when a run's recognition result is the same as what that pair already shows. The run itself still happens and is still recorded; only the re-apply is skipped.
+_Avoid_: caching the query result (the match cache is a forever map from OCR text; this is one pair's latest result, replaced by the next different one); turning this off with the log de-noise checkbox (that lever is view-only)
+
+**Repeat row**:
+An activity log row whose recognition result is the same as that pair's previous row. It is recorded like any other row; hiding it is a view choice and never a deletion.
+_Avoid_: a double-write bug; 重复识别 as a separate job kind
+
+**Log de-noise**:
+The default-on settings checkbox that hides repeat rows in the activity log window. It changes what the window shows, not what the log records, and it does not touch the overlay.
+_Avoid_: a second filtered copy of the log; applying it to the result fold; deleting rows at write time
+
 **Capture region**:
 The screen rectangle OCR reads from.
 _Avoid_: 识别框 as the name of a pair; Region2 when you mean a second pair

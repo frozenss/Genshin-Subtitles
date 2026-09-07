@@ -29,6 +29,7 @@ namespace GI_Subtitles.Core.Overlay
         private readonly List<string> _headers = new List<string>();
         private readonly List<string> _contents = new List<string>();
         private readonly List<int> _recognitionOrders = new List<int>();
+        private readonly List<PairRecognitionResult> _lastResults = new List<PairRecognitionResult>();
         private readonly List<int> _ocrQueue = new List<int>();
         private readonly List<RegionOutline> _previewOutlines = new List<RegionOutline>();
         private readonly List<RegionOutline> _adjustOutlines = new List<RegionOutline>();
@@ -676,6 +677,7 @@ namespace GI_Subtitles.Core.Overlay
                 {
                     _headers[i] = string.Empty;
                     _contents[i] = string.Empty;
+                    _lastResults[i] = null;
                     continue;
                 }
 
@@ -705,7 +707,14 @@ namespace GI_Subtitles.Core.Overlay
             }
 
             int busy = _busyPairIndex.Value;
-            WritePipelineForSlot(busy, miss, content, ocrText, original, matchMiss);
+            WritePipelineForSlot(
+                busy,
+                miss,
+                content,
+                ocrText,
+                original,
+                matchMiss,
+                IsRepeatResult(busy, miss, matchMiss, header, content, ocrText));
             if (busy == DarkScreenOcrSlot)
             {
                 ApplyDarkScreenResult(miss, content, header);
@@ -718,7 +727,7 @@ namespace GI_Subtitles.Core.Overlay
                 return;
             }
 
-            ApplyPairResult(busy, miss, content, header);
+            ApplyPairResult(busy, miss, content, header, ocrText, original, matchMiss);
         }
 
         public void ApplyPairResult(
@@ -728,27 +737,24 @@ namespace GI_Subtitles.Core.Overlay
             string header = null,
             string ocrText = null,
             string original = null,
-            bool matchMiss = false)
+            bool matchMiss = false,
+            bool force = false)
         {
             if (pairIndex < 0 || pairIndex >= _pairs.Count)
             {
                 return;
             }
 
-            if (_busyPairIndex != pairIndex)
+            PairRecognitionResult result = PairRecognitionResult.From(miss, matchMiss, header, content, ocrText);
+            bool folded = !force && result.SameAs(_lastResults[pairIndex]);
+            if (!(miss && force))
             {
-                WritePipelineResult(
-                    ActivityLogScope.Pair,
-                    pairIndex + 1,
-                    _pairs[pairIndex].Id == VoicePrimaryId,
-                    miss,
-                    content,
-                    ocrText,
-                    original,
-                    matchMiss);
+                // A forced miss keeps the current subtitle and writes no recognition row,
+                // so the pair's last result stays the one the display still shows.
+                _lastResults[pairIndex] = result;
             }
 
-            if (!miss)
+            if (!miss && !folded)
             {
                 _headers[pairIndex] = header ?? string.Empty;
                 _contents[pairIndex] = content ?? string.Empty;
@@ -765,6 +771,24 @@ namespace GI_Subtitles.Core.Overlay
                 _busyPairIndex = null;
                 TryStartNextOcr();
             }
+        }
+
+        private bool IsRepeatResult(
+            int pairIndex,
+            bool miss,
+            bool matchMiss,
+            string header,
+            string content,
+            string ocrText)
+        {
+            if (pairIndex < 0 || pairIndex >= _lastResults.Count)
+            {
+                return false;
+            }
+
+            return PairRecognitionResult
+                .From(miss, matchMiss, header, content, ocrText)
+                .SameAs(_lastResults[pairIndex]);
         }
 
         public int EngineOcrIntervalMs
@@ -1082,6 +1106,7 @@ namespace GI_Subtitles.Core.Overlay
                 _headers[i] = string.Empty;
                 _contents[i] = string.Empty;
                 _recognitionOrders[i] = 0;
+                _lastResults[i] = null;
             }
         }
 
@@ -1093,6 +1118,7 @@ namespace GI_Subtitles.Core.Overlay
                 _headers.RemoveAt(index);
                 _contents.RemoveAt(index);
                 _recognitionOrders.RemoveAt(index);
+                _lastResults.RemoveAt(index);
             }
 
             if (_busyPairIndex.HasValue)
@@ -1139,6 +1165,7 @@ namespace GI_Subtitles.Core.Overlay
                 _headers.Add(string.Empty);
                 _contents.Add(string.Empty);
                 _recognitionOrders.Add(0);
+                _lastResults.Add(null);
             }
 
             if (_headers.Count > _pairs.Count)
@@ -1147,6 +1174,7 @@ namespace GI_Subtitles.Core.Overlay
                 _headers.RemoveRange(_pairs.Count, extra);
                 _contents.RemoveRange(_pairs.Count, extra);
                 _recognitionOrders.RemoveRange(_pairs.Count, extra);
+                _lastResults.RemoveRange(_pairs.Count, extra);
             }
         }
 
@@ -1502,6 +1530,64 @@ namespace GI_Subtitles.Core.Overlay
             ArmedPairId = 0;
             _adjustOutlines.Clear();
             AdjustChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private enum PairResultKind
+        {
+            NoText,
+            UnmatchedText,
+            MatchedText
+        }
+
+        /// <summary>
+        /// One pair's concluded recognition result: no text found, text the pack could
+        /// not match (identified by its OCR text), or the matched subtitle (identified
+        /// by header and content, so drifted OCR text that matches the same subtitle
+        /// still concludes the same result).
+        /// </summary>
+        private sealed class PairRecognitionResult
+        {
+            private readonly PairResultKind _kind;
+            private readonly string _identity;
+
+            private PairRecognitionResult(PairResultKind kind, string identity)
+            {
+                _kind = kind;
+                _identity = identity ?? string.Empty;
+            }
+
+            public static PairRecognitionResult From(
+                bool miss,
+                bool matchMiss,
+                string header,
+                string content,
+                string ocrText)
+            {
+                if (miss)
+                {
+                    return new PairRecognitionResult(PairResultKind.NoText, string.Empty);
+                }
+
+                if (matchMiss)
+                {
+                    return new PairRecognitionResult(PairResultKind.UnmatchedText, ocrText);
+                }
+
+                return new PairRecognitionResult(
+                    PairResultKind.MatchedText,
+                    (header ?? string.Empty) + "\n" + (content ?? string.Empty));
+            }
+
+            public bool SameAs(PairRecognitionResult other)
+            {
+                if (other == null)
+                {
+                    return false;
+                }
+
+                return _kind == other._kind
+                    && string.Equals(_identity, other._identity, StringComparison.Ordinal);
+            }
         }
     }
 
