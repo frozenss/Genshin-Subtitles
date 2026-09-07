@@ -87,6 +87,7 @@ namespace GI_Subtitles.Views
         private readonly ObservableCollection<RegionPairCard> _pairCards = new ObservableCollection<RegionPairCard>();
         private OcrIntervalSettingsView _ocrIntervalView;
         private bool _ocrIntervalBinding;
+        private bool _syncingLayoutUi;
 
         public RegionPairSettings PairSettings
         {
@@ -258,11 +259,8 @@ namespace GI_Subtitles.Views
             // Boolean flags
             AutoStartCheckBox.IsChecked = Config.Get("AutoStart", false);
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
-            RecognizeDarkScreenSubtitlesCheckBox.IsChecked = _overlaySession.DarkScreenScanOn;
-            RecognizeDialogueOptionsCheckBox.IsChecked = _overlaySession.DialogueOptionScanOn;
             BindOcrIntervalSettings();
-            RefreshPairPage();
-            RefreshExtraPathDisplayRows();
+            RefreshAppliedLayoutUi();
             IsVisibleChanged += SettingsWindow_IsVisibleChanged;
         }
 
@@ -271,8 +269,7 @@ namespace GI_Subtitles.Views
             if (IsVisible)
             {
                 BindOcrIntervalSettings();
-                RefreshPairPage();
-                RefreshExtraPathDisplayRows();
+                RefreshAppliedLayoutUi();
             }
         }
 
@@ -963,7 +960,6 @@ namespace GI_Subtitles.Views
 
                     DisplayLocalFileDates();
                     OutputConfirmButton.IsEnabled = true;
-                    RefreshExtraPathDisplayRows();
                 }
             }
         }
@@ -1408,7 +1404,7 @@ namespace GI_Subtitles.Views
             Config.Set("Output", OutputLanguage);
             Config.Set("Output2", OutputLanguage2 ?? "");
             _overlaySession.ApplyGame(Game);
-            RefreshExtraPathDisplayRows();
+            RefreshAppliedLayoutUi();
 
             DisplayLocalFileDates();
 
@@ -2281,7 +2277,7 @@ namespace GI_Subtitles.Views
 
         private void RecognizeDarkScreenSubtitlesCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (!_uiLangInitialized)
+            if (!_uiLangInitialized || _syncingLayoutUi)
             {
                 return;
             }
@@ -2292,12 +2288,36 @@ namespace GI_Subtitles.Views
 
         private void RecognizeDialogueOptionsCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (!_uiLangInitialized)
+            if (!_uiLangInitialized || _syncingLayoutUi)
             {
                 return;
             }
 
             _overlaySession.SetDialogueOptionScan(RecognizeDialogueOptionsCheckBox.IsChecked == true);
+            RefreshExtraPathDisplayRows();
+        }
+
+        private void RefreshAppliedLayoutUi()
+        {
+            _syncingLayoutUi = true;
+            try
+            {
+                if (RecognizeDarkScreenSubtitlesCheckBox != null)
+                {
+                    RecognizeDarkScreenSubtitlesCheckBox.IsChecked = _overlaySession.DarkScreenScanOn;
+                }
+
+                if (RecognizeDialogueOptionsCheckBox != null)
+                {
+                    RecognizeDialogueOptionsCheckBox.IsChecked = _overlaySession.DialogueOptionScanOn;
+                }
+            }
+            finally
+            {
+                _syncingLayoutUi = false;
+            }
+
+            RefreshPairPage();
             RefreshExtraPathDisplayRows();
         }
 

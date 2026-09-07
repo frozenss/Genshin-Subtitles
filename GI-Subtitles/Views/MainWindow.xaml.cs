@@ -100,6 +100,7 @@ namespace GI_Subtitles.Views
         private int _lastPreviewCount;
         private int _lastArmedPairId = -1;
         private OverlayAdjustTarget _lastArmedTarget = OverlayAdjustTarget.None;
+        private string _sampledGame;
         private bool _escHotkeyRegistered;
         private const int HotkeyIdAdjustEsc = 9006;
         private const uint VkEscape = 0x1B;
@@ -385,6 +386,7 @@ namespace GI_Subtitles.Views
 
         private void SampleRegionPairsAndMaybeOcr(ExtraPathSample extra)
         {
+            ResetCaptureBuffersIfGameChanged();
             IReadOnlyList<RegionPair> pairs = _overlaySession.Pairs;
             int engineCount = Math.Min(LiveOverlaySession.EnginePairCap, pairs.Count);
             EnsurePairBuffers(engineCount);
@@ -550,6 +552,11 @@ namespace GI_Subtitles.Views
             IReadOnlyList<PairSubtitleBody> bodies = _overlaySession.PairBodies;
             EnsureExtraPairBodies(bodies.Count);
 
+            if (bodies.Count == 0)
+            {
+                HidePairZeroOverlay();
+            }
+
             for (int i = 0; i < bodies.Count; i++)
             {
                 if (i == 0)
@@ -572,16 +579,21 @@ namespace GI_Subtitles.Views
             UpdateHeaderPosition();
         }
 
+        private void HidePairZeroOverlay()
+        {
+            SubtitleText.Visibility = Visibility.Collapsed;
+            if (PlaybackSpeedBadge.Visibility != Visibility.Visible)
+            {
+                HeaderPanel.Visibility = Visibility.Collapsed;
+            }
+        }
+
         private void ApplyPairZeroOverlay(PairSubtitleBody body)
         {
             OverlayRect display = body.Display;
             if (!display.IsValid)
             {
-                SubtitleText.Visibility = Visibility.Collapsed;
-                if (PlaybackSpeedBadge.Visibility != Visibility.Visible)
-                {
-                    HeaderPanel.Visibility = Visibility.Collapsed;
-                }
+                HidePairZeroOverlay();
                 return;
             }
 
@@ -1044,6 +1056,7 @@ namespace GI_Subtitles.Views
             string darkScreenHash = null)
         {
             _isOcrRunning = true;
+            string ocrGame = _overlaySession.AppliedGame;
             string recognizedText = null;
             bool recognitionCompleted = false;
             try
@@ -1132,7 +1145,10 @@ namespace GI_Subtitles.Views
                             target?.Dispose();
                         }
 
-                        ApplyRecognizedText(recognizedText, recognitionCompleted, forceRefresh, pairIndex);
+                        if (string.Equals(ocrGame, _overlaySession.AppliedGame, StringComparison.Ordinal))
+                        {
+                            ApplyRecognizedText(recognizedText, recognitionCompleted, forceRefresh, pairIndex);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -1704,6 +1720,7 @@ namespace GI_Subtitles.Views
             double templateConfidence)
         {
             _isOcrRunning = true;
+            string ocrGame = _overlaySession.AppliedGame;
             bool miss = true;
             string ocrText = null;
             try
@@ -1751,7 +1768,16 @@ namespace GI_Subtitles.Views
                 frame?.Dispose();
                 bitmap?.Dispose();
                 _isOcrRunning = false;
-                _overlaySession.CompleteOcr(miss, ocrText: miss ? null : ocrText);
+                if (string.Equals(ocrGame, _overlaySession.AppliedGame, StringComparison.Ordinal))
+                {
+                    _overlaySession.CompleteOcr(miss, ocrText: miss ? null : ocrText);
+                }
+                else
+                {
+                    _lastDialogueOptionHash = null;
+                    _lastDialogueOptions = new List<DialogueOptionCandidate>();
+                }
+
                 _ = Dispatcher.BeginInvoke(new Action(TryStartBusyOcr));
             }
         }
@@ -1990,6 +2016,35 @@ namespace GI_Subtitles.Views
             data.RealClose();
         }
 
+        private void ResetCaptureBuffersIfGameChanged()
+        {
+            if (string.Equals(_sampledGame, _overlaySession.AppliedGame, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _sampledGame = _overlaySession.AppliedGame;
+            CancelDisplayDrag();
+            DisposePairBuffers();
+            DisposeDarkScreenHold();
+            DisposeDialogueOptionHold();
+            ResetDarkScreenCandidate();
+            _lastDialogueOptionHash = null;
+            _lastDialogueOptions = new List<DialogueOptionCandidate>();
+        }
+
+        private void CancelDisplayDrag()
+        {
+            if (!_displayDragging)
+            {
+                return;
+            }
+
+            _displayDragging = false;
+            _dragPairIndex = -1;
+            _dragTarget = OverlayAdjustTarget.None;
+        }
+
         private void DisposePairBuffers()
         {
             for (int i = 0; i < _pairLastBinary.Count; i++)
@@ -2046,6 +2101,11 @@ namespace GI_Subtitles.Views
 
         private void OnAdjustChanged()
         {
+            if (_overlaySession.IsClickThrough)
+            {
+                CancelDisplayDrag();
+            }
+
             ApplyOverlayHitMode();
             UpdateAdjustEscHotkey();
             if (!_displayDragging)

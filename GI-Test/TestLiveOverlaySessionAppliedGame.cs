@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using GI_Subtitles.Core.Config;
 using GI_Subtitles.Core.Overlay;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json.Linq;
 
 namespace GI_Test
 {
@@ -8,15 +11,12 @@ namespace GI_Test
     public class TestLiveOverlaySessionAppliedGame
     {
         [TestMethod]
-        public void ApplyToAnotherGame_ClosesDialogueOptionScanGate_WithoutChangingPairsOrDisplays()
+        public void ApplyToAnotherGame_LoadsThatGamesLayout_WithoutStoppingRecognition()
         {
             DateTime now = new DateTime(2026, 9, 7, 12, 0, 0, DateTimeKind.Utc);
             var store = CreateGenshinStore();
             var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store, () => now);
-
-            Assert.AreEqual("Genshin", session.AppliedGame);
-            Assert.IsTrue(session.DialogueOptionScanOn);
-            Assert.IsTrue(session.AllowsDialogueOptionScan);
+            session.StartRecognition(hasCaptureRegion: true);
 
             session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
             Assert.AreEqual(LiveOverlaySession.DialogueOptionsOcrSlot, session.BusyOcrSlot);
@@ -25,13 +25,12 @@ namespace GI_Test
             session.ApplyGame("StarRail");
 
             Assert.AreEqual("StarRail", session.AppliedGame);
-            Assert.IsTrue(session.DialogueOptionScanOn, "Layout toggle stays; this ticket does not swap overlay layout.");
+            Assert.IsTrue(session.RecognitionRunning);
+            Assert.AreEqual(0, session.Pairs.Count);
+            Assert.IsFalse(session.DialogueOptionDisplay.IsValid);
+            Assert.IsFalse(session.DialogueOptionScanOn);
             Assert.IsFalse(session.AllowsDialogueOptionScan);
-            Assert.AreEqual(1, session.Pairs.Count);
-            Assert.AreEqual(10, session.Pairs[0].Capture.X);
-            Assert.AreEqual(10, session.Pairs[0].Display.X);
-            Assert.AreEqual(200, session.DialogueOptionDisplay.X);
-            Assert.AreEqual(300, session.DialogueOptionDisplay.Y);
+            Assert.IsTrue(session.DarkScreenScanOn);
 
             now = now.AddMilliseconds(400);
             session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
@@ -40,21 +39,25 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ApplyBackToGenshin_OpensDialogueOptionScanGate_WhenLayoutToggleIsOn()
+        public void ApplyBackToGenshin_RestoresRegionPairsVoicePrimaryAndExtraPaths()
         {
             DateTime now = new DateTime(2026, 9, 7, 13, 0, 0, DateTimeKind.Utc);
             var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore(), () => now);
 
             session.ApplyGame("StarRail");
+            Assert.AreEqual(0, session.Pairs.Count);
             Assert.IsFalse(session.AllowsDialogueOptionScan);
 
             session.ApplyGame("Genshin");
 
             Assert.AreEqual("Genshin", session.AppliedGame);
+            Assert.AreEqual(1, session.Pairs.Count);
+            Assert.AreEqual(10, session.Pairs[0].Capture.X);
+            Assert.AreEqual(10, session.Pairs[0].Display.X);
+            Assert.AreEqual(1, session.VoicePrimaryId);
+            Assert.AreEqual(200, session.DialogueOptionDisplay.X);
             Assert.IsTrue(session.DialogueOptionScanOn);
             Assert.IsTrue(session.AllowsDialogueOptionScan);
-            Assert.AreEqual(1, session.Pairs.Count);
-            Assert.AreEqual(200, session.DialogueOptionDisplay.X);
 
             now = now.AddMilliseconds(400);
             session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
@@ -65,7 +68,7 @@ namespace GI_Test
         public void ApplyBackToGenshin_LeavesDialogueOptionScanGateClosed_WhenLayoutToggleIsOff()
         {
             var store = CreateGenshinStore();
-            store.DialogueOptionScan = false;
+            store.WriteDialogueOptionScan(false);
             var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
 
             session.ApplyGame("StarRail");
@@ -105,36 +108,164 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ApplyThatDoesNotChangeGame_LeavesOcrTranslationMatchCache()
+        public void ApplyThatDoesNotChangeGame_LeavesOverlayLayoutAndSubtitles()
         {
-            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore());
+            DateTime now = new DateTime(2026, 9, 7, 14, 0, 0, DateTimeKind.Utc);
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore(), () => now);
             session.RememberMatch("ocr-line", "genshin-translation", "voice-key");
+            session.Beat(PairFrameSample.ChangedAndStable());
+            session.CompleteOcr(miss: false, content: "keep-me", header: "speaker");
 
             session.ApplyGame("Genshin");
 
+            Assert.AreEqual(1, session.Pairs.Count);
+            Assert.AreEqual(10, session.Pairs[0].Capture.X);
+            Assert.AreEqual("keep-me", session.PairBodies[0].Content);
+            Assert.AreEqual("speaker", session.PairBodies[0].Header);
             Assert.IsTrue(session.TryGetCachedMatch("ocr-line", out string cached));
             Assert.AreEqual("genshin-translation", cached);
             Assert.AreEqual("voice-key", session.GetCachedMatchKey(cached));
         }
 
-        private static MemoryRegionPairStore CreateGenshinStore()
+        [TestMethod]
+        public void ApplyThatChangesGame_ClearsPairAndExtraPathSubtitles()
         {
-            return new MemoryRegionPairStore
+            DateTime now = new DateTime(2026, 9, 7, 15, 0, 0, DateTimeKind.Utc);
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore(), () => now);
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.ChangedAndStable());
+            session.CompleteOcr(miss: false, content: "cutscene", header: "narrator");
+            now = now.AddMilliseconds(400);
+            session.Tick();
+            session.CompleteOcr(miss: false, content: "speaker-line", header: "paimon");
+            session.Beat(ExtraPathSample.DialogueChoice("跳过"));
+
+            Assert.AreEqual("cutscene", session.DarkScreenBody.Content);
+            Assert.AreEqual("speaker-line", session.PairBodies[0].Content);
+            Assert.AreEqual("◆ 跳过", session.DialogueChoiceEcho.Content);
+
+            session.ApplyGame("StarRail");
+
+            Assert.AreEqual(0, session.PairBodies.Count);
+            Assert.AreEqual(string.Empty, session.DarkScreenBody.Content);
+            Assert.IsFalse(session.DarkScreenBody.Visible);
+            Assert.AreEqual(string.Empty, session.DialogueChoiceEcho.Content);
+            Assert.IsFalse(session.DialogueChoiceEcho.Visible);
+        }
+
+        [TestMethod]
+        public void ApplyThatChangesGame_CancelsAdd_AndDoesNotWriteItIntoEitherLayout()
+        {
+            var store = CreateGenshinStore();
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            Assert.IsTrue(session.TryStartAdd());
+            session.SetAddCapture(new OverlayRect(90, 90, 40, 20));
+            session.SetAddDisplay(new OverlayRect(90, 120, 40, 20));
+
+            session.ApplyGame("StarRail");
+
+            Assert.IsFalse(session.AddInProgress);
+            Assert.AreEqual(0, session.Pairs.Count);
+
+            session.ApplyGame("Genshin");
+
+            Assert.AreEqual(1, session.Pairs.Count);
+            Assert.AreEqual(10, session.Pairs[0].Capture.X);
+        }
+
+        [TestMethod]
+        public void ApplyThatChangesGame_CancelsDisplayAdjustAndDropsPreviewAndOcrQueue()
+        {
+            DateTime now = new DateTime(2026, 9, 7, 16, 0, 0, DateTimeKind.Utc);
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore(), () => now);
+            session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: true);
+            Assert.IsTrue(session.PreviewOutlines.Count > 0);
+            Assert.IsTrue(session.TryToggleDisplayAdjust(1));
+            Assert.IsFalse(session.IsClickThrough);
+
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.ChangedAndStable());
+            Assert.AreEqual(LiveOverlaySession.DarkScreenOcrSlot, session.BusyOcrSlot);
+            Assert.AreEqual(1, session.OcrQueue.Count);
+
+            session.ApplyGame("StarRail");
+
+            Assert.IsTrue(session.IsClickThrough);
+            Assert.AreEqual(0, session.ArmedPairId);
+            Assert.AreEqual(0, session.PreviewOutlines.Count);
+            Assert.IsNull(session.BusyOcrSlot);
+            Assert.AreEqual(0, session.OcrQueue.Count);
+        }
+
+        [TestMethod]
+        public void ApplyThatChangesGame_LetsCurrentVoiceLineFinish()
+        {
+            DateTime now = new DateTime(2026, 9, 7, 17, 0, 0, DateTimeKind.Utc);
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore(), () => now);
+            session.Beat(PairFrameSample.ChangedAndStable());
+            session.CompleteOcr(miss: false, content: "spoken", header: "paimon");
+
+            Assert.IsTrue(session.VoicePlaybackActive);
+            int token = session.VoicePlaybackToken;
+
+            session.ApplyGame("StarRail");
+
+            Assert.IsTrue(session.VoicePlaybackActive);
+            Assert.AreEqual(token, session.VoicePlaybackToken);
+            VoicePlayRequest request = session.TakeVoicePlayRequest();
+            Assert.IsNotNull(request);
+            Assert.AreEqual("spoken", request.Content);
+
+            session.NoteVoicePlaybackEnded();
+            Assert.IsFalse(session.VoicePlaybackActive);
+        }
+
+        [TestMethod]
+        public void BoxingAfterApply_WritesIncomingLayout_WithoutRewritingOutgoing()
+        {
+            var settings = new MemoryConfigMap();
+            var store = CreateGenshinStore(settings);
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+
+            session.ApplyGame("StarRail");
+            session.SetCapture(0, new OverlayRect(40, 50, 60, 20));
+            session.SetDisplay(0, new OverlayRect(40, 80, 60, 20));
+            session.SetVoicePrimary(session.Pairs[0].Id);
+
+            session.ApplyGame("Genshin");
+            Assert.AreEqual(1, session.Pairs.Count);
+            Assert.AreEqual(10, session.Pairs[0].Capture.X);
+            Assert.AreEqual(1, session.VoicePrimaryId);
+
+            session.ApplyGame("StarRail");
+            Assert.AreEqual(1, session.Pairs.Count);
+            Assert.AreEqual(40, session.Pairs[0].Capture.X);
+            Assert.AreEqual(40, session.Pairs[0].Display.X);
+        }
+
+        private static ConfigRegionPairStore CreateGenshinStore(MemoryConfigMap settings = null)
+        {
+            settings = settings ?? new MemoryConfigMap();
+            var store = new ConfigRegionPairStore(settings, "Genshin");
+            store.WritePairs(new[]
             {
-                StoredPairs =
+                new RegionPairRecord
                 {
-                    new RegionPairRecord
-                    {
-                        Id = 1,
-                        Capture = new OverlayRect(10, 20, 80, 20),
-                        Display = new OverlayRect(10, 50, 80, 20)
-                    }
-                },
-                VoicePrimaryId = 1,
-                NextPairId = 2,
-                DialogueOptionScan = true,
-                DialogueOptionDisplay = new OverlayRect(200, 300, 160, 40)
-            };
+                    Id = 1,
+                    Capture = new OverlayRect(10, 20, 80, 20),
+                    Display = new OverlayRect(10, 50, 80, 20)
+                }
+            });
+            store.WriteVoicePrimaryId(1);
+            store.WriteNextPairId(2);
+            store.WriteDialogueOptionScan(true);
+            store.WriteDialogueOptionDisplay(new OverlayRect(200, 300, 160, 40));
+            return store;
         }
 
         private sealed class MemoryOcrIntervalStore : IOcrIntervalStore
@@ -149,91 +280,39 @@ namespace GI_Test
             }
         }
 
-        private sealed class MemoryRegionPairStore : IRegionPairStore
+        private sealed class MemoryConfigMap : IConfigMap
         {
-            public LegacyRegionSlots Legacy = new LegacyRegionSlots();
-            public System.Collections.Generic.List<RegionPairRecord> StoredPairs =
-                new System.Collections.Generic.List<RegionPairRecord>();
-            public int VoicePrimaryId;
-            public int NextPairId;
-            public OverlayRect DarkScreenDisplay = OverlayRect.Invalid;
-            public OverlayRect DialogueOptionDisplay = OverlayRect.Invalid;
-            public bool DarkScreenScan = true;
-            public bool DialogueOptionScan;
+            private readonly Dictionary<string, JToken> _settings = new Dictionary<string, JToken>();
 
-            public System.Collections.Generic.IReadOnlyList<RegionPairRecord> ReadPairs()
+            public bool Contains(string key)
             {
-                return StoredPairs;
+                return _settings.ContainsKey(key);
             }
 
-            public LegacyRegionSlots ReadLegacy()
+            public T Get<T>(string key, T defaultValue)
             {
-                return Legacy;
+                if (_settings.TryGetValue(key, out JToken token))
+                {
+                    try
+                    {
+                        return token.ToObject<T>();
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                return defaultValue;
             }
 
-            public void WritePairs(System.Collections.Generic.IReadOnlyList<RegionPairRecord> pairs)
+            public void Set<T>(string key, T value)
             {
-                StoredPairs = new System.Collections.Generic.List<RegionPairRecord>(pairs);
+                _settings[key] = value == null ? JValue.CreateNull() : JToken.FromObject(value);
             }
 
-            public int ReadVoicePrimaryId()
+            public void Remove(string key)
             {
-                return VoicePrimaryId;
-            }
-
-            public void WriteVoicePrimaryId(int id)
-            {
-                VoicePrimaryId = id;
-            }
-
-            public int ReadNextPairId()
-            {
-                return NextPairId;
-            }
-
-            public void WriteNextPairId(int id)
-            {
-                NextPairId = id;
-            }
-
-            public OverlayRect ReadDarkScreenDisplay()
-            {
-                return DarkScreenDisplay ?? OverlayRect.Invalid;
-            }
-
-            public void WriteDarkScreenDisplay(OverlayRect display)
-            {
-                DarkScreenDisplay = display ?? OverlayRect.Invalid;
-            }
-
-            public OverlayRect ReadDialogueOptionDisplay()
-            {
-                return DialogueOptionDisplay ?? OverlayRect.Invalid;
-            }
-
-            public void WriteDialogueOptionDisplay(OverlayRect display)
-            {
-                DialogueOptionDisplay = display ?? OverlayRect.Invalid;
-            }
-
-            public bool ReadDarkScreenScan()
-            {
-                return DarkScreenScan;
-            }
-
-            public void WriteDarkScreenScan(bool enabled)
-            {
-                DarkScreenScan = enabled;
-            }
-
-            public bool ReadDialogueOptionScan()
-            {
-                return DialogueOptionScan;
-            }
-
-            public void WriteDialogueOptionScan(bool enabled)
-            {
-                DialogueOptionScan = enabled;
+                _settings.Remove(key);
             }
         }
     }

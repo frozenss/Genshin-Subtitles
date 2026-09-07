@@ -16,7 +16,7 @@ namespace GI_Subtitles.Core.Overlay
         public const string DialogueOptionScanConfigKey = "RecognizeDialogueOptions";
 
         private readonly IConfigMap _config;
-        private readonly string _gameName;
+        private string _gameName;
 
         public ConfigRegionPairStore()
             : this(new AppConfigMap(), AppConfig.Get("Game", "Genshin"))
@@ -156,6 +156,11 @@ namespace GI_Subtitles.Core.Overlay
             OverlayLayoutRecord layout = ReadLayout();
             layout.RecognizeDialogueOptions = enabled;
             WriteLayout(layout);
+        }
+
+        public void SwitchGame(string gameName)
+        {
+            _gameName = OverlayLayoutPersistence.NormalizeGame(gameName);
         }
 
         private bool AllowsDialogueOptions

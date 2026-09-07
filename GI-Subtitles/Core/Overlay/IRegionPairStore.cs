@@ -33,6 +33,8 @@ namespace GI_Subtitles.Core.Overlay
         bool ReadDialogueOptionScan();
 
         void WriteDialogueOptionScan(bool enabled);
+
+        void SwitchGame(string gameName);
     }
 
     public sealed class RegionPairRecord

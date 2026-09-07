@@ -727,6 +727,10 @@ namespace GI_Test
             {
                 DialogueOptionScan = enabled;
             }
+
+            public void SwitchGame(string gameName)
+            {
+            }
         }
     }
 }

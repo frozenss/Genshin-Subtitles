@@ -561,7 +561,17 @@ namespace GI_Subtitles.Core.Overlay
                 return;
             }
 
+            PersistPairs();
+            PersistExtraPathDisplays();
+            PersistExtraPathScans();
             _appliedGame = normalized;
+            if (_pairStore != null)
+            {
+                _pairStore.SwitchGame(normalized);
+            }
+
+            LoadPairs();
+            ClearInFlightOverlayState();
             _matchCache.Clear();
         }
 
@@ -1056,6 +1066,23 @@ namespace GI_Subtitles.Core.Overlay
             AddInProgress = false;
             _addCapture = OverlayRect.Invalid;
             _addDisplay = OverlayRect.Invalid;
+        }
+
+        private void ClearInFlightOverlayState()
+        {
+            ClearAddState();
+            ClearArm();
+            ClearPreview();
+            ClearDarkScreen();
+            ClearEcho();
+            _ocrQueue.Clear();
+            _busyPairIndex = null;
+            for (int i = 0; i < _headers.Count; i++)
+            {
+                _headers[i] = string.Empty;
+                _contents[i] = string.Empty;
+                _recognitionOrders[i] = 0;
+            }
         }
 
         private void RemovePairAt(int index)
