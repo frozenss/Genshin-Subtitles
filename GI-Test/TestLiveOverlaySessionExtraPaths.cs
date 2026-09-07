@@ -546,6 +546,49 @@ namespace GI_Test
         }
 
         [TestMethod]
+        public void ExtraPathScanToggles_LoadFromStore_AndPersistAcrossSessions()
+        {
+            var store = new MemoryRegionPairStore
+            {
+                StoredPairs =
+                {
+                    new RegionPairRecord
+                    {
+                        Id = 1,
+                        Capture = new OverlayRect(0, 10, 80, 20),
+                        Display = new OverlayRect(0, 40, 80, 20)
+                    }
+                },
+                VoicePrimaryId = 1,
+                NextPairId = 2,
+                DarkScreenScan = false,
+                DialogueOptionScan = true
+            };
+
+            var first = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            Assert.IsFalse(first.DarkScreenScanOn);
+            Assert.IsTrue(first.DialogueOptionScanOn);
+
+            first.SetDarkScreenScan(true);
+            first.SetDialogueOptionScan(false);
+            Assert.IsTrue(store.DarkScreenScan);
+            Assert.IsFalse(store.DialogueOptionScan);
+
+            var reloaded = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            Assert.IsTrue(reloaded.DarkScreenScanOn);
+            Assert.IsFalse(reloaded.DialogueOptionScanOn);
+        }
+
+        [TestMethod]
+        public void UnconfiguredStore_DarkScreenScanDefaultsOn()
+        {
+            var store = new MemoryRegionPairStore();
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+            Assert.IsTrue(session.DarkScreenScanOn);
+            Assert.IsFalse(session.DialogueOptionScanOn);
+        }
+
+        [TestMethod]
         public void NoValidCapture_DoesNotRunExtraPaths()
         {
             var pairs = new MemoryRegionPairStore();
@@ -660,6 +703,29 @@ namespace GI_Test
             public void WriteDialogueOptionDisplay(OverlayRect display)
             {
                 DialogueOptionDisplay = display ?? OverlayRect.Invalid;
+            }
+
+            public bool DarkScreenScan = true;
+            public bool DialogueOptionScan;
+
+            public bool ReadDarkScreenScan()
+            {
+                return DarkScreenScan;
+            }
+
+            public void WriteDarkScreenScan(bool enabled)
+            {
+                DarkScreenScan = enabled;
+            }
+
+            public bool ReadDialogueOptionScan()
+            {
+                return DialogueOptionScan;
+            }
+
+            public void WriteDialogueOptionScan(bool enabled)
+            {
+                DialogueOptionScan = enabled;
             }
         }
     }

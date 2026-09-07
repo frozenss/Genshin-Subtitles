@@ -8,6 +8,14 @@ GI-Subtitles captures in-game text, matches it to a language pack, and shows a t
 The always-on-top layer drawn over the game. It can show subtitles and short-lived hints; it is not a log.
 _Avoid_: Main window, 主窗口 (that name also fits the settings window)
 
+**Game**:
+A title the operator selects. Each game owns one overlay layout and its own language packs. The running overlay uses the last applied game; browsing another title in settings does not swap the layout.
+_Avoid_: treating the overlay layout as shared across titles; calling the language-pack files the overlay layout; swapping layout on the game dropdown; requiring a restart to change game
+
+**Overlay layout**:
+One game's region pairs, voice-primary designation, extra-path displays, and extra-path scan toggles. Switching games swaps this layout; it is not shared.
+_Avoid_: Config; RegionPairs as the name of this concept; per-game settings when you mean language-pack URLs; a second overlay
+
 **Hint**:
 A short-lived overlay notice that a hotkey or button ran. It is not a notice that OCR produced a new subtitle, and it is not an activity log row.
 _Avoid_: 操作日志, 侧边框, log (the overlay is not a log); Region-pair preview (that outline is not a hint); announcing each OCR or subtitle change; treating hint expiry as a new row
@@ -41,8 +49,8 @@ The settings-armed state in which one existing display region accepts mouse drag
 _Avoid_: dragging subtitles at any time; hover handle; treating this as a hint; using adjust to pull the first dark-screen or dialogue-option display
 
 **Region pair**:
-One capture region bound to one display region. The live overlay keeps a list of pairs; every pair with a valid capture region runs at the same time.
-_Avoid_: Secondary region, Region2, 第二识别区域 (those named a one-shot fallback, not a pair)
+One capture region bound to one display region. The live overlay keeps the current game's list of pairs; every pair with a valid capture region runs at the same time.
+_Avoid_: Secondary region, Region2, 第二识别区域 (those named a one-shot fallback, not a pair); one shared pair list across games
 
 **Fallback probe**:
 Today's one-shot secondary capture after repeated misses on the primary capture, then abandoned. The region-pair model does not include this; a second pair is a real pair.
@@ -61,16 +69,16 @@ The minimum time between OCR engine runs on the single serial queue. In the sett
 _Avoid_: 识图频率; OCR cadence (that name is the whole stack); per-pair interval
 
 **Dark-screen scan**:
-An extra capture on the OCR cadence that hunts a central text band on a mostly-dark frame. It is not a region pair.
-_Avoid_: treating it as a region pair; Region2; skipping all pairs for the rest of the beat
+An extra capture on the OCR cadence that hunts a central text band on a mostly-dark frame. It is not a region pair. On or off is this game's overlay layout, not a global preference.
+_Avoid_: treating it as a region pair; Region2; skipping all pairs for the rest of the beat; one on/off for every game
 
 **Dark-screen display**:
 The optional persistent rectangle for dark-screen subtitles. Unset, the text follows the detected candidate band.
 _Avoid_: a fifth region pair; binding dark-screen text to a pair's display region
 
 **Dialogue-option scan**:
-A Genshin-only extra capture that locates the right-side choice list. It is not a region pair. Off by default.
-_Avoid_: overlay-translating every option in place; treating it as a region pair; skipping all pairs for the rest of the beat
+A Genshin-only extra capture that locates the right-side choice list. It is not a region pair. Off by default. Its on/off and display belong to Genshin's overlay layout; other games do not scan or draw it.
+_Avoid_: overlay-translating every option in place; treating it as a region pair; skipping all pairs for the rest of the beat; leaving the boxed display on screen after leaving Genshin
 
 **Dialogue-choice echo**:
 The short-lived translation of the option the operator just selected. Default: one extra line above the voice-primary pair's subtitle body, not a replacement. A set dialogue-option display detaches it there.

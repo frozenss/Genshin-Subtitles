@@ -1478,7 +1478,7 @@ namespace GI_Subtitles.Views
 
         private ExtraPathSample ObserveDarkScreen(System.Drawing.Rectangle screen)
         {
-            if (!Config.Get("RecognizeDarkScreenSubtitles", true))
+            if (!_overlaySession.DarkScreenScanOn)
             {
                 DisposeDarkScreenHold();
                 return ExtraPathSample.None;
@@ -1627,7 +1627,7 @@ namespace GI_Subtitles.Views
         {
             extra = extra ?? ExtraPathSample.None;
             if (!string.Equals(Game, "Genshin", StringComparison.OrdinalIgnoreCase) ||
-                !Config.Get("RecognizeDialogueOptions", false) ||
+                !_overlaySession.DialogueOptionScanOn ||
                 DateTime.UtcNow - _lastDialogueOptionScanTime < DialogueOptionScanInterval)
             {
                 return extra;
@@ -2023,7 +2023,7 @@ namespace GI_Subtitles.Views
         {
             _overlaySession.PreviewCaptureRegion(
                 _overlaySession.HasValidCapture,
-                Config.Get("RecognizeDarkScreenSubtitles", true));
+                _overlaySession.DarkScreenScanOn);
         }
 
         private void ShowActivityLog()

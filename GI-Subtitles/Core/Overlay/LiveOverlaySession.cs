@@ -37,6 +37,8 @@ namespace GI_Subtitles.Core.Overlay
         private OverlayRect _darkScreenBand = OverlayRect.Invalid;
         private OverlayRect _darkScreenDisplay = OverlayRect.Invalid;
         private OverlayRect _dialogueOptionDisplay = OverlayRect.Invalid;
+        private bool _darkScreenScanOn = true;
+        private bool _dialogueOptionScanOn;
         private string _darkScreenHeader = string.Empty;
         private string _darkScreenContent = string.Empty;
         private int _darkScreenRecognitionOrder;
@@ -129,6 +131,16 @@ namespace GI_Subtitles.Core.Overlay
         public OverlayRect DialogueOptionDisplay
         {
             get { return _dialogueOptionDisplay; }
+        }
+
+        public bool DarkScreenScanOn
+        {
+            get { return _darkScreenScanOn; }
+        }
+
+        public bool DialogueOptionScanOn
+        {
+            get { return _dialogueOptionScanOn; }
         }
 
         public ExtraPathBody DialogueChoiceEcho
@@ -486,6 +498,28 @@ namespace GI_Subtitles.Core.Overlay
             SetDialogueOptionDisplay(OverlayRect.Invalid);
         }
 
+        public void SetDarkScreenScan(bool enabled)
+        {
+            _darkScreenScanOn = enabled;
+            if (!enabled && ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay)
+            {
+                CancelDisplayAdjust();
+            }
+
+            PersistExtraPathScans();
+        }
+
+        public void SetDialogueOptionScan(bool enabled)
+        {
+            _dialogueOptionScanOn = enabled;
+            if (!enabled && ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
+            {
+                CancelDisplayAdjust();
+            }
+
+            PersistExtraPathScans();
+        }
+
         public bool TryGetVoicePrimaryCapture(out int pairIndex, out OverlayRect capture)
         {
             pairIndex = IndexOfPair(VoicePrimaryId);
@@ -718,6 +752,8 @@ namespace GI_Subtitles.Core.Overlay
         {
             _darkScreenDisplay = OverlayRect.Invalid;
             _dialogueOptionDisplay = OverlayRect.Invalid;
+            _darkScreenScanOn = true;
+            _dialogueOptionScanOn = false;
             if (_pairStore == null)
             {
                 return;
@@ -727,6 +763,8 @@ namespace GI_Subtitles.Core.Overlay
             _darkScreenDisplay = darkScreen ?? OverlayRect.Invalid;
             OverlayRect dialogueOption = _pairStore.ReadDialogueOptionDisplay();
             _dialogueOptionDisplay = dialogueOption ?? OverlayRect.Invalid;
+            _darkScreenScanOn = _pairStore.ReadDarkScreenScan();
+            _dialogueOptionScanOn = _pairStore.ReadDialogueOptionScan();
         }
 
         private void PersistExtraPathDisplays()
@@ -738,6 +776,17 @@ namespace GI_Subtitles.Core.Overlay
 
             _pairStore.WriteDarkScreenDisplay(_darkScreenDisplay);
             _pairStore.WriteDialogueOptionDisplay(_dialogueOptionDisplay);
+        }
+
+        private void PersistExtraPathScans()
+        {
+            if (_pairStore == null)
+            {
+                return;
+            }
+
+            _pairStore.WriteDarkScreenScan(_darkScreenScanOn);
+            _pairStore.WriteDialogueOptionScan(_dialogueOptionScanOn);
         }
 
         private OverlayRect ResolveDarkScreenDisplay()

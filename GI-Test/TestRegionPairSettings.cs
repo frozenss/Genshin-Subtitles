@@ -334,6 +334,29 @@ namespace GI_Test
             {
                 DialogueOptionDisplay = display ?? OverlayRect.Invalid;
             }
+
+            public bool DarkScreenScan = true;
+            public bool DialogueOptionScan;
+
+            public bool ReadDarkScreenScan()
+            {
+                return DarkScreenScan;
+            }
+
+            public void WriteDarkScreenScan(bool enabled)
+            {
+                DarkScreenScan = enabled;
+            }
+
+            public bool ReadDialogueOptionScan()
+            {
+                return DialogueOptionScan;
+            }
+
+            public void WriteDialogueOptionScan(bool enabled)
+            {
+                DialogueOptionScan = enabled;
+            }
         }
     }
 }

@@ -258,8 +258,8 @@ namespace GI_Subtitles.Views
             // Boolean flags
             AutoStartCheckBox.IsChecked = Config.Get("AutoStart", false);
             PlayVoiceCheckBox.IsChecked = Config.Get("PlayVoice", true);
-            RecognizeDarkScreenSubtitlesCheckBox.IsChecked = Config.Get("RecognizeDarkScreenSubtitles", true);
-            RecognizeDialogueOptionsCheckBox.IsChecked = Config.Get("RecognizeDialogueOptions", false);
+            RecognizeDarkScreenSubtitlesCheckBox.IsChecked = _overlaySession.DarkScreenScanOn;
+            RecognizeDialogueOptionsCheckBox.IsChecked = _overlaySession.DialogueOptionScanOn;
             BindOcrIntervalSettings();
             RefreshPairPage();
             RefreshExtraPathDisplayRows();
@@ -2284,13 +2284,7 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            bool enabled = RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true;
-            Config.Set("RecognizeDarkScreenSubtitles", enabled);
-            if (!enabled && _overlaySession.ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay)
-            {
-                _overlaySession.CancelDisplayAdjust();
-            }
-
+            _overlaySession.SetDarkScreenScan(RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true);
             RefreshExtraPathDisplayRows();
         }
 
@@ -2301,13 +2295,7 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            bool enabled = RecognizeDialogueOptionsCheckBox.IsChecked == true;
-            Config.Set("RecognizeDialogueOptions", enabled);
-            if (!enabled && _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
-            {
-                _overlaySession.CancelDisplayAdjust();
-            }
-
+            _overlaySession.SetDialogueOptionScan(RecognizeDialogueOptionsCheckBox.IsChecked == true);
             RefreshExtraPathDisplayRows();
         }
 
@@ -2367,7 +2355,7 @@ namespace GI_Subtitles.Views
                 _overlaySession.DarkScreenDisplay.IsValid,
                 _overlaySession.ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay);
 
-            bool genshin = string.Equals(Game, "Genshin", StringComparison.Ordinal);
+            bool genshin = string.Equals(Config.Get("Game", "Genshin"), "Genshin", StringComparison.Ordinal);
             if (!genshin && _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
             {
                 _overlaySession.CancelDisplayAdjust();

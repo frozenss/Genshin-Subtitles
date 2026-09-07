@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using GI_Subtitles.Core.Config;
 using AppConfig = GI_Subtitles.Core.Config.Config;
 
 namespace GI_Subtitles.Core.Overlay
@@ -11,10 +12,32 @@ namespace GI_Subtitles.Core.Overlay
         public const string NextPairIdConfigKey = "NextPairId";
         public const string DarkScreenDisplayConfigKey = "DarkScreenDisplay";
         public const string DialogueOptionDisplayConfigKey = "DialogueOptionDisplay";
+        public const string DarkScreenScanConfigKey = "RecognizeDarkScreenSubtitles";
+        public const string DialogueOptionScanConfigKey = "RecognizeDialogueOptions";
+
+        private readonly IConfigMap _config;
+        private readonly string _gameName;
+
+        public ConfigRegionPairStore()
+            : this(new AppConfigMap(), AppConfig.Get("Game", "Genshin"))
+        {
+        }
+
+        public ConfigRegionPairStore(IConfigMap config, string gameName)
+        {
+            if (config == null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+
+            _config = config;
+            _gameName = OverlayLayoutPersistence.NormalizeGame(gameName);
+            OverlayLayoutPersistence.TryMigrate(_config, _gameName);
+        }
 
         public IReadOnlyList<RegionPairRecord> ReadPairs()
         {
-            List<RegionPairRecord> stored = AppConfig.Get<List<RegionPairRecord>>(PairsConfigKey, null);
+            List<RegionPairRecord> stored = ReadLayout().RegionPairs;
             if (stored == null)
             {
                 return Array.Empty<RegionPairRecord>();
@@ -25,58 +48,130 @@ namespace GI_Subtitles.Core.Overlay
 
         public LegacyRegionSlots ReadLegacy()
         {
+            LegacyRegionSlots legacy = ReadLayout().Legacy;
+            if (legacy == null)
+            {
+                return new LegacyRegionSlots
+                {
+                    Region = string.Empty,
+                    Region2 = string.Empty
+                };
+            }
+
             return new LegacyRegionSlots
             {
-                Region = AppConfig.Get("Region", string.Empty),
-                Region2 = AppConfig.Get("Region2", string.Empty),
-                PadVertical = AppConfig.GetPad(0),
-                PadHorizontal = AppConfig.GetPadHorizontal(0)
+                Region = legacy.Region ?? string.Empty,
+                Region2 = legacy.Region2 ?? string.Empty,
+                PadVertical = legacy.PadVertical,
+                PadHorizontal = legacy.PadHorizontal
             };
         }
 
         public void WritePairs(IReadOnlyList<RegionPairRecord> pairs)
         {
-            AppConfig.Set(PairsConfigKey, pairs);
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.RegionPairs = pairs == null
+                ? new List<RegionPairRecord>()
+                : new List<RegionPairRecord>(pairs);
+            WriteLayout(layout);
         }
 
         public int ReadVoicePrimaryId()
         {
-            return AppConfig.Get(VoicePrimaryIdConfigKey, 0);
+            return ReadLayout().VoicePrimaryId;
         }
 
         public void WriteVoicePrimaryId(int id)
         {
-            AppConfig.Set(VoicePrimaryIdConfigKey, id);
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.VoicePrimaryId = id;
+            WriteLayout(layout);
         }
 
         public int ReadNextPairId()
         {
-            return AppConfig.Get(NextPairIdConfigKey, 0);
+            return ReadLayout().NextPairId;
         }
 
         public void WriteNextPairId(int id)
         {
-            AppConfig.Set(NextPairIdConfigKey, id);
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.NextPairId = id;
+            WriteLayout(layout);
         }
 
         public OverlayRect ReadDarkScreenDisplay()
         {
-            return AppConfig.Get<OverlayRect>(DarkScreenDisplayConfigKey, null) ?? OverlayRect.Invalid;
+            return ReadLayout().DarkScreenDisplay ?? OverlayRect.Invalid;
         }
 
         public void WriteDarkScreenDisplay(OverlayRect display)
         {
-            AppConfig.Set(DarkScreenDisplayConfigKey, display ?? OverlayRect.Invalid);
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.DarkScreenDisplay = display ?? OverlayRect.Invalid;
+            WriteLayout(layout);
         }
 
         public OverlayRect ReadDialogueOptionDisplay()
         {
-            return AppConfig.Get<OverlayRect>(DialogueOptionDisplayConfigKey, null) ?? OverlayRect.Invalid;
+            if (!AllowsDialogueOptions)
+            {
+                return OverlayRect.Invalid;
+            }
+
+            return ReadLayout().DialogueOptionDisplay ?? OverlayRect.Invalid;
         }
 
         public void WriteDialogueOptionDisplay(OverlayRect display)
         {
-            AppConfig.Set(DialogueOptionDisplayConfigKey, display ?? OverlayRect.Invalid);
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.DialogueOptionDisplay = display ?? OverlayRect.Invalid;
+            WriteLayout(layout);
+        }
+
+        public bool ReadDarkScreenScan()
+        {
+            return ReadLayout().RecognizeDarkScreenSubtitles;
+        }
+
+        public void WriteDarkScreenScan(bool enabled)
+        {
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.RecognizeDarkScreenSubtitles = enabled;
+            WriteLayout(layout);
+        }
+
+        public bool ReadDialogueOptionScan()
+        {
+            if (!AllowsDialogueOptions)
+            {
+                return false;
+            }
+
+            return ReadLayout().RecognizeDialogueOptions;
+        }
+
+        public void WriteDialogueOptionScan(bool enabled)
+        {
+            OverlayLayoutRecord layout = ReadLayout();
+            layout.RecognizeDialogueOptions = enabled;
+            WriteLayout(layout);
+        }
+
+        private bool AllowsDialogueOptions
+        {
+            get { return string.Equals(_gameName, "Genshin", StringComparison.Ordinal); }
+        }
+
+        private OverlayLayoutRecord ReadLayout()
+        {
+            return OverlayLayoutPersistence.Read(_config, _gameName);
+        }
+
+        private void WriteLayout(OverlayLayoutRecord layout)
+        {
+            OverlayLayoutPersistence.Write(_config, _gameName, layout);
         }
     }
 }
+

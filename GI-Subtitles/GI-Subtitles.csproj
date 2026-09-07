@@ -125,6 +125,8 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Core\Config\Config.cs" />
+    <Compile Include="Core\Config\IConfigMap.cs" />
+    <Compile Include="Core\Config\AppConfigMap.cs" />
     <Compile Include="Core\Overlay\IOcrIntervalStore.cs" />
     <Compile Include="Core\Overlay\IRegionPairStore.cs" />
     <Compile Include="Core\Overlay\OverlayRect.cs" />
@@ -136,6 +138,8 @@
     <Compile Include="Core\Overlay\RegionPair.cs" />
     <Compile Include="Core\Overlay\ConfigOcrIntervalStore.cs" />
     <Compile Include="Core\Overlay\ConfigRegionPairStore.cs" />
+    <Compile Include="Core\Overlay\OverlayLayoutRecord.cs" />
+    <Compile Include="Core\Overlay\OverlayLayoutPersistence.cs" />
     <Compile Include="Core\Overlay\ActivityLogRow.cs" />
     <Compile Include="Core\Overlay\OperatorJob.cs" />
     <Compile Include="Core\Overlay\LiveOverlaySession.cs" />
