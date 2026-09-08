@@ -129,10 +129,10 @@ namespace GI_Subtitles.Views
         [DllImport("user32.dll")]
         private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
         private const int GwlExStyle = -20;
@@ -497,10 +497,17 @@ namespace GI_Subtitles.Views
             int exStyle = GetWindowLong(hwnd, GwlExStyle);
             if (_overlaySession.IsClickThrough)
             {
-                SetWindowLong(
+                int newStyle = exStyle | WsExTransparent | WsExLayered | WsExToolWindow | WsExNoActivate;
+                // Arguments evaluate left to right: GetLastWin32Error must be
+                // the first call after SetWindowLong to capture its error code.
+                RegionAdjustDiagnostics.HitModeApplied(
                     hwnd,
-                    GwlExStyle,
-                    exStyle | WsExTransparent | WsExLayered | WsExToolWindow | WsExNoActivate);
+                    interactive: false,
+                    beforeExStyle: exStyle,
+                    newExStyle: newStyle,
+                    setResult: SetWindowLong(hwnd, GwlExStyle, newStyle),
+                    lastError: Marshal.GetLastWin32Error());
+                RegionAdjustDiagnostics.DetachWindowInputProbe(this);
                 Background = System.Windows.Media.Brushes.Transparent;
                 IsHitTestVisible = false;
                 if (OverlayCanvas != null)
@@ -511,10 +518,16 @@ namespace GI_Subtitles.Views
             }
             else
             {
-                SetWindowLong(
+                int newStyle = (exStyle | WsExLayered | WsExToolWindow | WsExNoActivate) & ~WsExTransparent;
+                // Same evaluation-order constraint as the branch above.
+                RegionAdjustDiagnostics.HitModeApplied(
                     hwnd,
-                    GwlExStyle,
-                    (exStyle | WsExLayered | WsExToolWindow | WsExNoActivate) & ~WsExTransparent);
+                    interactive: true,
+                    beforeExStyle: exStyle,
+                    newExStyle: newStyle,
+                    setResult: SetWindowLong(hwnd, GwlExStyle, newStyle),
+                    lastError: Marshal.GetLastWin32Error());
+                RegionAdjustDiagnostics.AttachWindowInputProbe(this);
                 Background = null;
                 IsHitTestVisible = true;
                 if (OverlayCanvas != null)
@@ -2150,6 +2163,31 @@ namespace GI_Subtitles.Views
             _lastPreviewCount = _overlaySession.PreviewOutlines.Count;
             _lastArmedPairId = _overlaySession.ArmedPairId;
             _lastArmedTarget = _overlaySession.ArmedTarget;
+
+#if DEBUG
+            if (_overlaySession.AdjustOutlines.Count > 0)
+            {
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                RegionAdjustDiagnostics.SnapshotEnvironment(this, hwnd, Scale);
+                for (int i = 0; i < _overlaySession.AdjustOutlines.Count; i++)
+                {
+                    RegionOutline outline = _overlaySession.AdjustOutlines[i];
+                    if (outline == null || outline.Rect == null || !outline.Rect.IsValid)
+                    {
+                        continue;
+                    }
+
+                    RegionAdjustDiagnostics.ProbeFrame(
+                        hwnd,
+                        FormatOutlineLabel(outline),
+                        outline.Rect,
+                        DisplayToCanvas(outline.Rect),
+                        outline.Rect.Width / Scale,
+                        outline.Rect.Height / Scale,
+                        takesMouse: outline.IsDisplay);
+                }
+            }
+#endif
         }
 
         private void ClearOutlineElements()
@@ -2263,23 +2301,17 @@ namespace GI_Subtitles.Views
 
         private void DisplayAdjust_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_overlaySession.IsClickThrough)
-            {
-                return;
-            }
-
+            bool clickThrough = _overlaySession.IsClickThrough;
             OverlayAdjustTarget target = _overlaySession.ArmedTarget;
-            OverlayRect start = OverlayRect.Invalid;
             int pairIndex = -1;
+            OverlayRect start = null;
             if (target == OverlayAdjustTarget.Pair)
             {
                 pairIndex = _overlaySession.ArmedPairIndex;
-                if (pairIndex < 0)
+                if (pairIndex >= 0)
                 {
-                    return;
+                    start = _overlaySession.GetDisplay(pairIndex);
                 }
-
-                start = _overlaySession.GetDisplay(pairIndex);
             }
             else if (target == OverlayAdjustTarget.DarkScreenDisplay)
             {
@@ -2290,17 +2322,19 @@ namespace GI_Subtitles.Views
                 start = _overlaySession.DialogueOptionDisplay;
             }
 
-            if (start == null || !start.IsValid)
+            AdjustMouseExit exit = AdjustMouseGuard.DownExitReason(
+                clickThrough,
+                target,
+                pairIndex,
+                start != null && start.IsValid,
+                sender is System.Windows.Shapes.Rectangle);
+            RegionAdjustTrace.ElementDown(exit, target, pairIndex, start);
+            if (exit != AdjustMouseExit.None)
             {
                 return;
             }
 
-            var box = sender as System.Windows.Shapes.Rectangle;
-            if (box == null)
-            {
-                return;
-            }
-
+            var box = (System.Windows.Shapes.Rectangle)sender;
             _displayDragging = true;
             _dragTarget = target;
             _dragPairIndex = pairIndex;
@@ -2312,7 +2346,15 @@ namespace GI_Subtitles.Views
 
         private void DisplayAdjust_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (!_displayDragging || e.LeftButton != MouseButtonState.Pressed || _dragTarget == OverlayAdjustTarget.None)
+            AdjustMouseExit exit = AdjustMouseGuard.MoveExitReason(
+                _displayDragging,
+                e.LeftButton == MouseButtonState.Pressed,
+                _dragTarget);
+#if DEBUG
+            System.Windows.Point tracePos = e.GetPosition(OverlayCanvas);
+            RegionAdjustTrace.ElementMove(exit, tracePos.X, tracePos.Y);
+#endif
+            if (exit != AdjustMouseExit.None)
             {
                 return;
             }
@@ -2341,7 +2383,9 @@ namespace GI_Subtitles.Views
 
         private void DisplayAdjust_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (!_displayDragging)
+            AdjustMouseExit exit = AdjustMouseGuard.UpExitReason(_displayDragging);
+            RegionAdjustTrace.ElementUp(exit);
+            if (exit != AdjustMouseExit.None)
             {
                 return;
             }
