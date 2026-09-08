@@ -176,7 +176,7 @@ namespace GI_Subtitles.Views
             view.Time = row.UtcTimestamp.ToLocalTime().ToString("HH:mm:ss");
             view.RegionPair = ResolveRegionPair(row);
             view.Job = ResolveJobs(row);
-            view.Result = ResolveResult(row);
+            ApplyResult(view, row);
             view.IsRepeat = row.IsRepeat;
         }
 
@@ -236,9 +236,15 @@ namespace GI_Subtitles.Views
             return joined;
         }
 
-        private string ResolveResult(ActivityLogRow row)
+        // One Compose call feeds both result layers (ADR 0012): the segments
+        // drive the colored TextBlock, and the plain text drives the
+        // selection TextBox and the row TSV, so copied text always equals
+        // displayed text.
+        private void ApplyResult(ActivityLogRowView view, ActivityLogRow row)
         {
-            return ActivityLogResultComposer.Compose(row, ResolveText).PlainText;
+            ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(row, ResolveText);
+            view.Result = projection.PlainText;
+            view.ResultLines = projection.Lines;
         }
 
         private static string JobResourceKey(OperatorJob job)
@@ -580,6 +586,7 @@ namespace GI_Subtitles.Views
         private string _regionPair;
         private string _job;
         private string _result;
+        private IReadOnlyList<ActivityLogResultLine> _resultLines;
         private bool _isRepeat;
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -606,6 +613,12 @@ namespace GI_Subtitles.Views
         {
             get { return _result; }
             set { SetField(ref _result, value, nameof(Result)); }
+        }
+
+        public IReadOnlyList<ActivityLogResultLine> ResultLines
+        {
+            get { return _resultLines; }
+            set { SetField(ref _resultLines, value, nameof(ResultLines)); }
         }
 
         public bool IsRepeat

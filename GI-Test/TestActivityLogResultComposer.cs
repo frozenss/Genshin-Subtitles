@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using GI_Subtitles.Core.Overlay;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -14,25 +13,16 @@ namespace GI_Test
     [TestClass]
     public class TestActivityLogResultComposer
     {
-        // Mirrors the zh-CN resource values; the resolver stands in for the
+        // The zh-CN resource values and the row factory live in
+        // ActivityLogResultComposerHarness; the resolver stands in for the
         // window's resource lookup so the composer stays testable.
-        private static readonly Dictionary<string, string> Texts = new Dictionary<string, string>
-        {
-            { ActivityLogResultComposer.ResourceKeyTagOcr, "[OCR]" },
-            { ActivityLogResultComposer.ResourceKeyTagOriginal, "[原文]" },
-            { ActivityLogResultComposer.ResourceKeyTagTranslation, "[译文]" },
-            { ActivityLogResultComposer.ResourceKeyQuoted, "「{0}」" },
-            { ActivityLogResultComposer.ResourceKeyMatchMiss, " 匹配 miss" },
-            { ActivityLogResultComposer.ResourceKeyDetectionMiss, "检测 miss" },
-            { "Test_ActionFinished", "完成 {0}" }
-        };
 
         [TestMethod]
         public void NormalPipelineRow_ComposesTaggedOcrSourceTranslationLines()
         {
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(
-                Row(ocrText: "hello", original: "你好", translation: "hello world"),
-                Resolve);
+                ActivityLogResultComposerHarness.Row(ocrText: "hello", original: "你好", translation: "hello world"),
+                ActivityLogResultComposerHarness.Resolve);
 
             Assert.AreEqual(
                 "[OCR]「hello」" + Environment.NewLine
@@ -51,8 +41,8 @@ namespace GI_Test
         public void MatchMissRow_BorrowsTheSourceTag()
         {
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(
-                Row(ocrText: "hello", matchMiss: true),
-                Resolve);
+                ActivityLogResultComposerHarness.Row(ocrText: "hello", matchMiss: true),
+                ActivityLogResultComposerHarness.Resolve);
 
             Assert.AreEqual(
                 "[OCR]「hello」" + Environment.NewLine + "[原文] 匹配 miss",
@@ -67,8 +57,8 @@ namespace GI_Test
         public void DetectionMissRow_CarriesNoTag()
         {
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(
-                Row(detectionMiss: true),
-                Resolve);
+                ActivityLogResultComposerHarness.Row(detectionMiss: true),
+                ActivityLogResultComposerHarness.Resolve);
 
             Assert.AreEqual("检测 miss", projection.PlainText);
             Assert.AreEqual(1, projection.Lines.Count);
@@ -82,8 +72,8 @@ namespace GI_Test
         {
             string dual = "第一语言" + Environment.NewLine + "second language";
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(
-                Row(ocrText: "x", original: "y", translation: dual),
-                Resolve);
+                ActivityLogResultComposerHarness.Row(ocrText: "x", original: "y", translation: dual),
+                ActivityLogResultComposerHarness.Resolve);
 
             Assert.AreEqual(3, projection.Lines.Count);
             ActivityLogResultLine translationLine = projection.Lines[2];
@@ -101,54 +91,13 @@ namespace GI_Test
         public void ActionRow_ResolvesItsOwnResourceKeyUntagged()
         {
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(
-                Row(resultResourceKey: "Test_ActionFinished", resultFormatArguments: new object[] { "日本語パック" }),
-                Resolve);
+                ActivityLogResultComposerHarness.Row(resultResourceKey: "Test_ActionFinished", resultFormatArguments: new object[] { "日本語パック" }),
+                ActivityLogResultComposerHarness.Resolve);
 
             Assert.AreEqual("完成 日本語パック", projection.PlainText);
             Assert.AreEqual(1, projection.Lines.Count);
             Assert.AreEqual(ActivityLogResultTag.None, projection.Lines[0].Tag);
             Assert.AreEqual(string.Empty, projection.Lines[0].TagText);
-        }
-
-        private static string Resolve(string key, object[] args)
-        {
-            string format;
-            if (string.IsNullOrEmpty(key) || !Texts.TryGetValue(key, out format))
-            {
-                return string.Empty;
-            }
-
-            if (args == null || args.Length == 0)
-            {
-                return format;
-            }
-
-            return string.Format(format, args);
-        }
-
-        private static ActivityLogRow Row(
-            string ocrText = null,
-            string original = null,
-            string translation = null,
-            bool detectionMiss = false,
-            bool matchMiss = false,
-            string resultResourceKey = null,
-            object[] resultFormatArguments = null)
-        {
-            return new ActivityLogRow(
-                new DateTime(2026, 9, 8, 12, 0, 0, DateTimeKind.Utc),
-                new[] { OperatorJob.Capture, OperatorJob.Ocr, OperatorJob.Match },
-                ActivityLogScope.Pair,
-                1,
-                true,
-                resultResourceKey,
-                resultFormatArguments,
-                ocrText,
-                original,
-                translation,
-                detectionMiss,
-                matchMiss,
-                false);
         }
     }
 }
