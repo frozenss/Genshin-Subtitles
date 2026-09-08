@@ -111,6 +111,7 @@
     <Compile Include="TestLiveOverlaySessionResultFold.cs" />
     <Compile Include="TestLiveOverlaySessionMatchMissKeep.cs" />
     <Compile Include="TestActivityLogRowFilter.cs" />
+    <Compile Include="TestActivityLogResultComposer.cs" />
     <Compile Include="TestLiveOverlaySessionRegionPairs.cs" />
     <Compile Include="TestLiveOverlaySessionVoicePrimary.cs" />
     <Compile Include="TestLiveOverlaySessionPreviewAndAdjust.cs" />

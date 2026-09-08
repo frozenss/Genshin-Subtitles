@@ -111,10 +111,11 @@
     <sys:String x:Key="ActivityLog_Job_LanguagePackLoad" xmlns:sys="clr-namespace:System;assembly=mscorlib">Language pack load</sys:String>
     <sys:String x:Key="ActivityLog_Job_LanguagePackDownload" xmlns:sys="clr-namespace:System;assembly=mscorlib">Language pack download</sys:String>
     <sys:String x:Key="ActivityLog_Result_DetectionMiss" xmlns:sys="clr-namespace:System;assembly=mscorlib">Detection miss</sys:String>
-    <sys:String x:Key="ActivityLog_Result_OcrText" xmlns:sys="clr-namespace:System;assembly=mscorlib">OCR "{0}"</sys:String>
-    <sys:String x:Key="ActivityLog_Result_Original" xmlns:sys="clr-namespace:System;assembly=mscorlib">Original: {0}</sys:String>
-    <sys:String x:Key="ActivityLog_Result_Translation" xmlns:sys="clr-namespace:System;assembly=mscorlib">Translation: {0}</sys:String>
-    <sys:String x:Key="ActivityLog_Result_MatchMiss" xmlns:sys="clr-namespace:System;assembly=mscorlib">Original: match miss</sys:String>
+    <sys:String x:Key="ActivityLog_Result_Tag_Ocr" xmlns:sys="clr-namespace:System;assembly=mscorlib">[OCR]</sys:String>
+    <sys:String x:Key="ActivityLog_Result_Tag_Original" xmlns:sys="clr-namespace:System;assembly=mscorlib">[Original]</sys:String>
+    <sys:String x:Key="ActivityLog_Result_Tag_Translation" xmlns:sys="clr-namespace:System;assembly=mscorlib">[Translation]</sys:String>
+    <sys:String x:Key="ActivityLog_Result_Quoted" xmlns:sys="clr-namespace:System;assembly=mscorlib" xml:space="preserve"> "{0}"</sys:String>
+    <sys:String x:Key="ActivityLog_Result_MatchMiss" xmlns:sys="clr-namespace:System;assembly=mscorlib" xml:space="preserve"> match miss</sys:String>
     <sys:String x:Key="ActivityLog_Result_LanguagePackStart" xmlns:sys="clr-namespace:System;assembly=mscorlib">Started {0}</sys:String>
     <sys:String x:Key="ActivityLog_Result_LanguagePackDone" xmlns:sys="clr-namespace:System;assembly=mscorlib">Finished {0}</sys:String>
     <sys:String x:Key="ActivityLog_Result_LanguagePackFailed" xmlns:sys="clr-namespace:System;assembly=mscorlib">Failed {0}</sys:String>

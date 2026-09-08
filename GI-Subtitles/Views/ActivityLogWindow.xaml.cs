@@ -238,42 +238,7 @@ namespace GI_Subtitles.Views
 
         private string ResolveResult(ActivityLogRow row)
         {
-            var lines = new System.Collections.Generic.List<string>();
-            if (row.DetectionMiss)
-            {
-                lines.Add(ResolveText("ActivityLog_Result_DetectionMiss", null));
-            }
-            else if (!string.IsNullOrEmpty(row.OcrText))
-            {
-                lines.Add(ResolveText("ActivityLog_Result_OcrText", new object[] { row.OcrText }));
-            }
-            else
-            {
-                string action = ResolveText(row.ResultResourceKey, row.ResultFormatArguments);
-                if (!string.IsNullOrEmpty(action))
-                {
-                    lines.Add(action);
-                }
-            }
-
-            if (row.MatchMiss)
-            {
-                lines.Add(ResolveText("ActivityLog_Result_MatchMiss", null));
-            }
-            else
-            {
-                if (!string.IsNullOrEmpty(row.Original))
-                {
-                    lines.Add(ResolveText("ActivityLog_Result_Original", new object[] { row.Original }));
-                }
-
-                if (!string.IsNullOrEmpty(row.Translation))
-                {
-                    lines.Add(ResolveText("ActivityLog_Result_Translation", new object[] { row.Translation }));
-                }
-            }
-
-            return string.Join(Environment.NewLine, lines);
+            return ActivityLogResultComposer.Compose(row, ResolveText).PlainText;
         }
 
         private static string JobResourceKey(OperatorJob job)
