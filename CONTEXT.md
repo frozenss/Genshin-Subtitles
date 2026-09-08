@@ -40,6 +40,10 @@ _Avoid_: labelling 暗屏 or 对话选项 as 全局; a boxing row when a pair wa
 What one pipeline run concluded for one capture: no text found, text the pack could not match, or the matched subtitle with its header and content. Two runs with different OCR text can conclude the same result.
 _Avoid_: OCR text (that is the run's input); 查询结果 when you mean only the matched subtitle
 
+**Result tag**:
+The bracketed marker that opens one result line of an activity log row, naming which pipeline output the line carries: OCR text, the matched source, or the translation. A dual-output translation is still one tagged line whose content stacks the two languages; the detection-miss line carries no tag, and the match-miss line borrows the source tag.
+_Avoid_: coloring the whole line when you mean the tag; a second tag for the second output language; putting a tag on the detection-miss line; counting the tag as part of the job
+
 **Result fold**:
 Keeping the current subtitle and skipping voice replay when a run's recognition result is the same as what that pair already shows. The run itself still happens and is still recorded; only the re-apply is skipped.
 _Avoid_: caching the query result (the match cache is a forever map from OCR text; this is one pair's latest result, replaced by the next different one); turning this off with the log de-noise checkbox (that lever is view-only)
