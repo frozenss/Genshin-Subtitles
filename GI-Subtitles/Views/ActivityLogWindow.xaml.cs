@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using GI_Subtitles.Core.Config;
 using GI_Subtitles.Core.Overlay;
@@ -20,6 +23,7 @@ namespace GI_Subtitles.Views
         private bool _forceClose;
         private bool _opened;
         private ActivityLogRowFilter _filter = new ActivityLogRowFilter(ReadLogDenoise());
+        private int _anchorIndex = -1;
 
         public ActivityLogWindow(LiveOverlaySession session)
         {
@@ -140,6 +144,7 @@ namespace GI_Subtitles.Views
             _filter = new ActivityLogRowFilter(ReadLogDenoise());
             _rows.Clear();
             _rowSources.Clear();
+            _anchorIndex = -1;
             SyncRows();
         }
 
@@ -412,6 +417,196 @@ namespace GI_Subtitles.Views
 
             return null;
         }
+
+        // The cell TextBox consumes the bubbling mouse-down, so ListView row
+        // selection has to run in the tunneling preview phase instead — but
+        // only for clicks that land on a cell; anywhere else the native
+        // selection handling stays in charge and must not apply twice.
+        private void RowItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (FindAncestor<TextBox>(e.OriginalSource as DependencyObject) == null)
+            {
+                return;
+            }
+
+            var item = (ListViewItem)sender;
+            int index = LogList.Items.IndexOf(item.Content);
+            if (index < 0)
+            {
+                return;
+            }
+
+            bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.None;
+            bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.None;
+            if (shift && _anchorIndex >= 0 && _anchorIndex < LogList.Items.Count)
+            {
+                if (!ctrl)
+                {
+                    LogList.UnselectAll();
+                }
+
+                int first = Math.Min(_anchorIndex, index);
+                int last = Math.Max(_anchorIndex, index);
+                for (int i = first; i <= last; i++)
+                {
+                    object row = LogList.Items[i];
+                    if (!LogList.SelectedItems.Contains(row))
+                    {
+                        LogList.SelectedItems.Add(row);
+                    }
+                }
+
+                return;
+            }
+
+            if (ctrl)
+            {
+                item.IsSelected = !item.IsSelected;
+            }
+            else
+            {
+                LogList.UnselectAll();
+                item.IsSelected = true;
+            }
+
+            _anchorIndex = index;
+        }
+
+        private void LogList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            TextBox cell = FindAncestor<TextBox>(e.OriginalSource as DependencyObject);
+            if (cell != null && cell.SelectionLength > 0)
+            {
+                SetClipboardWithRetry(cell.SelectedText);
+            }
+        }
+
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.C || (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.None)
+            {
+                return;
+            }
+
+            if (GetCellSelection(null) != null)
+            {
+                return; // the focused cell copies its own selection natively
+            }
+
+            if (CopySelectedRowsToClipboard())
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void CopyMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            var menu = (ContextMenu)sender;
+            MenuItem copyItem = menu.Items.OfType<MenuItem>().FirstOrDefault();
+            if (copyItem != null)
+            {
+                copyItem.IsEnabled = GetCellSelection(menu) != null || LogList.SelectedItems.Count > 0;
+            }
+        }
+
+        private void CopyMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var menu = ((MenuItem)sender).Parent as ContextMenu;
+            string selection = GetCellSelection(menu);
+            if (selection != null)
+            {
+                SetClipboardWithRetry(selection);
+                return;
+            }
+
+            CopySelectedRowsToClipboard();
+        }
+
+        // While a context menu is open, keyboard focus sits on the menu, so
+        // the right-clicked cell has to come from the placement target.
+        private static string GetCellSelection(ContextMenu menu)
+        {
+            TextBox cell = null;
+            if (menu != null)
+            {
+                cell = menu.PlacementTarget as TextBox;
+            }
+
+            if (cell == null)
+            {
+                cell = Keyboard.FocusedElement as TextBox;
+            }
+
+            if (cell != null && cell.SelectionLength > 0)
+            {
+                return cell.SelectedText;
+            }
+
+            return null;
+        }
+
+        private bool CopySelectedRowsToClipboard()
+        {
+            if (LogList.SelectedItems.Count == 0)
+            {
+                return false;
+            }
+
+            var lines = new List<string>();
+            foreach (ActivityLogRowView row in _rows)
+            {
+                if (LogList.SelectedItems.Contains(row))
+                {
+                    lines.Add(row.ToTsv());
+                }
+            }
+
+            SetClipboardWithRetry(string.Join(Environment.NewLine, lines));
+            return true;
+        }
+
+        private static void SetClipboardWithRetry(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return;
+            }
+
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    Clipboard.SetText(text);
+                    return;
+                }
+                catch (COMException)
+                {
+                }
+                catch (ExternalException)
+                {
+                }
+
+                if (attempt >= 2)
+                {
+                    return;
+                }
+
+                System.Threading.Thread.Sleep(30);
+            }
+        }
+
+        private static T FindAncestor<T>(DependencyObject element) where T : class
+        {
+            while (element != null && !(element is T))
+            {
+                var content = element as FrameworkContentElement;
+                element = content != null
+                    ? content.Parent
+                    : VisualTreeHelper.GetParent(element);
+            }
+
+            return element as T;
+        }
     }
 
     internal sealed class ActivityLogRowView : INotifyPropertyChanged
@@ -452,6 +647,11 @@ namespace GI_Subtitles.Views
         {
             get { return _isRepeat; }
             set { SetField(ref _isRepeat, value, nameof(IsRepeat)); }
+        }
+
+        public string ToTsv()
+        {
+            return Time + "\t" + RegionPair + "\t" + Job + "\t" + Result;
         }
 
         private void SetField<T>(ref T field, T value, string propertyName)

@@ -10,15 +10,38 @@
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
         Topmost="False"
-        ResizeMode="CanResize">
+        ResizeMode="CanResize"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
+    <Window.Resources>
+        <ContextMenu x:Key="LogCopyMenu" Opened="CopyMenu_Opened">
+            <MenuItem Header="{DynamicResource ActivityLog_Copy}" Click="CopyMenuItem_Click"/>
+        </ContextMenu>
+        <Style x:Key="LogCellTextBox" TargetType="TextBox">
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="IsReadOnlyCaretVisible" Value="True"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="IBeam"/>
+            <Setter Property="ContextMenu" Value="{StaticResource LogCopyMenu}"/>
+            <!-- The TextBox theme Foreground outranks inheritance; mirror the
+                 row's so repeat rows keep their dimmed color. -->
+            <Setter Property="Foreground"
+                    Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListViewItem}}"/>
+        </Style>
+    </Window.Resources>
     <Grid>
         <ListView x:Name="LogList"
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling"
                   VirtualizingPanel.ScrollUnit="Pixel"
-                  ScrollViewer.CanContentScroll="True">
+                  ScrollViewer.CanContentScroll="True"
+                  ContextMenu="{StaticResource LogCopyMenu}"
+                  PreviewMouseLeftButtonUp="LogList_PreviewMouseLeftButtonUp">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
+                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="RowItem_PreviewMouseLeftButtonDown"/>
                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                     <Setter Property="VerticalContentAlignment" Value="Top"/>
                     <Style.Triggers>
@@ -31,20 +54,33 @@
             </ListView.ItemContainerStyle>
             <ListView.View>
                 <GridView>
-                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Time}"
-                                    DisplayMemberBinding="{Binding Time}"
-                                    Width="90"/>
-                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_RegionPair}"
-                                    DisplayMemberBinding="{Binding RegionPair}"
-                                    Width="150"/>
-                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Job}"
-                                    DisplayMemberBinding="{Binding Job}"
-                                    Width="160"/>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Time}" Width="90">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Style="{StaticResource LogCellTextBox}" Text="{Binding Time, Mode=OneWay}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_RegionPair}" Width="150">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Style="{StaticResource LogCellTextBox}" Text="{Binding RegionPair, Mode=OneWay}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="{DynamicResource ActivityLog_Column_Job}" Width="160">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Style="{StaticResource LogCellTextBox}" Text="{Binding Job, Mode=OneWay}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn Header="{DynamicResource ActivityLog_Column_Result}" Width="280">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Result}"
-                                           TextWrapping="Wrap"/>
+                                <TextBox Style="{StaticResource LogCellTextBox}"
+                                         Text="{Binding Result, Mode=OneWay}"
+                                         TextWrapping="Wrap"/>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>

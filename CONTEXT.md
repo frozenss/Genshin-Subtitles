@@ -52,6 +52,10 @@ _Avoid_: a double-write bug; 重复识别 as a separate job kind
 The default-on settings checkbox that hides repeat rows in the activity log window. It changes what the window shows, not what the log records, and it does not touch the overlay.
 _Avoid_: a second filtered copy of the log; applying it to the result fold; deleting rows at write time
 
+**Copy-on-select**:
+The activity log window's rule that a mouse-made, non-empty in-cell text selection is copied to the clipboard the moment the left button is released, silently. Plain clicks, keyboard selections, and row selection never auto-copy; whole rows copy through Ctrl+C or the context menu.
+_Avoid_: the settings window's click-a-language-pack-URL-to-copy (a different feature); auto-copying a row on click; a visible copy confirmation
+
 **Capture region**:
 The screen rectangle OCR reads from.
 _Avoid_: 识别框 as the name of a pair; Region2 when you mean a second pair
