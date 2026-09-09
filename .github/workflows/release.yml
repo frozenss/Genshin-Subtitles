@@ -224,6 +224,14 @@ jobs:
             $notes = ($generatedNotes -join "`n").Trim()
           }
 
+          # The runner's checkout can materialize the pushed tag as a plain
+          # commit ref, so the annotated message falls through to generated
+          # notes; fork test builds must carry their notice either way.
+          if ($env:RELEASE_TAG -like '*-fork.*' -and $notes -notlike '*Fork test build*') {
+            $notice = "Fork test build, not an official release. Official releases: https://github.com/qew21/Genshin-Subtitles/releases"
+            $notes = "$notice`n`n$notes"
+          }
+
           Set-Content "github-release-notes.md" -Value $notes -Encoding utf8
 
       - name: Create website release manifest

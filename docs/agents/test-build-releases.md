@@ -19,7 +19,7 @@ Push the tag to `origin` only — never `upstream`. Never `git push --tags` agai
 
 - Format `<AssemblyVersion>-fork.N` (e.g. `1.6.12-fork.1`). The numeric part must equal `AssemblyVersion` (three fields) — the release job rejects mismatches.
 - Suffix is `-fork.N`, never `-pre` (upstream's own prerelease vocabulary).
-- Annotated tags only: the message becomes the release body, and its first line must say it is a fork test build, not an official release.
+- Annotated tags only (`-a`): the message is the intended release body and must open with the fork notice. The runner's checkout can drop the annotated message (the pushed tag arrives as a plain commit ref, so the body falls back to generated notes); `release.yml` therefore prepends the notice to every `-fork.*` release as a guarantee. Verify the published body anyway.
 - Do not bump `AssemblyVersion` ahead of upstream for a test build. The in-app updater reads upstream's stable manifest; staying at-or-behind upstream's number is what eventually shepherds test users back to official builds.
 
 ## Self-test without publishing
