@@ -6,8 +6,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using GI_Subtitles.Core.Config;
 using GI_Subtitles.Core.Overlay;
 
@@ -18,10 +20,14 @@ namespace GI_Subtitles.Views
         private readonly LiveOverlaySession _session;
         private readonly ObservableCollection<ActivityLogRowView> _rows = new ObservableCollection<ActivityLogRowView>();
         private readonly List<ActivityLogRow> _rowSources = new List<ActivityLogRow>();
+        private readonly ActivityLogFollowTail _followTail = new ActivityLogFollowTail();
         private ScrollViewer _scrollViewer;
-        private bool _followTail = true;
         private bool _forceClose;
         private bool _opened;
+        private bool _applyingFollowTail;
+        private bool _operatorScrolling;
+        private bool _operatorDraggingBar;
+        private bool _scrollBarHooked;
         private ActivityLogRowFilter _filter = new ActivityLogRowFilter(ReadLogDenoise());
         private int _anchorIndex = -1;
 
@@ -54,10 +60,6 @@ namespace GI_Subtitles.Views
                 Show();
                 _opened = true;
                 Rebuild();
-                if (_followTail)
-                {
-                    ScrollToEnd();
-                }
             }
 
             if (WindowState == WindowState.Minimized)
@@ -90,10 +92,6 @@ namespace GI_Subtitles.Views
                 }
 
                 Rebuild();
-                if (_followTail)
-                {
-                    ScrollToEnd();
-                }
             }));
         }
 
@@ -102,9 +100,13 @@ namespace GI_Subtitles.Views
             _scrollViewer = FindScrollViewer(LogList);
             if (_scrollViewer != null)
             {
+                _scrollViewer.ApplyTemplate();
                 _scrollViewer.ScrollChanged += OnScrollChanged;
+                _scrollViewer.PreviewMouseWheel += OnOperatorScrollPreview;
+                HookVerticalScrollBar(_scrollViewer);
             }
 
+            LogList.PreviewMouseWheel += OnOperatorScrollPreview;
             Rebuild();
         }
 
@@ -145,12 +147,13 @@ namespace GI_Subtitles.Views
             _rows.Clear();
             _rowSources.Clear();
             _anchorIndex = -1;
-            SyncRows();
+            SyncRows(announceVisibleAdds: false);
         }
 
-        private void SyncRows()
+        private void SyncRows(bool announceVisibleAdds = true)
         {
-            foreach (ActivityLogRow row in _filter.Consume(_session.ActivityLog))
+            IReadOnlyList<ActivityLogRow> shown = _filter.Consume(_session.ActivityLog);
+            foreach (ActivityLogRow row in shown)
             {
                 _rows.Add(Project(row));
                 _rowSources.Add(row);
@@ -162,6 +165,15 @@ namespace GI_Subtitles.Views
             }
 
             EmptyState.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (announceVisibleAdds && shown.Count > 0)
+            {
+                _followTail.VisibleContentAdded();
+                ApplyFollowTail();
+            }
+            else if (!announceVisibleAdds)
+            {
+                ApplyFollowTail();
+            }
         }
 
         private ActivityLogRowView Project(ActivityLogRow row)
@@ -312,43 +324,97 @@ namespace GI_Subtitles.Views
             }
         }
 
+        private void OnOperatorScrollPreview(object sender, MouseWheelEventArgs e)
+        {
+            MarkOperatorScrolling();
+        }
+
+        private void MarkOperatorScrolling()
+        {
+            _operatorScrolling = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
+                _operatorScrolling = false;
+            }));
+        }
+
         private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            if (_scrollViewer == null)
+            if (_scrollViewer == null || _applyingFollowTail)
             {
                 return;
             }
 
-            bool atBottom = _scrollViewer.VerticalOffset >= _scrollViewer.ScrollableHeight - 1.0;
-            if (e.ExtentHeightChange == 0)
-            {
-                _followTail = atBottom;
-                if (_followTail)
-                {
-                    NewRecordsButton.Visibility = Visibility.Collapsed;
-                }
+            HookVerticalScrollBar(_scrollViewer);
 
+            if (_operatorDraggingBar || _operatorScrolling)
+            {
+                _operatorScrolling = false;
+                _followTail.OperatorViewportAtBottom(IsViewportAtBottom());
+                ApplyFollowTail();
                 return;
             }
 
-            if (_followTail)
+            if (_followTail.IsFollowing &&
+                (e.ExtentHeightChange != 0 || e.ViewportHeightChange != 0 || !IsViewportAtBottom()))
             {
-                ScrollToEnd();
-                NewRecordsButton.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            if (e.ExtentHeightChange > 0)
-            {
-                NewRecordsButton.Visibility = Visibility.Visible;
+                ApplyFollowTail();
             }
         }
 
         private void NewRecordsButton_Click(object sender, RoutedEventArgs e)
         {
-            _followTail = true;
-            NewRecordsButton.Visibility = Visibility.Collapsed;
-            ScrollToEnd();
+            _followTail.JumpToNewest();
+            ApplyFollowTail();
+        }
+
+        private void ApplyFollowTail()
+        {
+            NewRecordsButton.Visibility = _followTail.ShowNewRecords
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            if (_followTail.IsFollowing)
+            {
+                PinToEnd();
+            }
+        }
+
+        private void PinToEnd()
+        {
+            if (_applyingFollowTail)
+            {
+                return;
+            }
+
+            ScrollToEndQuiet();
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (!_followTail.IsFollowing || _scrollViewer == null || IsViewportAtBottom())
+                {
+                    return;
+                }
+
+                ScrollToEndQuiet();
+            }));
+        }
+
+        private void ScrollToEndQuiet()
+        {
+            _applyingFollowTail = true;
+            try
+            {
+                ScrollToEnd();
+            }
+            finally
+            {
+                _applyingFollowTail = false;
+            }
+        }
+
+        private bool IsViewportAtBottom()
+        {
+            return _scrollViewer != null
+                && ActivityLogFollowTail.IsAtBottom(_scrollViewer.VerticalOffset, _scrollViewer.ScrollableHeight);
         }
 
         private void ScrollToEnd()
@@ -363,6 +429,46 @@ namespace GI_Subtitles.Views
             {
                 LogList.ScrollIntoView(_rows[_rows.Count - 1]);
             }
+        }
+
+        private void EndBarDrag()
+        {
+            _operatorDraggingBar = false;
+        }
+
+        private void HookVerticalScrollBar(ScrollViewer viewer)
+        {
+            if (_scrollBarHooked || viewer == null)
+            {
+                return;
+            }
+
+            ScrollBar bar = FindVerticalScrollBar(viewer);
+            if (bar == null)
+            {
+                return;
+            }
+
+            _scrollBarHooked = true;
+            bar.PreviewMouseDown += (s, e) =>
+            {
+                if (e.LeftButton == MouseButtonState.Pressed)
+                {
+                    _operatorDraggingBar = true;
+                }
+            };
+            bar.PreviewMouseUp += (s, e) => EndBarDrag();
+            bar.LostMouseCapture += (s, e) => EndBarDrag();
+        }
+
+        private static bool IsViewportScrollKey(Key key)
+        {
+            return key == Key.PageUp
+                || key == Key.PageDown
+                || key == Key.Up
+                || key == Key.Down
+                || key == Key.Home
+                || key == Key.End;
         }
 
         private static ScrollViewer FindScrollViewer(DependencyObject root)
@@ -380,6 +486,31 @@ namespace GI_Subtitles.Views
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
             {
                 ScrollViewer child = FindScrollViewer(VisualTreeHelper.GetChild(root, i));
+                if (child != null)
+                {
+                    return child;
+                }
+            }
+
+            return null;
+        }
+
+        private static ScrollBar FindVerticalScrollBar(DependencyObject root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            var bar = root as ScrollBar;
+            if (bar != null && bar.Orientation == Orientation.Vertical)
+            {
+                return bar;
+            }
+
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                ScrollBar child = FindVerticalScrollBar(VisualTreeHelper.GetChild(root, i));
                 if (child != null)
                 {
                     return child;
@@ -454,6 +585,11 @@ namespace GI_Subtitles.Views
 
         private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (IsViewportScrollKey(e.Key))
+            {
+                MarkOperatorScrolling();
+            }
+
             if (e.Key != Key.C || (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.None)
             {
                 return;

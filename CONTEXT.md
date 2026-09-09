@@ -60,6 +60,10 @@ _Avoid_: a second filtered copy of the log; applying it to the result fold; dele
 The activity log window's rule that a mouse-made, non-empty in-cell text selection is copied to the clipboard the moment the left button is released, silently. Plain clicks, keyboard selections, and row selection never auto-copy; whole rows copy through Ctrl+C or the context menu.
 _Avoid_: the settings window's click-a-language-pack-URL-to-copy (a different feature); auto-copying a row on click; a visible copy confirmation
 
+**Follow-tail**:
+The activity log window's rule that the viewport stays pinned to the newest visible content only while it is already at the bottom — including after the operator jumps there with 有新记录. While the operator has scrolled up to read older rows, updates must not move the viewport.
+_Avoid_: scrolling the list on every update regardless of position; per-region-pair scroll panes; treating 有新记录 as a badge that does not return the operator to the bottom and resume pinning
+
 **Capture region**:
 The screen rectangle OCR reads from.
 _Avoid_: 识别框 as the name of a pair; Region2 when you mean a second pair
