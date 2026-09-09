@@ -140,6 +140,8 @@ namespace GI_Subtitles.Views
         private const int WsExToolWindow = 0x00000080;
         private const int WsExNoActivate = 0x08000000;
         private const int WsExLayered = 0x00080000;
+        private const int GwlStyle = -16;
+        private const int WsDisabled = 0x08000000;
 
         private const int HOTKEY_ID_1 = 9000; // Custom hotkey ID
         private const int HOTKEY_ID_2 = 9001; // Custom hotkey ID
@@ -498,16 +500,21 @@ namespace GI_Subtitles.Views
             if (_overlaySession.IsClickThrough)
             {
                 int newStyle = exStyle | WsExTransparent | WsExLayered | WsExToolWindow | WsExNoActivate;
-                // Arguments evaluate left to right: GetLastWin32Error must be
-                // the first call after SetWindowLong to capture its error code.
+                // The style change is hoisted out of the HitModeApplied
+                // arguments: [Conditional("DEBUG")] strips the whole call
+                // including argument evaluation, so a change living inside
+                // the argument list would silently vanish from Release builds.
+                int setResult = SetWindowLong(hwnd, GwlExStyle, newStyle);
+                int lastError = Marshal.GetLastWin32Error();
                 RegionAdjustDiagnostics.HitModeApplied(
                     hwnd,
                     interactive: false,
                     beforeExStyle: exStyle,
                     newExStyle: newStyle,
-                    setResult: SetWindowLong(hwnd, GwlExStyle, newStyle),
-                    lastError: Marshal.GetLastWin32Error());
+                    setResult: setResult,
+                    lastError: lastError);
                 RegionAdjustDiagnostics.DetachWindowInputProbe(this);
+                RegionAdjustDiagnostics.StopAdjustProbes();
                 Background = System.Windows.Media.Brushes.Transparent;
                 IsHitTestVisible = false;
                 if (OverlayCanvas != null)
@@ -519,15 +526,19 @@ namespace GI_Subtitles.Views
             else
             {
                 int newStyle = (exStyle | WsExLayered | WsExToolWindow | WsExNoActivate) & ~WsExTransparent;
-                // Same evaluation-order constraint as the branch above.
+                // Same hoisting requirement as the click-through branch above.
+                int setResult = SetWindowLong(hwnd, GwlExStyle, newStyle);
+                int lastError = Marshal.GetLastWin32Error();
                 RegionAdjustDiagnostics.HitModeApplied(
                     hwnd,
                     interactive: true,
                     beforeExStyle: exStyle,
                     newExStyle: newStyle,
-                    setResult: SetWindowLong(hwnd, GwlExStyle, newStyle),
-                    lastError: Marshal.GetLastWin32Error());
+                    setResult: setResult,
+                    lastError: lastError);
+                ClearOverlayDisabledBit(hwnd);
                 RegionAdjustDiagnostics.AttachWindowInputProbe(this);
+                RegionAdjustDiagnostics.StartAdjustProbes(this, hwnd);
                 Background = null;
                 IsHitTestVisible = true;
                 if (OverlayCanvas != null)
@@ -536,6 +547,32 @@ namespace GI_Subtitles.Views
                     OverlayCanvas.IsHitTestVisible = true;
                 }
             }
+        }
+
+        // ShowDialog without an owner disables every top-level window on the
+        // thread (the settings window opens that way from the tray menu), and
+        // the kernel drops all posted mouse input to a disabled window — armed
+        // mode is dead unless the WS_DISABLED bit is cleared alongside the
+        // WS_EX_TRANSPARENT bit above.
+        private void ClearOverlayDisabledBit(IntPtr hwnd)
+        {
+            int style = GetWindowLong(hwnd, GwlStyle);
+            if ((style & WsDisabled) == 0)
+            {
+                return;
+            }
+
+            int newStyle = style & ~WsDisabled;
+            // Same hoisting requirement as ApplyOverlayHitMode: the style
+            // change must not live inside [Conditional("DEBUG")] arguments.
+            int setResult = SetWindowLong(hwnd, GwlStyle, newStyle);
+            int lastError = Marshal.GetLastWin32Error();
+            RegionAdjustDiagnostics.DisabledBitCleared(
+                hwnd,
+                beforeStyle: style,
+                newStyle: newStyle,
+                setResult: setResult,
+                lastError: lastError);
         }
 
         public void UpdateText(object sender, EventArgs e)
@@ -2547,6 +2584,15 @@ namespace GI_Subtitles.Views
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             const int WM_HOTKEY = 0x0312;
+            const int WM_ENABLE = 0x000A;
+            // A modal dialog opened while armed re-disables every window on
+            // the thread; the arm path cleared the bit once, this keeps it
+            // cleared for the lifetime of armed mode.
+            if (msg == WM_ENABLE && wParam == IntPtr.Zero && !_overlaySession.IsClickThrough)
+            {
+                ClearOverlayDisabledBit(hwnd);
+            }
+
             if (msg == WM_HOTKEY)
             {
                 if (wParam.ToInt32() == HOTKEY_ID_1)

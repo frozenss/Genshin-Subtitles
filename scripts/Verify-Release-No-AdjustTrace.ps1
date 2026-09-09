@@ -33,14 +33,51 @@ $utf16Probes = @(
     'display set:',
     'TRANSPARENT-BIT-STILL-SET',
     'FOREIGN-WINDOW',
-    'window input probe'
+    'window input probe',
+    'cursor probe',
+    'post-render',
+    'cursor-inside-frame-owned-by-foreign-window',
+    'hwnd message probe',
+    'hwnd msg counts',
+    'hwnd msg: first',
+    'wpfCapture=',
+    'thread mouse hook',
+    'thread hook counts',
+    'thread hook: first',
+    'thread hook target first-seen',
+    'thread hook per-target',
+    'filter stage',
+    'window facts',
+    'guiCapture=',
+    'windowFromPoint=',
+    'probe verdict:',
+    'ncmousemove=',
+    'WM_SETCURSOR containing=',
+    'disabled-bit',
+    'DISABLED-BIT-STILL-SET'
 )
 
 # Imported only by the Debug-only diagnostics (verified unique in the repo).
+# GetWindow and GetCapture are also Debug-only but cannot be probed: GetWindow
+# is a substring of the production imports GetWindowRect/GetWindowText/
+# GetWindowLong, and GetCapture collides with the production method name
+# LiveOverlaySession.GetCapture (metadata identifier heap is ASCII too).
+# The hook APIs are also Debug-only and unique: production code installs no
+# hooks (git grep SetWindowsHookEx returns nothing outside this file). The
+# layer-6 imports (GetGUIThreadInfo, GetLayeredWindowAttributes,
+# IsWindowEnabled, IsWindowVisible) are likewise unique to the diagnostics.
 $asciiProbes = @(
     'WindowFromPoint',
     'EnumDisplayMonitors',
-    'GetAncestor'
+    'GetAncestor',
+    'GetCursorPos',
+    'SetWindowsHookEx',
+    'CallNextHookEx',
+    'UnhookWindowsHookEx',
+    'GetGUIThreadInfo',
+    'GetLayeredWindowAttributes',
+    'IsWindowEnabled',
+    'IsWindowVisible'
 )
 
 function Find-Bytes {

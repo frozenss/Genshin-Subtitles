@@ -150,12 +150,24 @@ namespace GI_Subtitles.Core.Overlay
         }
 
         [Conditional("DEBUG")]
-        public static void NoteFrameProbe(bool takesMouse, bool centerIsOurWindow)
+        public static void NoteFrameProbePostRender(bool takesMouse, bool centerIsOurWindow)
         {
 #if DEBUG
             if (takesMouse && !centerIsOurWindow)
             {
                 _frameCenterMismatch = true;
+            }
+#endif
+        }
+
+        [Conditional("DEBUG")]
+        public static void NoteCursorProbe(bool insideInteractiveFrame, bool overOurWindow)
+        {
+#if DEBUG
+            _cursorProbeTicks++;
+            if (insideInteractiveFrame && !overOurWindow)
+            {
+                _cursorForeignInsideFrame = true;
             }
 #endif
         }
@@ -172,7 +184,8 @@ namespace GI_Subtitles.Core.Overlay
             int elementUpEvents,
             int persistEvents,
             bool hitModeRemovalFailed,
-            bool frameCenterMismatch)
+            bool frameCenterMismatch,
+            bool cursorForeignInsideFrame)
         {
             string verdict;
             if (persistEvents > 0 && elementDownEvents > 0)
@@ -201,6 +214,10 @@ namespace GI_Subtitles.Core.Overlay
             {
                 notes.Add("frame-center-owned-by-other-window");
             }
+            if (cursorForeignInsideFrame)
+            {
+                notes.Add("cursor-inside-frame-owned-by-foreign-window");
+            }
 
             if (notes.Count == 0)
             {
@@ -225,6 +242,8 @@ namespace GI_Subtitles.Core.Overlay
         private static int _storeWriteLogged;
         private static bool _hitModeRemovalFailed;
         private static bool _frameCenterMismatch;
+        private static bool _cursorForeignInsideFrame;
+        private static int _cursorProbeTicks;
 
         private static void ResetEvidence()
         {
@@ -239,6 +258,8 @@ namespace GI_Subtitles.Core.Overlay
             _storeWriteLogged = 0;
             _hitModeRemovalFailed = false;
             _frameCenterMismatch = false;
+            _cursorForeignInsideFrame = false;
+            _cursorProbeTicks = 0;
         }
 
         private static void EmitSummary()
@@ -248,6 +269,7 @@ namespace GI_Subtitles.Core.Overlay
                 + " element-move=" + _elementMoveEvents
                 + " element-up=" + _elementUpEvents
                 + " persists=" + _persistEvents
+                + " cursor-ticks=" + _cursorProbeTicks
                 + " verdict=" + Summarize(
                     _windowInputEvents,
                     _elementDownEvents,
@@ -255,7 +277,8 @@ namespace GI_Subtitles.Core.Overlay
                     _elementUpEvents,
                     _persistEvents,
                     _hitModeRemovalFailed,
-                    _frameCenterMismatch));
+                    _frameCenterMismatch,
+                    _cursorForeignInsideFrame));
         }
 
         private static string Describe(AdjustMouseExit exit)
