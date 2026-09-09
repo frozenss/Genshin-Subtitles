@@ -15,3 +15,7 @@ Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agent
 ### Git branches
 
 Default working branch is `personal` (fork mainline). `master` fast-forwards `upstream/master` only. Feature work, upstream PRs, and syncing: see `docs/agents/git-branches.md`.
+
+### Test-build releases
+
+Fork test builds ship as pre-release GitHub Releases from `-fork.N` tags pushed to `origin` only. See `docs/agents/test-build-releases.md`.
