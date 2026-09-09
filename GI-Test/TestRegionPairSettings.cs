@@ -185,27 +185,51 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void AdjustDisplay_ArmsSelectedCard_UntilToggledOff()
+        public void AdjustRegion_ArmsSelectedCard_UntilToggledOff()
         {
             LiveOverlaySession session = CreateSessionWithPairs(2);
             var page = new RegionPairSettings(session);
             int firstId = session.Pairs[0].Id;
             int secondId = session.Pairs[1].Id;
 
-            Assert.IsTrue(page.Cards[0].CanAdjustDisplay);
-            Assert.IsTrue(page.TryToggleDisplayAdjust(firstId));
+            Assert.IsTrue(page.Cards[0].CanAdjustRegion);
+            Assert.IsTrue(page.TryToggleRegionAdjust(firstId));
             Assert.IsTrue(page.Cards[0].IsAdjustArmed);
             Assert.IsFalse(page.Cards[1].IsAdjustArmed);
             Assert.IsFalse(session.IsClickThrough);
 
-            Assert.IsTrue(page.TryToggleDisplayAdjust(secondId));
+            Assert.IsTrue(page.TryToggleRegionAdjust(secondId));
             Assert.IsFalse(page.Cards[0].IsAdjustArmed);
             Assert.IsTrue(page.Cards[1].IsAdjustArmed);
 
-            page.CancelDisplayAdjust();
+            page.CancelRegionAdjust();
             Assert.IsFalse(page.Cards[0].IsAdjustArmed);
             Assert.IsFalse(page.Cards[1].IsAdjustArmed);
             Assert.IsTrue(session.IsClickThrough);
+        }
+
+        [TestMethod]
+        public void CaptureOnlyCard_CanAdjustRegion()
+        {
+            var store = new MemoryRegionPairStore
+            {
+                StoredPairs =
+                {
+                    new RegionPairRecord
+                    {
+                        Id = 1,
+                        Capture = new OverlayRect(10, 20, 30, 40),
+                        Display = OverlayRect.Invalid
+                    }
+                },
+                VoicePrimaryId = 1,
+                NextPairId = 2
+            };
+            LiveOverlaySession session = CreateSession(store);
+            var page = new RegionPairSettings(session);
+
+            Assert.IsFalse(page.Cards[0].Display.IsValid);
+            Assert.IsTrue(page.Cards[0].CanAdjustRegion);
         }
 
         [TestMethod]

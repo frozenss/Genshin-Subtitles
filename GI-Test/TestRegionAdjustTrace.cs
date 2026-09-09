@@ -12,193 +12,74 @@ namespace GI_Test
     public class TestRegionAdjustTrace
     {
         [TestMethod]
-        public void Summarize_NoInputAtAll_InputNeverReachedWindow()
+        public void Summarize_NoInputAtAll_NoElementInput()
         {
             string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 0,
                 elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
                 persistEvents: 0,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
+                hitModeRemovalFailed: false);
 
-            Assert.AreEqual("input-never-reached-window", verdict);
+            Assert.AreEqual("no-element-input", verdict);
         }
 
         [TestMethod]
-        public void Summarize_WindowInputButNoElementInput_ReachedWindowNotElement()
+        public void Summarize_ElementDownWithoutPersist_ReachedElementNotPersisted()
         {
             string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 7,
-                elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
-                persistEvents: 0,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
-
-            Assert.AreEqual("window-input-reached-but-not-element", verdict);
-        }
-
-        [TestMethod]
-        public void Summarize_ElementInputWithoutPersist_ReachedElementNotPersisted()
-        {
-            string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 7,
                 elementDownEvents: 2,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
                 persistEvents: 0,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
+                hitModeRemovalFailed: false);
 
             Assert.AreEqual("element-input-reached-but-not-persisted", verdict);
         }
 
         [TestMethod]
-        public void Summarize_PersistHappened_Healthy()
+        public void Summarize_ElementDownAndPersist_Healthy()
         {
             string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 7,
                 elementDownEvents: 1,
-                elementMoveEvents: 30,
-                elementUpEvents: 1,
                 persistEvents: 3,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
+                hitModeRemovalFailed: false);
 
             Assert.AreEqual("element-input-reached-and-persisted", verdict);
         }
 
         [TestMethod]
-        public void Summarize_PersistWithoutElementInput_FallsThroughToLowerVerdict()
+        public void Summarize_PersistWithoutElementDown_StillNoElementInput()
         {
             // A settings-page edit while armed persists without any element
             // input; that alone must not read as the healthy drag path.
             string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 5,
                 elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
                 persistEvents: 2,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
+                hitModeRemovalFailed: false);
 
-            Assert.AreEqual("window-input-reached-but-not-element", verdict);
-        }
-
-        [TestMethod]
-        public void Summarize_PersistWithoutAnyInput_InputNeverReachedWindow()
-        {
-            string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 0,
-                elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
-                persistEvents: 1,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
-
-            Assert.AreEqual("input-never-reached-window", verdict);
+            Assert.AreEqual("no-element-input", verdict);
         }
 
         [TestMethod]
         public void Summarize_HitModeFailure_AppendsNote()
         {
             string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 0,
                 elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
                 persistEvents: 0,
-                hitModeRemovalFailed: true,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: false);
+                hitModeRemovalFailed: true);
 
             Assert.AreEqual(
-                "input-never-reached-window [hit-mode-transparent-bit-still-set]",
+                "no-element-input [hit-mode-transparent-bit-still-set]",
                 verdict);
         }
 
         [TestMethod]
-        public void Summarize_FrameCenterMismatch_AppendsNote()
+        public void Summarize_HitModeFailure_AppendsNoteToHealthyVerdictToo()
         {
             string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 4,
-                elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
-                persistEvents: 0,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: true,
-                cursorForeignInsideFrame: false);
+                elementDownEvents: 1,
+                persistEvents: 1,
+                hitModeRemovalFailed: true);
 
             Assert.AreEqual(
-                "window-input-reached-but-not-element [frame-center-owned-by-other-window]",
-                verdict);
-        }
-
-        [TestMethod]
-        public void Summarize_BothFailures_AppendsBothNotes()
-        {
-            string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 0,
-                elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
-                persistEvents: 0,
-                hitModeRemovalFailed: true,
-                frameCenterMismatch: true,
-                cursorForeignInsideFrame: false);
-
-            Assert.AreEqual(
-                "input-never-reached-window "
-                    + "[hit-mode-transparent-bit-still-set; frame-center-owned-by-other-window]",
-                verdict);
-        }
-
-        [TestMethod]
-        public void Summarize_CursorForeignInsideInteractiveFrame_AppendsNote()
-        {
-            string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 0,
-                elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
-                persistEvents: 0,
-                hitModeRemovalFailed: false,
-                frameCenterMismatch: false,
-                cursorForeignInsideFrame: true);
-
-            Assert.AreEqual(
-                "input-never-reached-window [cursor-inside-frame-owned-by-foreign-window]",
-                verdict);
-        }
-
-        [TestMethod]
-        public void Summarize_AllThreeFailures_AppendsAllNotesInOrder()
-        {
-            string verdict = RegionAdjustTrace.Summarize(
-                windowInputEvents: 0,
-                elementDownEvents: 0,
-                elementMoveEvents: 0,
-                elementUpEvents: 0,
-                persistEvents: 0,
-                hitModeRemovalFailed: true,
-                frameCenterMismatch: true,
-                cursorForeignInsideFrame: true);
-
-            Assert.AreEqual(
-                "input-never-reached-window [hit-mode-transparent-bit-still-set; "
-                    + "frame-center-owned-by-other-window; "
-                    + "cursor-inside-frame-owned-by-foreign-window]",
+                "element-input-reached-and-persisted [hit-mode-transparent-bit-still-set]",
                 verdict);
         }
     }

@@ -107,39 +107,39 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ToggleDisplayAdjust_ArmsOnePair_UntilButtonOrEsc()
+        public void ToggleRegionAdjust_ArmsOnePair_UntilButtonOrEsc()
         {
             LiveOverlaySession session = CreateSessionWithPairs(2);
             int firstId = session.Pairs[0].Id;
             int secondId = session.Pairs[1].Id;
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(firstId));
+            Assert.IsTrue(session.TryToggleRegionAdjust(firstId));
             Assert.IsFalse(session.IsClickThrough);
             Assert.AreEqual(firstId, session.ArmedPairId);
             Assert.AreEqual(2, session.AdjustOutlines.Count);
             AssertOutline(session.AdjustOutlines[0], 1, 0, 10, false);
             AssertOutline(session.AdjustOutlines[1], 1, 0, 40, true);
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(secondId));
+            Assert.IsTrue(session.TryToggleRegionAdjust(secondId));
             Assert.AreEqual(secondId, session.ArmedPairId);
             Assert.AreEqual(2, session.AdjustOutlines.Count);
             AssertOutline(session.AdjustOutlines[0], 2, 100, 10, false);
             AssertOutline(session.AdjustOutlines[1], 2, 100, 40, true);
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(secondId));
+            Assert.IsTrue(session.TryToggleRegionAdjust(secondId));
             Assert.IsTrue(session.IsClickThrough);
             Assert.AreEqual(0, session.ArmedPairId);
             Assert.AreEqual(0, session.AdjustOutlines.Count);
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(firstId));
-            session.CancelDisplayAdjust();
+            Assert.IsTrue(session.TryToggleRegionAdjust(firstId));
+            session.CancelRegionAdjust();
             Assert.IsTrue(session.IsClickThrough);
             Assert.AreEqual(0, session.ArmedPairId);
             Assert.AreEqual(0, session.AdjustOutlines.Count);
         }
 
         [TestMethod]
-        public void ToggleDisplayAdjust_WithoutDisplay_DoesNotArm()
+        public void ToggleRegionAdjust_CaptureOnlyPair_ArmsCaptureFrameAlone()
         {
             var store = new MemoryRegionPairStore
             {
@@ -157,9 +157,66 @@ namespace GI_Test
             };
             var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
 
-            Assert.IsFalse(session.TryToggleDisplayAdjust(1));
+            Assert.IsTrue(session.TryToggleRegionAdjust(1));
+            Assert.IsFalse(session.IsClickThrough);
+            Assert.AreEqual(1, session.ArmedPairId);
+            Assert.AreEqual(1, session.AdjustOutlines.Count);
+            AssertOutline(session.AdjustOutlines[0], 1, 10, 20, false);
+
+            session.SetCapture(0, new OverlayRect(70, 80, 30, 40));
+            Assert.AreEqual(1, session.AdjustOutlines.Count);
+            AssertOutline(session.AdjustOutlines[0], 1, 70, 80, false);
+        }
+
+        [TestMethod]
+        public void ToggleRegionAdjust_DisplayOnlyPair_ArmsDisplayFrameAlone()
+        {
+            var store = new MemoryRegionPairStore
+            {
+                StoredPairs =
+                {
+                    new RegionPairRecord
+                    {
+                        Id = 1,
+                        Capture = OverlayRect.Invalid,
+                        Display = new OverlayRect(10, 40, 30, 40)
+                    }
+                },
+                VoicePrimaryId = 1,
+                NextPairId = 2
+            };
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+
+            Assert.IsTrue(session.TryToggleRegionAdjust(1));
+            Assert.IsFalse(session.IsClickThrough);
+            Assert.AreEqual(1, session.ArmedPairId);
+            Assert.AreEqual(1, session.AdjustOutlines.Count);
+            AssertOutline(session.AdjustOutlines[0], 1, 10, 40, true);
+        }
+
+        [TestMethod]
+        public void ToggleRegionAdjust_PairWithNeitherRect_DoesNotArm()
+        {
+            var store = new MemoryRegionPairStore
+            {
+                StoredPairs =
+                {
+                    new RegionPairRecord
+                    {
+                        Id = 1,
+                        Capture = OverlayRect.Invalid,
+                        Display = OverlayRect.Invalid
+                    }
+                },
+                VoicePrimaryId = 0,
+                NextPairId = 2
+            };
+            var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), store);
+
+            Assert.IsFalse(session.TryToggleRegionAdjust(1));
             Assert.IsTrue(session.IsClickThrough);
             Assert.AreEqual(0, session.ArmedPairId);
+            Assert.AreEqual(0, session.AdjustOutlines.Count);
         }
 
         [TestMethod]
@@ -168,7 +225,7 @@ namespace GI_Test
             LiveOverlaySession session = CreateSessionWithPairs(2);
             int firstId = session.Pairs[0].Id;
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(firstId));
+            Assert.IsTrue(session.TryToggleRegionAdjust(firstId));
             session.DeletePair(firstId);
 
             Assert.IsTrue(session.IsClickThrough);
@@ -181,7 +238,7 @@ namespace GI_Test
         {
             LiveOverlaySession session = CreateSessionWithPairs(1);
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(session.Pairs[0].Id));
+            Assert.IsTrue(session.TryToggleRegionAdjust(session.Pairs[0].Id));
             session.HideSubtitles();
 
             Assert.IsFalse(session.SubtitlesVisible);

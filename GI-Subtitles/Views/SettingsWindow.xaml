@@ -388,12 +388,12 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <Button Padding="10,2"
                                                             Tag="{Binding Id}"
-                                                            Click="AdjustDisplay_Click"
+                                                            Click="AdjustRegion_Click"
                                                             Margin="0,0,8,0">
                                                         <Button.Style>
                                                             <Style TargetType="Button">
-                                                                <Setter Property="Content" Value="{DynamicResource Btn_AdjustDisplay}"/>
-                                                                <Setter Property="IsEnabled" Value="{Binding CanAdjustDisplay}"/>
+                                                                <Setter Property="Content" Value="{DynamicResource Btn_AdjustRegion}"/>
+                                                                <Setter Property="IsEnabled" Value="{Binding CanAdjustRegion}"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsAdjustArmed}" Value="True">
                                                                         <Setter Property="IsEnabled" Value="True"/>
@@ -493,7 +493,7 @@
                                         Padding="10,2"
                                         Margin="0,0,8,0"/>
                                 <Button x:Name="AdjustDarkScreenDisplayButton"
-                                        Content="{DynamicResource Btn_AdjustDisplay}"
+                                        Content="{DynamicResource Btn_AdjustRegion}"
                                         Click="AdjustDarkScreenDisplay_Click"
                                         Padding="10,2"
                                         Margin="0,0,8,0"/>
@@ -520,7 +520,7 @@
                                             Padding="10,2"
                                             Margin="0,0,8,0"/>
                                     <Button x:Name="AdjustDialogueOptionDisplayButton"
-                                            Content="{DynamicResource Btn_AdjustDisplay}"
+                                            Content="{DynamicResource Btn_AdjustRegion}"
                                             Click="AdjustDialogueOptionDisplay_Click"
                                             Padding="10,2"
                                             Margin="0,0,8,0"/>

@@ -412,7 +412,7 @@ namespace GI_Subtitles.Views
                 RecognizeDarkScreenSubtitlesCheckBox.IsChecked == true);
         }
 
-        private void AdjustDisplay_Click(object sender, RoutedEventArgs e)
+        private void AdjustRegion_Click(object sender, RoutedEventArgs e)
         {
             int pairId = PairIdFromSender(sender);
             if (pairId <= 0)
@@ -420,7 +420,7 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            _pairSettings.TryToggleDisplayAdjust(pairId);
+            _pairSettings.TryToggleRegionAdjust(pairId);
             RefreshPairPage();
         }
 
@@ -431,7 +431,7 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            _pairSettings.CancelDisplayAdjust();
+            _pairSettings.CancelRegionAdjust();
             RefreshPairPage();
             RefreshExtraPathDisplayRows();
             e.Handled = true;
@@ -2393,7 +2393,7 @@ namespace GI_Subtitles.Views
             bool genshin = _overlaySession.IsAppliedGenshin;
             if (!genshin && _overlaySession.ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
             {
-                _overlaySession.CancelDisplayAdjust();
+                _overlaySession.CancelRegionAdjust();
             }
 
             if (DialogueOptionScanPanel != null)

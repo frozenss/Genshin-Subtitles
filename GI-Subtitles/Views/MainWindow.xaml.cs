@@ -92,11 +92,12 @@ namespace GI_Subtitles.Views
             Interval = TimeSpan.FromMilliseconds(100)
         };
         private readonly List<UIElement> _outlineElements = new List<UIElement>();
-        private bool _displayDragging;
+        private bool _regionDragging;
         private OverlayRect _dragStartRect = OverlayRect.Invalid;
         private System.Windows.Point _dragStartMouse;
         private int _dragPairIndex = -1;
         private OverlayAdjustTarget _dragTarget = OverlayAdjustTarget.None;
+        private bool _dragIsCapture;
         private int _lastPreviewCount;
         private int _lastArmedPairId = -1;
         private OverlayAdjustTarget _lastArmedTarget = OverlayAdjustTarget.None;
@@ -513,8 +514,6 @@ namespace GI_Subtitles.Views
                     newExStyle: newStyle,
                     setResult: setResult,
                     lastError: lastError);
-                RegionAdjustDiagnostics.DetachWindowInputProbe(this);
-                RegionAdjustDiagnostics.StopAdjustProbes();
                 Background = System.Windows.Media.Brushes.Transparent;
                 IsHitTestVisible = false;
                 if (OverlayCanvas != null)
@@ -537,8 +536,6 @@ namespace GI_Subtitles.Views
                     setResult: setResult,
                     lastError: lastError);
                 ClearOverlayDisabledBit(hwnd);
-                RegionAdjustDiagnostics.AttachWindowInputProbe(this);
-                RegionAdjustDiagnostics.StartAdjustProbes(this, hwnd);
                 Background = null;
                 IsHitTestVisible = true;
                 if (OverlayCanvas != null)
@@ -2060,7 +2057,7 @@ namespace GI_Subtitles.Views
             }
 
             _sampledGame = _overlaySession.AppliedGame;
-            CancelDisplayDrag();
+            CancelRegionDrag();
             DisposePairBuffers();
             DisposeDarkScreenHold();
             DisposeDialogueOptionHold();
@@ -2069,16 +2066,17 @@ namespace GI_Subtitles.Views
             _lastDialogueOptions = new List<DialogueOptionCandidate>();
         }
 
-        private void CancelDisplayDrag()
+        private void CancelRegionDrag()
         {
-            if (!_displayDragging)
+            if (!_regionDragging)
             {
                 return;
             }
 
-            _displayDragging = false;
+            _regionDragging = false;
             _dragPairIndex = -1;
             _dragTarget = OverlayAdjustTarget.None;
+            _dragIsCapture = false;
         }
 
         private void DisposePairBuffers()
@@ -2139,12 +2137,12 @@ namespace GI_Subtitles.Views
         {
             if (_overlaySession.IsClickThrough)
             {
-                CancelDisplayDrag();
+                CancelRegionDrag();
             }
 
             ApplyOverlayHitMode();
             UpdateAdjustEscHotkey();
-            if (!_displayDragging)
+            if (!_regionDragging)
             {
                 ApplyOutlines();
             }
@@ -2164,7 +2162,7 @@ namespace GI_Subtitles.Views
 
         private void ApplyOutlineChromeIfChanged()
         {
-            if (_displayDragging)
+            if (_regionDragging)
             {
                 return;
             }
@@ -2192,39 +2190,16 @@ namespace GI_Subtitles.Views
                 AddOutlineElement(outline, takesMouse: false);
             }
 
+            // Every armed frame is draggable: a pair's capture and display
+            // outlines (whichever are valid), and an extra-path display.
             foreach (RegionOutline outline in _overlaySession.AdjustOutlines)
             {
-                AddOutlineElement(outline, takesMouse: outline.IsDisplay);
+                AddOutlineElement(outline, takesMouse: true);
             }
 
             _lastPreviewCount = _overlaySession.PreviewOutlines.Count;
             _lastArmedPairId = _overlaySession.ArmedPairId;
             _lastArmedTarget = _overlaySession.ArmedTarget;
-
-#if DEBUG
-            if (_overlaySession.AdjustOutlines.Count > 0)
-            {
-                IntPtr hwnd = new WindowInteropHelper(this).Handle;
-                RegionAdjustDiagnostics.SnapshotEnvironment(this, hwnd, Scale);
-                for (int i = 0; i < _overlaySession.AdjustOutlines.Count; i++)
-                {
-                    RegionOutline outline = _overlaySession.AdjustOutlines[i];
-                    if (outline == null || outline.Rect == null || !outline.Rect.IsValid)
-                    {
-                        continue;
-                    }
-
-                    RegionAdjustDiagnostics.ProbeFrame(
-                        hwnd,
-                        FormatOutlineLabel(outline),
-                        outline.Rect,
-                        DisplayToCanvas(outline.Rect),
-                        outline.Rect.Width / Scale,
-                        outline.Rect.Height / Scale,
-                        takesMouse: outline.IsDisplay);
-                }
-            }
-#endif
         }
 
         private void ClearOutlineElements()
@@ -2259,7 +2234,8 @@ namespace GI_Subtitles.Views
                 StrokeDashArray = outline.Dashed ? new DoubleCollection { 4, 3 } : null,
                 Fill = takesMouse ? AdjustHitFill : null,
                 IsHitTestVisible = takesMouse,
-                Cursor = takesMouse ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Arrow
+                Cursor = takesMouse ? System.Windows.Input.Cursors.SizeAll : System.Windows.Input.Cursors.Arrow,
+                Tag = outline
             };
             Canvas.SetLeft(box, canvasPoint.X);
             Canvas.SetTop(box, canvasPoint.Y);
@@ -2269,9 +2245,9 @@ namespace GI_Subtitles.Views
 
             if (takesMouse)
             {
-                box.MouseLeftButtonDown += DisplayAdjust_MouseLeftButtonDown;
-                box.MouseMove += DisplayAdjust_MouseMove;
-                box.MouseLeftButtonUp += DisplayAdjust_MouseLeftButtonUp;
+                box.MouseLeftButtonDown += RegionAdjust_MouseLeftButtonDown;
+                box.MouseMove += RegionAdjust_MouseMove;
+                box.MouseLeftButtonUp += RegionAdjust_MouseLeftButtonUp;
             }
 
             var label = new System.Windows.Controls.TextBlock
@@ -2336,18 +2312,26 @@ namespace GI_Subtitles.Views
             }
         }
 
-        private void DisplayAdjust_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void RegionAdjust_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             bool clickThrough = _overlaySession.IsClickThrough;
             OverlayAdjustTarget target = _overlaySession.ArmedTarget;
             int pairIndex = -1;
             OverlayRect start = null;
+            bool dragCapture = false;
             if (target == OverlayAdjustTarget.Pair)
             {
                 pairIndex = _overlaySession.ArmedPairIndex;
                 if (pairIndex >= 0)
                 {
-                    start = _overlaySession.GetDisplay(pairIndex);
+                    // Grabbing a box drags that box's own rectangle: the outline
+                    // carried by the grabbed element says which of the pair's two
+                    // frames was seized.
+                    RegionOutline grabbed = (sender as System.Windows.Shapes.Rectangle)?.Tag as RegionOutline;
+                    dragCapture = grabbed != null && !grabbed.IsDisplay;
+                    start = dragCapture
+                        ? _overlaySession.GetCapture(pairIndex)
+                        : _overlaySession.GetDisplay(pairIndex);
                 }
             }
             else if (target == OverlayAdjustTarget.DarkScreenDisplay)
@@ -2372,25 +2356,22 @@ namespace GI_Subtitles.Views
             }
 
             var box = (System.Windows.Shapes.Rectangle)sender;
-            _displayDragging = true;
+            _regionDragging = true;
             _dragTarget = target;
             _dragPairIndex = pairIndex;
+            _dragIsCapture = dragCapture;
             _dragStartRect = start;
             _dragStartMouse = e.GetPosition(OverlayCanvas);
             box.CaptureMouse();
             e.Handled = true;
         }
 
-        private void DisplayAdjust_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        private void RegionAdjust_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             AdjustMouseExit exit = AdjustMouseGuard.MoveExitReason(
-                _displayDragging,
+                _regionDragging,
                 e.LeftButton == MouseButtonState.Pressed,
                 _dragTarget);
-#if DEBUG
-            System.Windows.Point tracePos = e.GetPosition(OverlayCanvas);
-            RegionAdjustTrace.ElementMove(exit, tracePos.X, tracePos.Y);
-#endif
             if (exit != AdjustMouseExit.None)
             {
                 return;
@@ -2404,7 +2385,7 @@ namespace GI_Subtitles.Views
                 (int)Math.Round(_dragStartRect.Y + deltaY * Scale),
                 _dragStartRect.Width,
                 _dragStartRect.Height);
-            ApplyDraggedDisplay(moved);
+            ApplyDraggedRegion(moved);
 
             var box = sender as System.Windows.Shapes.Rectangle;
             if (box != null)
@@ -2418,9 +2399,9 @@ namespace GI_Subtitles.Views
             e.Handled = true;
         }
 
-        private void DisplayAdjust_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        private void RegionAdjust_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            AdjustMouseExit exit = AdjustMouseGuard.UpExitReason(_displayDragging);
+            AdjustMouseExit exit = AdjustMouseGuard.UpExitReason(_regionDragging);
             RegionAdjustTrace.ElementUp(exit);
             if (exit != AdjustMouseExit.None)
             {
@@ -2429,20 +2410,30 @@ namespace GI_Subtitles.Views
 
             var box = sender as System.Windows.Shapes.Rectangle;
             box?.ReleaseMouseCapture();
-            _displayDragging = false;
+            _regionDragging = false;
             _dragPairIndex = -1;
             _dragTarget = OverlayAdjustTarget.None;
+            _dragIsCapture = false;
             ApplyOutlines();
             data?.RefreshPairPage();
             data?.RefreshExtraPathDisplayRows();
             e.Handled = true;
         }
 
-        private void ApplyDraggedDisplay(OverlayRect moved)
+        private void ApplyDraggedRegion(OverlayRect moved)
         {
             if (_dragTarget == OverlayAdjustTarget.Pair)
             {
-                _overlaySession.SetDisplay(_dragPairIndex, moved);
+                if (_dragIsCapture)
+                {
+                    // The next OCR beat reads Pairs and samples the new rectangle.
+                    _overlaySession.SetCapture(_dragPairIndex, moved);
+                }
+                else
+                {
+                    _overlaySession.SetDisplay(_dragPairIndex, moved);
+                }
+
                 return;
             }
 
@@ -2654,7 +2645,7 @@ namespace GI_Subtitles.Views
                 }
                 else if (wParam.ToInt32() == HotkeyIdAdjustEsc)
                 {
-                    _overlaySession.CancelDisplayAdjust();
+                    _overlaySession.CancelRegionAdjust();
                     handled = true;
                 }
                 else if (wParam.ToInt32() == HOTKEY_ID_REFRESH)

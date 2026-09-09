@@ -318,11 +318,12 @@ namespace GI_Subtitles.Core.Overlay
             PreviewChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public bool TryToggleDisplayAdjust(int pairId)
+        public bool TryToggleRegionAdjust(int pairId)
         {
             Tick();
             int index = IndexOfPair(pairId);
-            if (index < 0 || !_pairs[index].Display.IsValid)
+            if (index < 0 ||
+                (!_pairs[index].Capture.IsValid && !_pairs[index].Display.IsValid))
             {
                 RegionAdjustTrace.ArmEntryRefused(
                     OverlayAdjustTarget.Pair,
@@ -387,7 +388,7 @@ namespace GI_Subtitles.Core.Overlay
             return true;
         }
 
-        public void CancelDisplayAdjust()
+        public void CancelRegionAdjust()
         {
             Tick();
             ClearArm();
@@ -417,6 +418,7 @@ namespace GI_Subtitles.Core.Overlay
             EnsurePairSlot(pairIndex);
             OverlayRect nextCapture = capture ?? OverlayRect.Invalid;
             _pairs[pairIndex] = new RegionPair(_pairs[pairIndex].Id, nextCapture, _pairs[pairIndex].Display);
+            RegionAdjustTrace.CaptureSet(OverlayAdjustTarget.Pair, _pairs[pairIndex].Id, nextCapture);
             PersistPairs();
             if (ArmedPairId == _pairs[pairIndex].Id)
             {
@@ -583,7 +585,7 @@ namespace GI_Subtitles.Core.Overlay
             _darkScreenScanOn = enabled;
             if (!enabled && ArmedTarget == OverlayAdjustTarget.DarkScreenDisplay)
             {
-                CancelDisplayAdjust();
+                CancelRegionAdjust();
             }
 
             PersistExtraPathScans();
@@ -594,7 +596,7 @@ namespace GI_Subtitles.Core.Overlay
             _dialogueOptionScanOn = enabled;
             if (!enabled && ArmedTarget == OverlayAdjustTarget.DialogueOptionDisplay)
             {
-                CancelDisplayAdjust();
+                CancelRegionAdjust();
             }
 
             PersistExtraPathScans();

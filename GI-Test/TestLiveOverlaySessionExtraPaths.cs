@@ -457,7 +457,7 @@ namespace GI_Test
             Assert.IsTrue(session.AdjustOutlines[0].IsDisplay);
             Assert.AreEqual(200, session.AdjustOutlines[0].Rect.X);
 
-            session.CancelDisplayAdjust();
+            session.CancelRegionAdjust();
             Assert.IsTrue(session.IsClickThrough);
             Assert.AreEqual(0, session.AdjustOutlines.Count);
         }
@@ -468,7 +468,7 @@ namespace GI_Test
             LiveOverlaySession session = CreateSessionWithPairs(1);
             session.SetDarkScreenDisplay(new OverlayRect(10, 20, 300, 50));
 
-            Assert.IsTrue(session.TryToggleDisplayAdjust(session.Pairs[0].Id));
+            Assert.IsTrue(session.TryToggleRegionAdjust(session.Pairs[0].Id));
             Assert.AreEqual(2, session.AdjustOutlines.Count);
 
             Assert.IsTrue(session.TryToggleDarkScreenDisplayAdjust());

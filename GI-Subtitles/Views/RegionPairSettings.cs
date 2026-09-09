@@ -162,14 +162,14 @@ namespace GI_Subtitles.Views
             return true;
         }
 
-        public bool TryToggleDisplayAdjust(int pairId)
+        public bool TryToggleRegionAdjust(int pairId)
         {
-            return _session.TryToggleDisplayAdjust(pairId);
+            return _session.TryToggleRegionAdjust(pairId);
         }
 
-        public void CancelDisplayAdjust()
+        public void CancelRegionAdjust()
         {
-            _session.CancelDisplayAdjust();
+            _session.CancelRegionAdjust();
         }
 
         public bool TryGetHotkeyTarget(out int pairIndex, out int pairId, out int ordinal)
@@ -289,9 +289,9 @@ namespace GI_Subtitles.Views
 
         public bool IsAdjustArmed { get; }
 
-        public bool CanAdjustDisplay
+        public bool CanAdjustRegion
         {
-            get { return Display.IsValid; }
+            get { return Capture.IsValid || Display.IsValid; }
         }
 
         public bool IsOverAddCap { get; }

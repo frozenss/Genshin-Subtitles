@@ -177,13 +177,13 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ApplyThatChangesGame_CancelsDisplayAdjustAndDropsPreviewAndOcrQueue()
+        public void ApplyThatChangesGame_CancelsRegionAdjustAndDropsPreviewAndOcrQueue()
         {
             DateTime now = new DateTime(2026, 9, 7, 16, 0, 0, DateTimeKind.Utc);
             var session = new LiveOverlaySession(new MemoryOcrIntervalStore(), CreateGenshinStore(), () => now);
             session.PreviewCaptureRegion(hasCaptureRegion: true, darkScreenScanOn: true);
             Assert.IsTrue(session.PreviewOutlines.Count > 0);
-            Assert.IsTrue(session.TryToggleDisplayAdjust(1));
+            Assert.IsTrue(session.TryToggleRegionAdjust(1));
             Assert.IsFalse(session.IsClickThrough);
 
             OverlayRect band = new OverlayRect(40, 80, 400, 60);

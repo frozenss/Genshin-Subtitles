@@ -68,9 +68,9 @@ _Avoid_: 识别框 as the name of a pair; Region2 when you mean a second pair
 The screen rectangle where that capture's subtitle is placed. It is a rectangle of its own, not an offset of the capture region.
 _Avoid_: 字幕窗 when you mean the pair; overlay when you mean placement rather than the window; Pad, 字幕偏移 when you mean this rectangle
 
-**Display-region adjust**:
-The settings-armed state in which one existing display region accepts mouse drag — a region pair's, or the optional dark-screen display or dialogue-option display. It does not create a rectangle; the first extra-path display is boxed. Off, the overlay is click-through.
-_Avoid_: dragging subtitles at any time; hover handle; treating this as a hint; using adjust to pull the first dark-screen or dialogue-option display
+**Region adjust**:
+The settings-armed state in which one existing region accepts mouse drag — a region pair's capture region or display region (grabbing a box drags that box's own rectangle), or the optional dark-screen display or dialogue-option display (display only; their bands are detected, not user rectangles). It does not create a rectangle. Off, the overlay is click-through.
+_Avoid_: Display-region adjust (the pre-extension name; it now drags captures too); dragging subtitles at any time; hover handle; treating this as a hint; using adjust to pull the first dark-screen or dialogue-option display; dragging a detected band
 
 **Region pair**:
 One capture region bound to one display region. The live overlay keeps the current game's list of pairs; every pair with a valid capture region runs at the same time.
