@@ -16,6 +16,8 @@ namespace GI_Subtitles.Core.Overlay
 
         public bool DialogueOptionsNeedOcr { get; private set; }
 
+        public bool DialogueOptionsClosed { get; private set; }
+
         public bool DialogueChoiceSelected { get; private set; }
 
         public string DialogueChoiceContent { get; private set; }
@@ -59,6 +61,14 @@ namespace GI_Subtitles.Core.Overlay
             };
         }
 
+        public static ExtraPathSample DialogueOptionsEnded()
+        {
+            return new ExtraPathSample
+            {
+                DialogueOptionsClosed = true
+            };
+        }
+
         public static ExtraPathSample DialogueChoice(string content)
         {
             return new ExtraPathSample
@@ -72,6 +82,13 @@ namespace GI_Subtitles.Core.Overlay
         {
             ExtraPathSample copy = Copy();
             copy.DialogueOptionsNeedOcr = true;
+            return copy;
+        }
+
+        public ExtraPathSample WithDialogueOptionsEnded()
+        {
+            ExtraPathSample copy = Copy();
+            copy.DialogueOptionsClosed = true;
             return copy;
         }
 
@@ -93,6 +110,7 @@ namespace GI_Subtitles.Core.Overlay
                 DarkScreenBand = DarkScreenBand,
                 DarkScreenNeedsOcr = DarkScreenNeedsOcr,
                 DialogueOptionsNeedOcr = DialogueOptionsNeedOcr,
+                DialogueOptionsClosed = DialogueOptionsClosed,
                 DialogueChoiceSelected = DialogueChoiceSelected,
                 DialogueChoiceContent = DialogueChoiceContent
             };

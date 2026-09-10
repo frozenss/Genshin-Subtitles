@@ -85,6 +85,147 @@ namespace GI_Test
             Assert.IsTrue(session.ActivityLog[1].IsRepeat);
         }
 
+        [TestMethod]
+        public void AfterDialogueOptionsEnded_SameOcrText_IsFreshRow()
+        {
+            DateTime now = new DateTime(2026, 9, 10, 12, 10, 0, DateTimeKind.Utc);
+            LiveOverlaySession session = CreateSession(1, () => now);
+            const string ocrText = "继续 / 再想想";
+
+            session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, ocrText: ocrText);
+
+            session.Beat(ExtraPathSample.DialogueOptionsEnded(), PairFrameSample.Unchanged());
+
+            now = now.AddMilliseconds(session.EngineOcrIntervalMs);
+            session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, ocrText: ocrText);
+
+            Assert.AreEqual(2, session.ActivityLog.Count);
+            Assert.IsFalse(session.ActivityLog[0].IsRepeat);
+            Assert.IsFalse(
+                session.ActivityLog[1].IsRepeat,
+                "Dismiss without choice must clear last-result so the next menu is a fresh row.");
+        }
+
+        [TestMethod]
+        public void AfterDialogueChoice_SameOcrText_IsFreshRow()
+        {
+            DateTime now = new DateTime(2026, 9, 10, 12, 11, 0, DateTimeKind.Utc);
+            LiveOverlaySession session = CreateSession(1, () => now);
+            const string ocrText = "离开 / 留下";
+
+            session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, ocrText: ocrText);
+
+            session.Beat(ExtraPathSample.DialogueChoice("离开"), PairFrameSample.Unchanged());
+
+            now = now.AddMilliseconds(session.EngineOcrIntervalMs);
+            session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, ocrText: ocrText);
+
+            ActivityLogRow latestOptions = null;
+            for (int i = session.ActivityLog.Count - 1; i >= 0; i--)
+            {
+                if (session.ActivityLog[i].Scope == ActivityLogScope.DialogueOptions
+                    && session.ActivityLog[i].Jobs.Count > 1)
+                {
+                    latestOptions = session.ActivityLog[i];
+                    break;
+                }
+            }
+
+            Assert.IsNotNull(latestOptions);
+            Assert.AreEqual(ocrText, latestOptions.OcrText);
+            Assert.IsFalse(latestOptions.IsRepeat);
+        }
+
+        [TestMethod]
+        public void AfterDarkScreenEnded_SameResult_IsFreshRow()
+        {
+            DateTime now = new DateTime(2026, 9, 10, 12, 12, 0, DateTimeKind.Utc);
+            LiveOverlaySession session = CreateSession(1, () => now);
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.Unchanged());
+            session.CompleteOcr(
+                miss: false,
+                content: "cutscene",
+                ocrText: "cutscene",
+                original: "cutscene-orig");
+
+            session.Beat(ExtraPathSample.DarkScreenEnded(), PairFrameSample.Unchanged());
+
+            now = now.AddMilliseconds(session.EngineOcrIntervalMs);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.Unchanged());
+            session.CompleteOcr(
+                miss: false,
+                content: "cutscene",
+                ocrText: "cutscene",
+                original: "cutscene-orig");
+
+            Assert.AreEqual(2, session.ActivityLog.Count);
+            Assert.IsFalse(session.ActivityLog[1].IsRepeat);
+        }
+
+        [TestMethod]
+        public void InFlightDarkScreenComplete_AfterEnded_DoesNotSeedRepeatForNextCard()
+        {
+            DateTime now = new DateTime(2026, 9, 10, 12, 13, 0, DateTimeKind.Utc);
+            LiveOverlaySession session = CreateSession(1, () => now);
+            OverlayRect band = new OverlayRect(40, 80, 400, 60);
+
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.Unchanged());
+            Assert.AreEqual(LiveOverlaySession.DarkScreenOcrSlot, session.BusyOcrSlot);
+
+            session.Beat(ExtraPathSample.DarkScreenEnded(), PairFrameSample.Unchanged());
+            session.CompleteOcr(
+                miss: false,
+                content: "cutscene",
+                ocrText: "cutscene",
+                original: "cutscene-orig");
+
+            now = now.AddMilliseconds(session.EngineOcrIntervalMs);
+            session.Beat(
+                ExtraPathSample.DarkScreenCandidate(band, needsOcr: true),
+                PairFrameSample.Unchanged());
+            session.CompleteOcr(
+                miss: false,
+                content: "cutscene",
+                ocrText: "cutscene",
+                original: "cutscene-orig");
+
+            Assert.IsFalse(
+                session.ActivityLog[session.ActivityLog.Count - 1].IsRepeat,
+                "CompleteOcr after dark-screen end must not re-seed last-result.");
+        }
+
+        [TestMethod]
+        public void AfterApplyGame_SameDialogueOptionsOcrText_IsFreshRow()
+        {
+            DateTime now = new DateTime(2026, 9, 10, 12, 14, 0, DateTimeKind.Utc);
+            LiveOverlaySession session = CreateSession(1, () => now);
+            const string ocrText = "继续 / 再想想";
+
+            session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, ocrText: ocrText);
+
+            session.ApplyGame("StarRail");
+            session.ApplyGame("Genshin");
+
+            now = now.AddMilliseconds(session.EngineOcrIntervalMs);
+            session.Beat(ExtraPathSample.DialogueOptionsReady(), PairFrameSample.Unchanged());
+            session.CompleteOcr(miss: false, ocrText: ocrText);
+
+            Assert.IsFalse(session.ActivityLog[session.ActivityLog.Count - 1].IsRepeat);
+        }
+
         private static LiveOverlaySession CreateSession(int pairCount, Func<DateTime> utcNow = null)
         {
             var records = new List<RegionPairRecord>();

@@ -1701,6 +1701,14 @@ namespace GI_Subtitles.Views
                             : extra.WithDialogueChoice(choice);
                     }
 
+                    // Confirmed dismiss (candidates cleared): reset session last-result.
+                    if (_lastDialogueOptions.Count == 0)
+                    {
+                        return extra == ExtraPathSample.None
+                            ? ExtraPathSample.DialogueOptionsEnded()
+                            : extra.WithDialogueOptionsEnded();
+                    }
+
                     return extra;
                 }
 
