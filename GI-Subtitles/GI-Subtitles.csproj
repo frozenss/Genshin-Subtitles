@@ -128,6 +128,7 @@
     <Compile Include="Core\Config\IConfigMap.cs" />
     <Compile Include="Core\Config\AppConfigMap.cs" />
     <Compile Include="Core\Overlay\IOcrIntervalStore.cs" />
+    <Compile Include="Core\Overlay\ISubtitleIdleTimeoutStore.cs" />
     <Compile Include="Core\Overlay\IRegionPairStore.cs" />
     <Compile Include="Core\Overlay\OverlayRect.cs" />
     <Compile Include="Core\Overlay\PairFrameSample.cs" />
@@ -137,6 +138,7 @@
     <Compile Include="Core\Overlay\RegionOutline.cs" />
     <Compile Include="Core\Overlay\RegionPair.cs" />
     <Compile Include="Core\Overlay\ConfigOcrIntervalStore.cs" />
+    <Compile Include="Core\Overlay\ConfigSubtitleIdleTimeoutStore.cs" />
     <Compile Include="Core\Overlay\ConfigRegionPairStore.cs" />
     <Compile Include="Core\Overlay\OverlayLayoutRecord.cs" />
     <Compile Include="Core\Overlay\OverlayLayoutPersistence.cs" />

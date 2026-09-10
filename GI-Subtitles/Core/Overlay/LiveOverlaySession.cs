@@ -21,9 +21,13 @@ namespace GI_Subtitles.Core.Overlay
         public const int EnginePairCap = 8;
         public const int SettingsPairCap = 4;
         public const int DefaultSubtitleIdleTimeoutSeconds = 0;
+        public const int MinSubtitleIdleTimeoutSeconds = 0;
+        public const int MaxSubtitleIdleTimeoutSeconds = 60;
+        public const string SubtitleIdleTimeoutConfigKey = "SubtitleIdleTimeout";
         private const string DialogueChoiceEchoPrefix = "◆ ";
 
         private readonly IOcrIntervalStore _store;
+        private readonly ISubtitleIdleTimeoutStore _idleTimeoutStore;
         private readonly IRegionPairStore _pairStore;
         private readonly Func<DateTime> _utcNow;
         private readonly List<RegionPair> _pairs = new List<RegionPair>();
@@ -65,22 +69,27 @@ namespace GI_Subtitles.Core.Overlay
         private readonly LRUCache<string, string> _matchCache = new LRUCache<string, string>(100);
 
         public LiveOverlaySession(IOcrIntervalStore store)
-            : this(store, null, null)
+            : this(store, null, null, null, null)
+        {
+        }
+
+        public LiveOverlaySession(IOcrIntervalStore store, ISubtitleIdleTimeoutStore idleTimeoutStore)
+            : this(store, null, null, null, idleTimeoutStore)
         {
         }
 
         public LiveOverlaySession(IOcrIntervalStore store, Func<DateTime> utcNow)
-            : this(store, null, utcNow)
+            : this(store, null, utcNow, null, null)
         {
         }
 
         public LiveOverlaySession(IOcrIntervalStore store, IRegionPairStore pairStore)
-            : this(store, pairStore, null)
+            : this(store, pairStore, null, null, null)
         {
         }
 
         public LiveOverlaySession(IOcrIntervalStore store, IRegionPairStore pairStore, Func<DateTime> utcNow)
-            : this(store, pairStore, utcNow, null)
+            : this(store, pairStore, utcNow, null, null)
         {
         }
 
@@ -89,12 +98,27 @@ namespace GI_Subtitles.Core.Overlay
             IRegionPairStore pairStore,
             Func<DateTime> utcNow,
             string appliedGame)
+            : this(store, pairStore, utcNow, appliedGame, null)
+        {
+        }
+
+        public LiveOverlaySession(
+            IOcrIntervalStore store,
+            IRegionPairStore pairStore,
+            Func<DateTime> utcNow,
+            string appliedGame,
+            ISubtitleIdleTimeoutStore idleTimeoutStore)
         {
             _store = store ?? throw new ArgumentNullException(nameof(store));
+            _idleTimeoutStore = idleTimeoutStore;
             _pairStore = pairStore;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
             _appliedGame = OverlayLayoutPersistence.NormalizeGame(appliedGame);
             _storedMs = _store.Read(DefaultOcrIntervalMs);
+            _subtitleIdleTimeoutSeconds = ClampSubtitleIdleTimeoutSeconds(
+                _idleTimeoutStore != null
+                    ? _idleTimeoutStore.Read(DefaultSubtitleIdleTimeoutSeconds)
+                    : DefaultSubtitleIdleTimeoutSeconds);
             SubtitlesVisible = true;
             LoadPairs();
         }
@@ -408,13 +432,23 @@ namespace GI_Subtitles.Core.Overlay
 
         public void SetSubtitleIdleTimeoutSeconds(int seconds)
         {
-            if (seconds < 0)
+            _subtitleIdleTimeoutSeconds = ClampSubtitleIdleTimeoutSeconds(seconds);
+            Tick();
+        }
+
+        public static int ClampSubtitleIdleTimeoutSeconds(int seconds)
+        {
+            if (seconds < MinSubtitleIdleTimeoutSeconds)
             {
-                seconds = 0;
+                return MinSubtitleIdleTimeoutSeconds;
             }
 
-            _subtitleIdleTimeoutSeconds = seconds;
-            Tick();
+            if (seconds > MaxSubtitleIdleTimeoutSeconds)
+            {
+                return MaxSubtitleIdleTimeoutSeconds;
+            }
+
+            return seconds;
         }
 
         public void Tick()
@@ -924,6 +958,23 @@ namespace GI_Subtitles.Core.Overlay
         {
             _storedMs = milliseconds;
             _store.Write(milliseconds);
+        }
+
+        public SubtitleIdleTimeoutSettingsView OpenSubtitleIdleTimeoutSettings()
+        {
+            return new SubtitleIdleTimeoutSettingsView(this, _subtitleIdleTimeoutSeconds);
+        }
+
+        internal void ApplyCommittedSubtitleIdleTimeout(int seconds)
+        {
+            seconds = ClampSubtitleIdleTimeoutSeconds(seconds);
+            _subtitleIdleTimeoutSeconds = seconds;
+            if (_idleTimeoutStore != null)
+            {
+                _idleTimeoutStore.Write(seconds);
+            }
+
+            Tick();
         }
 
         private void LoadPairs()
@@ -1872,6 +1923,39 @@ namespace GI_Subtitles.Core.Overlay
             BoxText = rawMs.ToString(CultureInfo.InvariantCulture);
             IsOutOfRange = rawMs < LiveOverlaySession.UiMinOcrIntervalMs
                 || rawMs > LiveOverlaySession.UiMaxOcrIntervalMs;
+        }
+    }
+
+    public sealed class SubtitleIdleTimeoutSettingsView
+    {
+        private readonly LiveOverlaySession _session;
+        private int _rawSeconds;
+
+        internal SubtitleIdleTimeoutSettingsView(LiveOverlaySession session, int rawSeconds)
+        {
+            _session = session;
+            Show(rawSeconds);
+        }
+
+        public string BoxText { get; set; }
+
+        public void Commit()
+        {
+            if (!int.TryParse(BoxText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+            {
+                Show(_rawSeconds);
+                return;
+            }
+
+            int clamped = LiveOverlaySession.ClampSubtitleIdleTimeoutSeconds(parsed);
+            _session.ApplyCommittedSubtitleIdleTimeout(clamped);
+            Show(clamped);
+        }
+
+        private void Show(int rawSeconds)
+        {
+            _rawSeconds = rawSeconds;
+            BoxText = rawSeconds.ToString(CultureInfo.InvariantCulture);
         }
     }
 
