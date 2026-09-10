@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -708,6 +709,17 @@ namespace GI_Subtitles.Views
             return true;
         }
 
+        // Copy-on-select runs on mouse-up. WPF Clipboard.SetText blocks the UI
+        // thread inside OpenClipboard / OleFlushClipboard; when another process
+        // holds the clipboard that freeze lasts seconds even for two log rows.
+        // Enqueue a bounded WinForms write on one shared STA worker instead —
+        // mouse-up returns immediately, retries happen off the UI thread, and
+        // failure still stays silent per ADR 0011.
+        private static readonly object ClipboardGate = new object();
+        private static string _clipboardPending;
+        private static Thread _clipboardWorker;
+        private static readonly AutoResetEvent ClipboardSignal = new AutoResetEvent(false);
+
         private static void SetClipboardWithRetry(string text)
         {
             if (string.IsNullOrEmpty(text))
@@ -715,12 +727,44 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            for (int attempt = 0; ; attempt++)
+            lock (ClipboardGate)
             {
+                _clipboardPending = text;
+                if (_clipboardWorker == null || !_clipboardWorker.IsAlive)
+                {
+                    _clipboardWorker = new Thread(ClipboardWorker)
+                    {
+                        IsBackground = true,
+                        Name = "ActivityLogClipboard"
+                    };
+                    _clipboardWorker.SetApartmentState(ApartmentState.STA);
+                    _clipboardWorker.Start();
+                }
+            }
+
+            ClipboardSignal.Set();
+        }
+
+        private static void ClipboardWorker()
+        {
+            while (true)
+            {
+                ClipboardSignal.WaitOne();
+                string text;
+                lock (ClipboardGate)
+                {
+                    text = _clipboardPending;
+                    _clipboardPending = null;
+                }
+
+                if (string.IsNullOrEmpty(text))
+                {
+                    continue;
+                }
+
                 try
                 {
-                    Clipboard.SetText(text);
-                    return;
+                    System.Windows.Forms.Clipboard.SetDataObject(text, true, 10, 50);
                 }
                 catch (COMException)
                 {
@@ -728,13 +772,6 @@ namespace GI_Subtitles.Views
                 catch (ExternalException)
                 {
                 }
-
-                if (attempt >= 2)
-                {
-                    return;
-                }
-
-                System.Threading.Thread.Sleep(30);
             }
         }
 

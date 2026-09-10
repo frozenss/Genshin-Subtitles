@@ -30,6 +30,23 @@
                  row's so the cells follow the row's effective Foreground. -->
             <Setter Property="Foreground"
                     Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListViewItem}}"/>
+            <!-- Default TextBox templates wrap PART_ContentHost in a ScrollViewer.
+                 Under a pixel-virtualized GridView that costs one inner scroller
+                 per cell (~4 per row) on every recycle/measure. Cells scroll with
+                 the list, so a Decorator host keeps selection without that tree. -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <Decorator x:Name="PART_ContentHost"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <!-- The result cell's selection layer (ADR 0012): transparent glyphs
              over the colored TextBlock, so selection, copy-on-select, and
