@@ -1693,6 +1693,7 @@ namespace GI_Subtitles.Views
                         out double confidence,
                         threshold))
                 {
+                    bool hadCandidates = _lastDialogueOptions.Count > 0;
                     string choice = TryTakeDialogueChoice();
                     if (!string.IsNullOrEmpty(choice))
                     {
@@ -1701,8 +1702,9 @@ namespace GI_Subtitles.Views
                             : extra.WithDialogueChoice(choice);
                     }
 
-                    // Confirmed dismiss (candidates cleared): reset session last-result.
-                    if (_lastDialogueOptions.Count == 0)
+                    // Only after a non-empty candidate list was cleared without a click
+                    // (2-miss dismiss). Skip idle scans and Ready→first-OCR gaps.
+                    if (hadCandidates && _lastDialogueOptions.Count == 0)
                     {
                         return extra == ExtraPathSample.None
                             ? ExtraPathSample.DialogueOptionsEnded()
