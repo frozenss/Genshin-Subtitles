@@ -369,10 +369,19 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            if (_followTail.IsFollowing &&
-                (e.ExtentHeightChange != 0 || e.ViewportHeightChange != 0 || !IsViewportAtBottom()))
+            if (!_followTail.IsFollowing)
             {
-                ApplyFollowTail();
+                return;
+            }
+
+            // Layout / virtualization / wrap remeasure report extent and viewport
+            // changes. Keep the sticky pin with a shortfall scroll only when the
+            // viewport has actually left the bottom slack — always scrolling on
+            // ExtentHeightChange fights estimate jitter and can loop forever.
+            if ((e.ExtentHeightChange != 0 || e.ViewportHeightChange != 0)
+                && !IsViewportAtBottom())
+            {
+                ScrollToNewestQuiet();
             }
         }
 
@@ -400,7 +409,7 @@ namespace GI_Subtitles.Views
                 return;
             }
 
-            ScrollToEndQuiet();
+            ScrollToNewestQuiet();
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (!_followTail.IsFollowing || _scrollViewer == null || IsViewportAtBottom())
@@ -408,16 +417,43 @@ namespace GI_Subtitles.Views
                     return;
                 }
 
-                ScrollToEndQuiet();
+                ScrollToNewestQuiet();
             }));
         }
 
-        private void ScrollToEndQuiet()
+        private void ScrollToNewestQuiet()
         {
+            if (_scrollViewer == null)
+            {
+                if (_rows.Count > 0)
+                {
+                    _applyingFollowTail = true;
+                    try
+                    {
+                        LogList.ScrollIntoView(_rows[_rows.Count - 1]);
+                    }
+                    finally
+                    {
+                        _applyingFollowTail = false;
+                    }
+                }
+
+                return;
+            }
+
+            double target = _scrollViewer.ScrollableHeight;
+            if (ActivityLogFollowTail.IsAtBottom(_scrollViewer.VerticalOffset, target))
+            {
+                return;
+            }
+
             _applyingFollowTail = true;
             try
             {
-                ScrollToEnd();
+                // Scroll only the shortfall to the current end — not ScrollToEnd(),
+                // which walks the whole virtualized extent. While already near the
+                // tail this is ~one row (wheel-step cost class).
+                _scrollViewer.ScrollToVerticalOffset(target);
             }
             finally
             {
@@ -429,20 +465,6 @@ namespace GI_Subtitles.Views
         {
             return _scrollViewer != null
                 && ActivityLogFollowTail.IsAtBottom(_scrollViewer.VerticalOffset, _scrollViewer.ScrollableHeight);
-        }
-
-        private void ScrollToEnd()
-        {
-            if (_scrollViewer != null)
-            {
-                _scrollViewer.ScrollToEnd();
-                return;
-            }
-
-            if (_rows.Count > 0)
-            {
-                LogList.ScrollIntoView(_rows[_rows.Count - 1]);
-            }
         }
 
         private void EndBarDrag()
