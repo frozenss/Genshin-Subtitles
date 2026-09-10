@@ -108,6 +108,7 @@
     <Compile Include="TestLiveOverlaySessionActivityLog.cs" />
     <Compile Include="TestLiveOverlaySessionPipelineLog.cs" />
     <Compile Include="TestDuplicatePipelineLogDiagnosis.cs" />
+    <Compile Include="TestLiveOverlaySessionExtraPathRepeat.cs" />
     <Compile Include="TestLiveOverlaySessionResultFold.cs" />
     <Compile Include="TestLiveOverlaySessionMatchMissKeep.cs" />
     <Compile Include="TestActivityLogRowFilter.cs" />

@@ -45,6 +45,8 @@ namespace GI_Subtitles.Core.Overlay
         private string _darkScreenContent = string.Empty;
         private int _darkScreenRecognitionOrder;
         private bool _darkScreenActive;
+        private PairRecognitionResult _lastDarkScreenResult;
+        private PairRecognitionResult _lastDialogueOptionsResult;
         private string _echoContent = string.Empty;
         private int _echoRecognitionOrder;
         private DateTime _lastOcrTime = DateTime.MinValue;
@@ -765,12 +767,24 @@ namespace GI_Subtitles.Core.Overlay
                 IsRepeatResult(busy, miss, matchMiss, header, content, ocrText));
             if (busy == DarkScreenOcrSlot)
             {
+                _lastDarkScreenResult = PairRecognitionResult.From(
+                    miss,
+                    matchMiss,
+                    header,
+                    content,
+                    ocrText);
                 ApplyDarkScreenResult(miss, matchMiss, content, header);
                 return;
             }
 
             if (busy == DialogueOptionsOcrSlot)
             {
+                _lastDialogueOptionsResult = DialogueOptionsRecognitionResult(
+                    miss,
+                    matchMiss,
+                    header,
+                    content,
+                    ocrText);
                 ReleaseBusySlot();
                 return;
             }
@@ -832,6 +846,19 @@ namespace GI_Subtitles.Core.Overlay
             string content,
             string ocrText)
         {
+            if (pairIndex == DarkScreenOcrSlot)
+            {
+                return PairRecognitionResult
+                    .From(miss, matchMiss, header, content, ocrText)
+                    .SameAs(_lastDarkScreenResult);
+            }
+
+            if (pairIndex == DialogueOptionsOcrSlot)
+            {
+                return DialogueOptionsRecognitionResult(miss, matchMiss, header, content, ocrText)
+                    .SameAs(_lastDialogueOptionsResult);
+            }
+
             if (pairIndex < 0 || pairIndex >= _lastResults.Count)
             {
                 return false;
@@ -840,6 +867,26 @@ namespace GI_Subtitles.Core.Overlay
             return PairRecognitionResult
                 .From(miss, matchMiss, header, content, ocrText)
                 .SameAs(_lastResults[pairIndex]);
+        }
+
+        // Dialogue-options OCR often concludes the option-list text with no pack match
+        // (ocrText only). MatchedText identity is header+content, so key those runs by OCR text.
+        private static PairRecognitionResult DialogueOptionsRecognitionResult(
+            bool miss,
+            bool matchMiss,
+            string header,
+            string content,
+            string ocrText)
+        {
+            if (!miss
+                && !matchMiss
+                && string.IsNullOrEmpty(header)
+                && string.IsNullOrEmpty(content))
+            {
+                return PairRecognitionResult.From(false, true, null, null, ocrText);
+            }
+
+            return PairRecognitionResult.From(miss, matchMiss, header, content, ocrText);
         }
 
         public int EngineOcrIntervalMs
@@ -1150,6 +1197,7 @@ namespace GI_Subtitles.Core.Overlay
             ClearPreview();
             ClearDarkScreen();
             ClearEcho();
+            _lastDialogueOptionsResult = null;
             _ocrQueue.Clear();
             _busyPairIndex = null;
             for (int i = 0; i < _headers.Count; i++)
@@ -1273,6 +1321,8 @@ namespace GI_Subtitles.Core.Overlay
 
         private void ShowDialogueChoiceEcho(string content)
         {
+            // Choice selected: options menu closed; same list later is a fresh row.
+            _lastDialogueOptionsResult = null;
             string trimmed = content ?? string.Empty;
             string echo = string.Empty;
             if (!string.IsNullOrEmpty(trimmed))
@@ -1317,6 +1367,7 @@ namespace GI_Subtitles.Core.Overlay
             _darkScreenHeader = string.Empty;
             _darkScreenContent = string.Empty;
             _darkScreenRecognitionOrder = 0;
+            _lastDarkScreenResult = null;
         }
 
         private void ClearEcho()
