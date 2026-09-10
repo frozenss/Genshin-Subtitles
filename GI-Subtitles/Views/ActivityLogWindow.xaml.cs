@@ -152,6 +152,10 @@ namespace GI_Subtitles.Views
 
         private void SyncRows(bool announceVisibleAdds = true)
         {
+            // Append path: project only newly consumed rows. Re-projecting every
+            // already-shown row made ResultLines fire even when the snapshot
+            // did not change. Mutation-only notifies (Consume returns nothing)
+            // still refresh existing views — e.g. voice folded into a prior row.
             IReadOnlyList<ActivityLogRow> shown = _filter.Consume(_session.ActivityLog);
             foreach (ActivityLogRow row in shown)
             {
@@ -159,9 +163,12 @@ namespace GI_Subtitles.Views
                 _rowSources.Add(row);
             }
 
-            for (int i = 0; i < _rowSources.Count; i++)
+            if (shown.Count == 0)
             {
-                ApplyProjection(_rows[i], _rowSources[i]);
+                for (int i = 0; i < _rowSources.Count; i++)
+                {
+                    ApplyProjection(_rows[i], _rowSources[i]);
+                }
             }
 
             EmptyState.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -255,8 +262,15 @@ namespace GI_Subtitles.Views
         private void ApplyResult(ActivityLogRowView view, ActivityLogRow row)
         {
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(row, ResolveText);
-            view.Result = projection.PlainText;
-            view.ResultLines = projection.Lines;
+            string plainText = projection.PlainText;
+            // ResultLines is a fresh list each Compose; only retarget when the
+            // plain text changed so mutation refreshes do not churn the column.
+            if (view.ResultLines == null
+                || !string.Equals(view.Result, plainText, StringComparison.Ordinal))
+            {
+                view.Result = plainText;
+                view.ResultLines = projection.Lines;
+            }
         }
 
         private static string JobResourceKey(OperatorJob job)

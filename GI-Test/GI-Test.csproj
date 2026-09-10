@@ -115,6 +115,7 @@
     <Compile Include="ActivityLogResultComposerHarness.cs" />
     <Compile Include="TestActivityLogResultComposer.cs" />
     <Compile Include="TestActivityLogResultColoredLayer.cs" />
+    <Compile Include="TestActivityLogWindowAppendProjection.cs" />
     <Compile Include="TestLiveOverlaySessionRegionPairs.cs" />
     <Compile Include="TestLiveOverlaySessionVoicePrimary.cs" />
     <Compile Include="TestLiveOverlaySessionPreviewAndAdjust.cs" />
