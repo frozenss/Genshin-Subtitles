@@ -20,6 +20,7 @@ namespace GI_Subtitles.Core.Overlay
         public const int DialogueOptionsOcrSlot = -1;
         public const int EnginePairCap = 8;
         public const int SettingsPairCap = 4;
+        public const int DefaultSubtitleIdleTimeoutSeconds = 0;
         private const string DialogueChoiceEchoPrefix = "◆ ";
 
         private readonly IOcrIntervalStore _store;
@@ -30,10 +31,12 @@ namespace GI_Subtitles.Core.Overlay
         private readonly List<string> _contents = new List<string>();
         private readonly List<int> _recognitionOrders = new List<int>();
         private readonly List<PairRecognitionResult> _lastResults = new List<PairRecognitionResult>();
+        private readonly List<DateTime?> _pairLastAppliedAt = new List<DateTime?>();
         private readonly List<int> _ocrQueue = new List<int>();
         private readonly List<RegionOutline> _previewOutlines = new List<RegionOutline>();
         private readonly List<RegionOutline> _adjustOutlines = new List<RegionOutline>();
         private int _storedMs;
+        private int _subtitleIdleTimeoutSeconds = DefaultSubtitleIdleTimeoutSeconds;
         private DateTime? _previewExpiresAt;
         private DateTime? _echoExpiresAt;
         private OverlayRect _darkScreenBand = OverlayRect.Invalid;
@@ -44,6 +47,7 @@ namespace GI_Subtitles.Core.Overlay
         private string _darkScreenHeader = string.Empty;
         private string _darkScreenContent = string.Empty;
         private int _darkScreenRecognitionOrder;
+        private DateTime? _darkScreenLastAppliedAt;
         private bool _darkScreenActive;
         private bool _dialogueOptionsActive;
         private PairRecognitionResult _lastDarkScreenResult;
@@ -293,6 +297,11 @@ namespace GI_Subtitles.Core.Overlay
 
         public bool SubtitlesVisible { get; private set; }
 
+        public int SubtitleIdleTimeoutSeconds
+        {
+            get { return _subtitleIdleTimeoutSeconds; }
+        }
+
         public int VoicePrimaryId { get; private set; }
 
         public bool AddInProgress { get; private set; }
@@ -397,11 +406,23 @@ namespace GI_Subtitles.Core.Overlay
             ClearArm();
         }
 
+        public void SetSubtitleIdleTimeoutSeconds(int seconds)
+        {
+            if (seconds < 0)
+            {
+                seconds = 0;
+            }
+
+            _subtitleIdleTimeoutSeconds = seconds;
+            Tick();
+        }
+
         public void Tick()
         {
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
             ExpireEchoIfNeeded();
+            ExpireIdleSubtitlesIfNeeded();
             TryStartNextOcr();
         }
 
@@ -709,6 +730,7 @@ namespace GI_Subtitles.Core.Overlay
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
             ExpireEchoIfNeeded();
+            ExpireIdleSubtitlesIfNeeded();
             ApplyExtraPathSample(extra);
             int engineCount = Math.Min(EnginePairCap, _pairs.Count);
             for (int i = 0; i < engineCount; i++)
@@ -726,9 +748,7 @@ namespace GI_Subtitles.Core.Overlay
                 PairFrameSample sample = samples[i];
                 if (sample.Empty && sample.Stable)
                 {
-                    _headers[i] = string.Empty;
-                    _contents[i] = string.Empty;
-                    _lastResults[i] = null;
+                    ClearPairSubtitle(i);
                     continue;
                 }
 
@@ -752,6 +772,7 @@ namespace GI_Subtitles.Core.Overlay
             ExpireHintIfNeeded();
             ExpirePreviewIfNeeded();
             ExpireEchoIfNeeded();
+            ExpireIdleSubtitlesIfNeeded();
             if (!_busyPairIndex.HasValue)
             {
                 return;
@@ -768,18 +789,7 @@ namespace GI_Subtitles.Core.Overlay
                 IsRepeatResult(busy, miss, matchMiss, header, content, ocrText));
             if (busy == DarkScreenOcrSlot)
             {
-                // Path may have ended while OCR was in flight; do not re-seed after clear.
-                if (_darkScreenActive)
-                {
-                    _lastDarkScreenResult = PairRecognitionResult.From(
-                        miss,
-                        matchMiss,
-                        header,
-                        content,
-                        ocrText);
-                }
-
-                ApplyDarkScreenResult(miss, matchMiss, content, header);
+                ApplyDarkScreenResult(miss, matchMiss, header, content, ocrText);
                 return;
             }
 
@@ -835,6 +845,7 @@ namespace GI_Subtitles.Core.Overlay
                 _contents[pairIndex] = content ?? string.Empty;
                 _recognitionSequence++;
                 _recognitionOrders[pairIndex] = _recognitionSequence;
+                NotePairApplied(pairIndex);
                 if (_pairs[pairIndex].Id == VoicePrimaryId)
                 {
                     EmitVoicePlayRequest(pairIndex);
@@ -1212,10 +1223,8 @@ namespace GI_Subtitles.Core.Overlay
             _busyPairIndex = null;
             for (int i = 0; i < _headers.Count; i++)
             {
-                _headers[i] = string.Empty;
-                _contents[i] = string.Empty;
+                ClearPairSubtitle(i);
                 _recognitionOrders[i] = 0;
-                _lastResults[i] = null;
             }
         }
 
@@ -1228,6 +1237,7 @@ namespace GI_Subtitles.Core.Overlay
                 _contents.RemoveAt(index);
                 _recognitionOrders.RemoveAt(index);
                 _lastResults.RemoveAt(index);
+                _pairLastAppliedAt.RemoveAt(index);
             }
 
             if (_busyPairIndex.HasValue)
@@ -1275,6 +1285,7 @@ namespace GI_Subtitles.Core.Overlay
                 _contents.Add(string.Empty);
                 _recognitionOrders.Add(0);
                 _lastResults.Add(null);
+                _pairLastAppliedAt.Add(null);
             }
 
             if (_headers.Count > _pairs.Count)
@@ -1284,6 +1295,7 @@ namespace GI_Subtitles.Core.Overlay
                 _contents.RemoveRange(_pairs.Count, extra);
                 _recognitionOrders.RemoveRange(_pairs.Count, extra);
                 _lastResults.RemoveRange(_pairs.Count, extra);
+                _pairLastAppliedAt.RemoveRange(_pairs.Count, extra);
             }
         }
 
@@ -1363,14 +1375,41 @@ namespace GI_Subtitles.Core.Overlay
             EmitExtraPathVoice(string.Empty, _echoContent);
         }
 
-        private void ApplyDarkScreenResult(bool miss, bool matchMiss, string content, string header)
+        private void ApplyDarkScreenResult(
+            bool miss,
+            bool matchMiss,
+            string header,
+            string content,
+            string ocrText)
         {
+            PairRecognitionResult result = PairRecognitionResult.From(
+                miss,
+                matchMiss,
+                header,
+                content,
+                ocrText);
+            // Dark-screen still re-applies same matched text (voice may replay after the
+            // previous line ends); only a different recognition result is "newly applied"
+            // for the idle clock, matching region-pair result fold.
+            bool newlyApplied = !result.SameAs(_lastDarkScreenResult);
+
+            // Path may have ended while OCR was in flight; do not re-seed after clear.
+            if (_darkScreenActive)
+            {
+                _lastDarkScreenResult = result;
+            }
+
             if (!miss && !matchMiss && _darkScreenActive)
             {
                 _darkScreenHeader = header ?? string.Empty;
                 _darkScreenContent = content ?? string.Empty;
                 _recognitionSequence++;
                 _darkScreenRecognitionOrder = _recognitionSequence;
+                if (newlyApplied)
+                {
+                    NoteDarkScreenApplied();
+                }
+
                 EmitExtraPathVoice(_darkScreenHeader, _darkScreenContent);
             }
 
@@ -1381,10 +1420,77 @@ namespace GI_Subtitles.Core.Overlay
         {
             _darkScreenActive = false;
             _darkScreenBand = OverlayRect.Invalid;
+            ClearDarkScreenSubtitleBody();
+        }
+
+        private void NotePairApplied(int pairIndex)
+        {
+            if (pairIndex < 0 || pairIndex >= _pairLastAppliedAt.Count)
+            {
+                return;
+            }
+
+            _pairLastAppliedAt[pairIndex] = _utcNow();
+        }
+
+        private void NoteDarkScreenApplied()
+        {
+            _darkScreenLastAppliedAt = _utcNow();
+        }
+
+        private void ClearPairSubtitle(int pairIndex)
+        {
+            if (pairIndex < 0 || pairIndex >= _contents.Count)
+            {
+                return;
+            }
+
+            _headers[pairIndex] = string.Empty;
+            _contents[pairIndex] = string.Empty;
+            _lastResults[pairIndex] = null;
+            if (pairIndex < _pairLastAppliedAt.Count)
+            {
+                _pairLastAppliedAt[pairIndex] = null;
+            }
+        }
+
+        private void ClearDarkScreenSubtitleBody()
+        {
             _darkScreenHeader = string.Empty;
             _darkScreenContent = string.Empty;
             _darkScreenRecognitionOrder = 0;
+            _darkScreenLastAppliedAt = null;
             _lastDarkScreenResult = null;
+        }
+
+        private void ExpireIdleSubtitlesIfNeeded()
+        {
+            if (_subtitleIdleTimeoutSeconds <= 0)
+            {
+                return;
+            }
+
+            DateTime now = _utcNow();
+            TimeSpan timeout = TimeSpan.FromSeconds(_subtitleIdleTimeoutSeconds);
+            for (int i = 0; i < _pairLastAppliedAt.Count; i++)
+            {
+                DateTime? appliedAt = _pairLastAppliedAt[i];
+                if (!appliedAt.HasValue)
+                {
+                    continue;
+                }
+
+                if (now - appliedAt.Value >= timeout)
+                {
+                    ClearPairSubtitle(i);
+                }
+            }
+
+            if (_darkScreenLastAppliedAt.HasValue
+                && now - _darkScreenLastAppliedAt.Value >= timeout)
+            {
+                ClearDarkScreenSubtitleBody();
+            }
         }
 
         private void ClearDialogueOptionsRecognition()

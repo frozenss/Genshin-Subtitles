@@ -46,7 +46,11 @@ _Avoid_: coloring the whole line when you mean the tag; a second tag for the sec
 
 **Result fold**:
 Keeping the current subtitle and skipping voice replay when a run's recognition result is the same as what that pair already shows. The run itself still happens and is still recorded; only the re-apply is skipped.
-_Avoid_: caching the query result (the match cache is a forever map from OCR text; this is one pair's latest result, replaced by the next different one); turning this off with the log de-noise checkbox (that lever is view-only)
+_Avoid_: caching the query result (the match cache is a forever map from OCR text; this is one pair's latest result, replaced by the next different one); turning this off with the log de-noise checkbox (that lever is view-only); treating subtitle idle timeout expiry as a fold (expiry clears the fold so the same line can return)
+
+**Subtitle idle timeout**:
+A global preference, in whole seconds, for how long a region-pair or dark-screen subtitle body may stay after its last newly applied recognition result before that surface is cleared and its result fold forgotten. Zero means off (bodies stay until replaced or otherwise cleared). Each surface times out on its own clock. It is not the operator hide/show mute, and it does not cover the dialogue-choice echo, hints, or region-pair preview.
+_Avoid_: 隐藏字幕; 字幕自动隐去 as the canonical name; applying it to the dialogue-choice echo (that keeps its own fixed duration); writing an activity log row on expiry; stopping voice when a body clears; pausing the clock because recognition stopped; one shared clock that wipes every surface together
 
 **Repeat row**:
 An activity log row whose recognition result is the same as that pair's previous row. It is recorded like any other row; hiding it is a view choice and never a deletion.
@@ -110,7 +114,7 @@ _Avoid_: overlay-translating every option in place; treating it as a region pair
 
 **Dialogue-choice echo**:
 The short-lived translation of the option the operator just selected. Default: one extra line above the voice-primary pair's subtitle body, not a replacement. A set dialogue-option display detaches it there.
-_Avoid_: Hint; replacing the voice-primary subtitle body; showing the echo in two places at once
+_Avoid_: Hint; replacing the voice-primary subtitle body; showing the echo in two places at once; putting it under subtitle idle timeout (echo keeps its own fixed duration)
 
 **Dialogue-option display**:
 The optional persistent rectangle for the dialogue-choice echo. Unset, the echo stays on the voice-primary pair. Set, the echo appears only there.

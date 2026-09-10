@@ -111,6 +111,7 @@
     <Compile Include="TestLiveOverlaySessionExtraPathRepeat.cs" />
     <Compile Include="TestLiveOverlaySessionResultFold.cs" />
     <Compile Include="TestLiveOverlaySessionMatchMissKeep.cs" />
+    <Compile Include="TestLiveOverlaySessionSubtitleIdleTimeout.cs" />
     <Compile Include="TestActivityLogRowFilter.cs" />
     <Compile Include="TestActivityLogFollowTail.cs" />
     <Compile Include="ActivityLogResultComposerHarness.cs" />
