@@ -24,63 +24,75 @@ New sessions: read this file first, then the linked docs for the next action.
 | [`upstream-pr-file-manifest.md`](upstream-pr-file-manifest.md) | Precise allow/exclude paths and surgical cuts for PR-03…09 |
 | [`git-branches.md`](git-branches.md) | `personal` / `master` / `pr/<topic>` conventions |
 
-Worktree notes: `...\pr-region-pairs-core\NOTES-pr03.md` (ExtraPath-early rationale).
-
 Grill consensus (settled): full upstreamable surface over time; doc-first batches; Issue+PR together (Draft for large); English for PR/branch surfaces; hard-exclude fork/AI/agent/`-fork.N`/ADR 0013; build/CI as small separate PRs; organize locally and review before a dedicated submit session.
 
 ## Status
 
-**Phase:** Organize clean `pr/*` branches on the fork (no upstream Issue/PR yet).
+**Phase:** **Organize complete** for PR-01…09 on the fork. **No upstream Issues/PRs opened yet.**
 
-**Overall:** PR-01…04 on `origin`. **PR-05** organize in progress (stack on `origin/pr/extra-paths`).
+**Overall:** Independent chores `pr/msbuild-script` + `pr/deploy-repo-guard`. Product stack is linear:
+
+`region-pairs-core` → `extra-paths` → `overlay-layout-per-game` → `activity-log-core` → `activity-log-fold-miss` → `activity-log-copy-tags` → `activity-log-follow-tail` → `region-adjust-polish` → `subtitle-idle-timeout` (`1fa5d9d`).
+
+ExtraPath-early on PR-03 remains **accepted**.
 
 ## Done
 
-| Item | Evidence |
-| --- | --- |
-| Plan / manifest / progress handoff | `docs/agents/upstream-pr-*.md` |
-| `origin/pr/msbuild-script` | `1188d58` |
-| `origin/pr/deploy-repo-guard` | `378d430` |
-| `origin/pr/region-pairs-core` | `a9ecd04` — ExtraPath-early **accepted** by user |
-| `origin/pr/extra-paths` | `8f8fdd2` — ADR 0006 + `TestLiveOverlaySessionExtraPaths` (+ csproj); delta vs PR-03 = 3 files / +740 |
-| PR-04 build/tests (agent) | Debug+Release OK; filter `ExtraPath\|DarkScreenSubtitle` → **27 passed** |
-| Parent spot-check PR-04 | Forbid grep clean; ADR 0006 present; diff vs PR-03 matches agent report |
-| Deferred on purpose | `TestLiveOverlaySessionExtraPathRepeat.cs` needs ActivityLog (PR-06) |
+| Item | Tip | Agent validation (parent spot-check where noted) |
+| --- | --- | --- |
+| `pr/msbuild-script` | `1188d58` | Build script + README build section; no fork banner |
+| `pr/deploy-repo-guard` | `378d430` | Deploy repo guard only |
+| `pr/region-pairs-core` | `a9ecd04` | 75 tests (pairs/hint/OCR); ExtraPath-early accepted |
+| `pr/extra-paths` | `8f8fdd2` | +740 vs 03; 27 ExtraPath/detector tests |
+| `pr/overlay-layout-per-game` | `6dfefa4` | +592 vs 04; 40 layout/applied/extra tests |
+| `pr/activity-log-core` | `6c5704c` | +2619 vs 05; window ~270 lines; 36 log tests |
+| `pr/activity-log-fold-miss` | `d3b7ff4` | +859 vs 06; 18 fold/miss/filter tests |
+| `pr/activity-log-copy-tags` | `159e3f4` | +1654 vs 07a; 15 copy/tag tests |
+| `pr/activity-log-follow-tail` | `d909b2b` | +1307 vs 07b; 15 follow-tail tests |
+| `pr/region-adjust-polish` | `ea48965` | +842 vs 07c; 17+11 adjust tests; Verify-Release script OK |
+| `pr/subtitle-idle-timeout` | `1fa5d9d` | +1058 vs 08; 17 idle-timeout tests |
+
+Plan/manifest/progress docs live on `origin/personal`.
 
 ## In progress
 
 | Item | Owner / note |
 | --- | --- |
-| `pr/overlay-layout-per-game` | Subagent stacking on `origin/pr/extra-paths` (`8f8fdd2`) |
+| — | Organize batch idle |
 
 ## Next actions
 
-1. Finish + parent-review PR-05.
-2. Then PR-06 activity-log core (stack on PR-05 tip).
-3. Submit session only when user explicitly asks (Ready 01/02; Draft 03+).
+1. Optional: deeper parent review / smoke of stack tip `1fa5d9d` vs `personal` for leftover gaps.
+2. **Submit session** (only when user explicitly asks): open upstream Issues + PRs per plan checklist — Ready for 01/02; Draft for large product PRs; cross-link; English bodies with Summary/Validation.
+3. After upstream merges, ff `master` ← `upstream/master` and merge into `personal` as usual.
 
 ## Blockers / confirmations
 
 | When | Confirm before acting |
 | --- | --- |
-| Before upstream submit | User explicitly asks to open Issues/PRs on `qew21/Genshin-Subtitles` |
-| None for PR-05 kickoff | ExtraPath scope already accepted; PR-04 reviewed |
+| **Before any upstream Issue/PR** | User explicitly starts a submit session |
+| None for organize | Inventory PR-01…09 heads are on `origin` |
 
 ## Branch table (fork `origin`)
 
 | Branch | Tip | Upstream Issue/PR | Notes |
 | --- | --- | --- | --- |
-| `pr/msbuild-script` | `1188d58` | — | Submit later (Ready) |
-| `pr/deploy-repo-guard` | `378d430` | — | Submit later (Ready) |
-| `pr/region-pairs-core` | `a9ecd04` | — | Draft later; ExtraPath-early accepted |
-| `pr/extra-paths` | `8f8fdd2` | — | Stacked on 03; organize done |
-| `pr/overlay-layout-per-game` | _(pending)_ | — | In progress |
-| `pr/activity-log-*` … `pr/subtitle-idle-timeout` | — | — | Not started |
+| `pr/msbuild-script` | `1188d58` | — | Independent; Ready later |
+| `pr/deploy-repo-guard` | `378d430` | — | Independent; Ready later |
+| `pr/region-pairs-core` | `a9ecd04` | — | Stack root; Draft later |
+| `pr/extra-paths` | `8f8fdd2` | — | |
+| `pr/overlay-layout-per-game` | `6dfefa4` | — | |
+| `pr/activity-log-core` | `6c5704c` | — | |
+| `pr/activity-log-fold-miss` | `d3b7ff4` | — | |
+| `pr/activity-log-copy-tags` | `159e3f4` | — | |
+| `pr/activity-log-follow-tail` | `d909b2b` | — | |
+| `pr/region-adjust-polish` | `ea48965` | — | |
+| `pr/subtitle-idle-timeout` | `1fa5d9d` | — | **Stack tip** |
 
 `master` last known ff of `upstream/master`: `cda7fa6`.
 
 ## Last updated
 
-- **When:** 2026-09-12 (user said continue → PR-05 started)
-- **By:** parent agent
-- **personal docs tip:** update again at PR-05 closeout
+- **When:** 2026-09-12 (user continue: finished PR-05…09 organize)
+- **By:** parent agent after PR-09 push `1fa5d9d`
+- **personal docs tip:** commit+push this file to `origin/personal` in closeout
