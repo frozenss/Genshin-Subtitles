@@ -2510,5 +2510,15 @@ namespace GI_Subtitles.Views
             }
             e.Handled = true;
         }
+
+        private void FontPreview_Click(object sender, RoutedEventArgs e)
+        {
+            Font font = new Font
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            font.ShowDialog();
+        }
     }
 }
