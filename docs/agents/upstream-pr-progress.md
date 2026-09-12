@@ -32,7 +32,7 @@ Grill consensus (settled): full upstreamable surface over time; doc-first batche
 
 **Phase:** Organize clean `pr/*` branches on the fork (no upstream Issue/PR yet).
 
-**Overall:** PR-01…04 on `origin`. ExtraPath-early on PR-03 **accepted**. PR-04 is a small stack commit (ADR 0006 + ExtraPath tests). Next organize step: **PR-05** on `pr/extra-paths`.
+**Overall:** PR-01…04 on `origin`. **PR-05** organize in progress (stack on `origin/pr/extra-paths`).
 
 ## Done
 
@@ -51,12 +51,12 @@ Grill consensus (settled): full upstreamable surface over time; doc-first batche
 
 | Item | Owner / note |
 | --- | --- |
-| — | Idle between batches |
+| `pr/overlay-layout-per-game` | Subagent stacking on `origin/pr/extra-paths` (`8f8fdd2`) |
 
 ## Next actions
 
-1. Build `pr/overlay-layout-per-game` (PR-05) from `origin/pr/extra-paths` per plan/manifest (ApplyGame layout swap + ADR 0009 + persistence tests).
-2. Then PR-06 activity-log core (stack on PR-05 tip preferred).
+1. Finish + parent-review PR-05.
+2. Then PR-06 activity-log core (stack on PR-05 tip).
 3. Submit session only when user explicitly asks (Ready 01/02; Draft 03+).
 
 ## Blockers / confirmations
@@ -74,13 +74,13 @@ Grill consensus (settled): full upstreamable surface over time; doc-first batche
 | `pr/deploy-repo-guard` | `378d430` | — | Submit later (Ready) |
 | `pr/region-pairs-core` | `a9ecd04` | — | Draft later; ExtraPath-early accepted |
 | `pr/extra-paths` | `8f8fdd2` | — | Stacked on 03; organize done |
-| `pr/overlay-layout-per-game` … | — | — | **Next** |
+| `pr/overlay-layout-per-game` | _(pending)_ | — | In progress |
 | `pr/activity-log-*` … `pr/subtitle-idle-timeout` | — | — | Not started |
 
 `master` last known ff of `upstream/master`: `cda7fa6`.
 
 ## Last updated
 
-- **When:** 2026-09-12 (ExtraPath accepted; PR-04 finished + parent-reviewed)
+- **When:** 2026-09-12 (user said continue → PR-05 started)
 - **By:** parent agent
-- **personal docs tip:** push with this revision to `origin/personal` in closeout
+- **personal docs tip:** update again at PR-05 closeout
