@@ -28,99 +28,82 @@ Grill consensus (settled): full upstreamable surface over time; doc-first batche
 
 ## Status
 
-**Phase:** **Organize + gap review complete** for PR-01…09 on the fork. **No upstream Issues/PRs opened yet.**
+**Phase:** **Submit opened** against `qew21/Genshin-Subtitles`. English Issues + PRs created with cross-links. Gap review previously clean.
 
-**Overall:** Independent chores `pr/msbuild-script` + `pr/deploy-repo-guard`. Product stack is linear:
+**Overall:** Independent Ready chores + Draft product stack:
 
-`region-pairs-core` → `extra-paths` → `overlay-layout-per-game` → `activity-log-core` → `activity-log-fold-miss` → `activity-log-copy-tags` → `activity-log-follow-tail` → `region-adjust-polish` → `subtitle-idle-timeout` (`1fa5d9d`).
+`#31` → `#32` → `#33` → `#34` → `#35` → `#36` → `#37` → `#38` → `#39` (plus Ready `#29`, `#30`).
 
 ExtraPath-early on PR-03 remains **accepted**.
 
-**Gap review verdict:** **No real upstreamable product gaps.** Synthetic tree (`master` + tip PR-03…09 + PR-01 + PR-02) vs `origin/personal` differs only by intentional scrub/format/forbid noise.
+## Upstream Issue ↔ PR map
+
+| Series | Branch tip | Issue | PR | State | Depends on PR |
+| --- | --- | --- | --- | --- | --- |
+| PR-01 MSBuild | `1188d58` `pr/msbuild-script` | [#18](https://github.com/qew21/Genshin-Subtitles/issues/18) | [#29](https://github.com/qew21/Genshin-Subtitles/pull/29) | Ready | — |
+| PR-02 Deploy guard | `378d430` `pr/deploy-repo-guard` | [#19](https://github.com/qew21/Genshin-Subtitles/issues/19) | [#30](https://github.com/qew21/Genshin-Subtitles/pull/30) | Ready | — |
+| PR-03 Region pairs | `a9ecd04` `pr/region-pairs-core` | [#20](https://github.com/qew21/Genshin-Subtitles/issues/20) | [#31](https://github.com/qew21/Genshin-Subtitles/pull/31) | Draft | — (stack root) |
+| PR-04 Extra paths | `8f8fdd2` `pr/extra-paths` | [#21](https://github.com/qew21/Genshin-Subtitles/issues/21) | [#32](https://github.com/qew21/Genshin-Subtitles/pull/32) | Draft | #31 |
+| PR-05 Overlay layout | `6dfefa4` `pr/overlay-layout-per-game` | [#22](https://github.com/qew21/Genshin-Subtitles/issues/22) | [#33](https://github.com/qew21/Genshin-Subtitles/pull/33) | Draft | #32 |
+| PR-06 Activity log core | `6c5704c` `pr/activity-log-core` | [#23](https://github.com/qew21/Genshin-Subtitles/issues/23) | [#34](https://github.com/qew21/Genshin-Subtitles/pull/34) | Draft | #33 |
+| PR-07a Fold/miss | `d3b7ff4` `pr/activity-log-fold-miss` | [#24](https://github.com/qew21/Genshin-Subtitles/issues/24) | [#35](https://github.com/qew21/Genshin-Subtitles/pull/35) | Draft | #34 |
+| PR-07b Copy/tags | `159e3f4` `pr/activity-log-copy-tags` | [#25](https://github.com/qew21/Genshin-Subtitles/issues/25) | [#36](https://github.com/qew21/Genshin-Subtitles/pull/36) | Draft | #35 |
+| PR-07c Follow-tail | `d909b2b` `pr/activity-log-follow-tail` | [#26](https://github.com/qew21/Genshin-Subtitles/issues/26) | [#37](https://github.com/qew21/Genshin-Subtitles/pull/37) | Draft | #36 |
+| PR-08 Adjust polish | `ea48965` `pr/region-adjust-polish` | [#27](https://github.com/qew21/Genshin-Subtitles/issues/27) | [#38](https://github.com/qew21/Genshin-Subtitles/pull/38) | Draft | #37 |
+| PR-09 Idle timeout | `1fa5d9d` `pr/subtitle-idle-timeout` | [#28](https://github.com/qew21/Genshin-Subtitles/issues/28) | [#39](https://github.com/qew21/Genshin-Subtitles/pull/39) | Draft | #38 |
+
+Cross-link map also posted on upstream [#18](https://github.com/qew21/Genshin-Subtitles/issues/18) and [#20](https://github.com/qew21/Genshin-Subtitles/issues/20); each Issue has an Implementation PR comment; each PR body has **Closes / Depends on PR / Next PR**.
+
+**Suggested merge order:** `#29` and `#30` anytime; product stack `#31` → … → `#39`.
 
 ## Done
 
-| Item | Tip | Agent validation (parent spot-check where noted) |
+| Item | Tip | Notes |
 | --- | --- | --- |
-| `pr/msbuild-script` | `1188d58` | Build script + README build section; no fork banner |
-| `pr/deploy-repo-guard` | `378d430` | Deploy repo guard only |
-| `pr/region-pairs-core` | `a9ecd04` | 75 tests (pairs/hint/OCR); ExtraPath-early accepted |
-| `pr/extra-paths` | `8f8fdd2` | +740 vs 03; 27 ExtraPath/detector tests |
-| `pr/overlay-layout-per-game` | `6dfefa4` | +592 vs 04; 40 layout/applied/extra tests |
-| `pr/activity-log-core` | `6c5704c` | +2619 vs 05; window ~270 lines; 36 log tests |
-| `pr/activity-log-fold-miss` | `d3b7ff4` | +859 vs 06; 18 fold/miss/filter tests |
-| `pr/activity-log-copy-tags` | `159e3f4` | +1654 vs 07a; 15 copy/tag tests |
-| `pr/activity-log-follow-tail` | `d909b2b` | +1307 vs 07b; 15 follow-tail tests |
-| `pr/region-adjust-polish` | `ea48965` | +842 vs 07c; 17+11 adjust tests; Verify-Release script OK |
-| `pr/subtitle-idle-timeout` | `1fa5d9d` | +1058 vs 08; 17 idle-timeout tests |
-| Synth gap review | throwaway `_review/upstream-synth` (deleted after review) | See “Gap review” below |
-
-Plan/manifest/progress docs live on `origin/personal`.
-
-## Gap review (synth vs `personal`)
-
-**Method:** throwaway worktree from `master` @ `cda7fa6`; merge `origin/pr/subtitle-idle-timeout`, then `pr/msbuild-script`, then `pr/deploy-repo-guard`; diff vs `origin/personal`; classify forbid vs product. Worktree/branch removed after review (do not push synth).
-
-**Identical / aligned (byte or content):** `LiveOverlaySession.cs`, `LiveOverlaySession.OperatorActions.cs`, `MainWindow.xaml(.cs)`, ExtraPath/idle-timeout stores, product ADR set except **0013**, `scripts/Build.ps1`, product file inventory under `GI-Subtitles` / `GI-Test` / `Screenshot` / `scripts` / `docs/adr` (no 0013). csproj Compile/Page **membership** equal (order differs only).
-
-**Intentional diffs only (not gaps):**
-
-| Path | Why OK |
-| --- | --- |
-| AdjustMouseGuard / RegionAdjustTrace / RegionAdjustDiagnostics / TestRegionAdjustTrace / Verify-Release script | Fork issue `#37`/`#39` comment scrub on synth |
-| `ActivityLogWindow.xaml.cs` | Comment / field order / type qualification — behaviorally equivalent |
-| Strings `*.xaml` | ActivityLog block indentation only; keys/values identical after whitespace strip |
-| `GI-Subtitles.csproj` / `GI-Test.csproj` | Include order only |
-| `SettingsWindow.xaml.cs` | Blank-line noise |
-| `README*.md` | Personal fork banner only on `personal`; build section on both |
-| `.github/workflows/release.yml` | Personal-only `-fork.*` release-notes prepend (forbid); deploy guard on both |
-| `.gitignore` | Personal AI / `.scratch` / `tmp` entries |
-
-**Hard-forbid ADDs on personal only:** `docs/agents/**`, `AGENTS.md`, `CONTEXT.md`, ADR **0013**.
-
-**Real gaps:** **none.**
-
-**Optional polish before submit (non-blocking):** normalize ActivityLog string indentation on stack tip; optional later scrub of remaining `#18`/`#36`/`#39` mentions inside shared ADR narrative (present on both trees identically — not a synth↔personal delta).
+| Organize PR-01…09 | see branch table | Agent tests per segment; ExtraPath-early accepted |
+| Synth gap review | vs `personal` | No real product gaps |
+| Upstream Issues #18–#28 | English | Paired 1:1 with PRs |
+| Upstream PRs #29–#39 | English | Ready: #29–#30; Draft: #31–#39 |
 
 ## In progress
 
 | Item | Owner / note |
 | --- | --- |
-| — | Idle; waiting for explicit submit session |
+| Upstream review / merge | Maintainer; babysit only if user asks |
 
 ## Next actions
 
-1. **Submit session** (only when user explicitly asks): open upstream Issues + PRs per plan checklist — Ready for 01/02; Draft for large product PRs; cross-link; English bodies with Summary/Validation.
-2. Optional non-blocking polish: ActivityLog string indent on tip; ADR fork-issue wording scrub if desired before open.
-3. After upstream merges, ff `master` ← `upstream/master` and merge into `personal` as usual.
+1. Respond to upstream review on Ready `#29`/`#30` and Draft stack starting at `#31`.
+2. After merges: ff `master` ← `upstream/master`, merge into `personal`.
+3. Do not mark Drafts Ready unless user asks or review requests it.
 
 ## Blockers / confirmations
 
 | When | Confirm before acting |
 | --- | --- |
-| **Before any upstream Issue/PR** | User explicitly starts a submit session |
-| None for organize / gap review | Inventory PR-01…09 heads are on `origin`; gap review clean |
+| Mark Draft → Ready | User ask or maintainer request |
+| Force-push / restack `pr/*` | User ask (e.g. after parent squash-merge) |
 
 ## Branch table (fork `origin`)
 
 | Branch | Tip | Upstream Issue/PR | Notes |
 | --- | --- | --- | --- |
-| `pr/msbuild-script` | `1188d58` | — | Independent; Ready later |
-| `pr/deploy-repo-guard` | `378d430` | — | Independent; Ready later |
-| `pr/region-pairs-core` | `a9ecd04` | — | Stack root; Draft later |
-| `pr/extra-paths` | `8f8fdd2` | — | |
-| `pr/overlay-layout-per-game` | `6dfefa4` | — | |
-| `pr/activity-log-core` | `6c5704c` | — | |
-| `pr/activity-log-fold-miss` | `d3b7ff4` | — | |
-| `pr/activity-log-copy-tags` | `159e3f4` | — | |
-| `pr/activity-log-follow-tail` | `d909b2b` | — | |
-| `pr/region-adjust-polish` | `ea48965` | — | |
-| `pr/subtitle-idle-timeout` | `1fa5d9d` | — | **Stack tip** |
+| `pr/msbuild-script` | `1188d58` | #18 / #29 | Ready |
+| `pr/deploy-repo-guard` | `378d430` | #19 / #30 | Ready |
+| `pr/region-pairs-core` | `a9ecd04` | #20 / #31 | Draft stack root |
+| `pr/extra-paths` | `8f8fdd2` | #21 / #32 | Draft |
+| `pr/overlay-layout-per-game` | `6dfefa4` | #22 / #33 | Draft |
+| `pr/activity-log-core` | `6c5704c` | #23 / #34 | Draft |
+| `pr/activity-log-fold-miss` | `d3b7ff4` | #24 / #35 | Draft |
+| `pr/activity-log-copy-tags` | `159e3f4` | #25 / #36 | Draft |
+| `pr/activity-log-follow-tail` | `d909b2b` | #26 / #37 | Draft |
+| `pr/region-adjust-polish` | `ea48965` | #27 / #38 | Draft |
+| `pr/subtitle-idle-timeout` | `1fa5d9d` | #28 / #39 | Draft tip |
 
 `master` last known ff of `upstream/master`: `cda7fa6`.
 
 ## Last updated
 
-- **When:** 2026-09-12 (gap review: synth tip+01+02 vs `personal`)
-- **By:** parent agent after synth review; throwaway `_review/upstream-synth` deleted
-- **personal docs tip:** commit+push this file to `origin/personal` in closeout
+- **When:** 2026-09-12 (submit session: opened Issues #18–#28 + PRs #29–#39)
+- **By:** parent agent; English bodies; cross-link map on #18/#20 + per Issue/PR comments
+- **personal docs tip:** commit+push this file after submit
