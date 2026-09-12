@@ -19,3 +19,7 @@ Default working branch is `personal` (fork mainline). `master` fast-forwards `up
 ### Test-build releases
 
 Fork test builds ship as pre-release GitHub Releases from `-fork.N` tags pushed to `origin` only. See `docs/agents/test-build-releases.md`.
+
+### Other
+
+update issue status after implement.

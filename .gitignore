@@ -22,3 +22,6 @@ skills-lock.json
 
 # Local scratch / leftover markdown tickets (issues live on GitHub)
 .scratch/
+
+# Other
+tmp/
