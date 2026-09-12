@@ -32,7 +32,7 @@ Grill consensus (already settled): full upstreamable surface over time; doc-firs
 
 **Phase:** Organize clean `pr/*` branches on the fork (no upstream Issue/PR yet).
 
-**Overall:** PR-01, PR-02, and PR-03 heads are on `origin`. PR-03 parent spot-check passed forbid list / build claim; **scope confirmation needed** on early ExtraPath inclusion before treating PR-03 as submit-ready or starting PR-04 scrub.
+**Overall:** PR-01…03 on `origin`. User **accepted** PR-03 early ExtraPath scope (2026-09-12). PR-04 organize in progress (stack on `pr/region-pairs-core`: complete/scrub ExtraPath + ADR 0006 + tests — not a greenfield invent).
 
 ## Done
 
@@ -43,46 +43,44 @@ Grill consensus (already settled): full upstreamable surface over time; doc-firs
 | Progress handoff + session-close rule | this file |
 | `origin/pr/msbuild-script` | `1188d58` — `chore: add VS MSBuild build script` |
 | `origin/pr/deploy-repo-guard` | `378d430` — deploy repository guard only |
-| `origin/pr/region-pairs-core` | `a9ecd04` — `feat: region pairs with shared OCR cadence and settings` |
+| `origin/pr/region-pairs-core` | `a9ecd04` — organize complete; ExtraPath-early **accepted** by user |
 | PR-03 build/tests (agent) | GI-Subtitles Debug+Release OK; vstest filter `LiveOverlaySession\|HintScreen\|RegionPairSettings` → **75 passed** |
 | Parent forbid spot-check on PR-03 | No matches for fork banner / `docs/agents` / ADR 0013 / `ActivityLogWindow` / `SubtitleIdleTimeout` / `RegionAdjustTrace` |
+| ExtraPath scope decision | **Accept** — keep ExtraPath on PR-03; PR-04 = narrow/complete/scrub |
 
 ## In progress
 
 | Item | Owner / note |
 | --- | --- |
-| — | None actively building. Waiting on user confirmation for PR-03 ExtraPath scope (see below). |
+| `pr/extra-paths` | Subagent stacking on `origin/pr/region-pairs-core` per manifest PR-04 |
 
 ## Next actions
 
-1. **User confirmation:** accept PR-03 early ExtraPath runtime, or strip back toward master-inline dark-screen/dialogue before submit / before PR-04.
-2. If accepted: mark PR-03 organize-complete; start PR-04 as a **narrow/scrub** pass on top of `pr/region-pairs-core` (per agent NOTES), not a greenfield ExtraPath invent.
-3. If strip required: new subagent pass on `pr/region-pairs-core` to remove ExtraPath session/UI and restore hybrid MainWindow per manifest.
-4. Submit session remains **blocked** until user explicitly asks (then: Ready for 01/02, Draft for 03).
+1. Finish + parent-review `pr/extra-paths` (forbid list, ADR 0006, ExtraPath tests, no activity-log/idle/trace).
+2. Then PR-05 (layout ApplyGame) stacked on reviewed PR-04 tip (or on PR-03 if 04 is empty of layout work — prefer 04 tip).
+3. Submit session remains **blocked** until user explicitly asks.
 
 ## Blockers / confirmations
 
 | When | Confirm before acting |
 | --- | --- |
-| **Now** | **PR-03 ExtraPath early landing:** branch includes `ExtraPathSample`/`ExtraPathBody`, DarkScreen/Dialogue session APIs, Settings pin/scan, NotifyIcon box helpers — larger than manifest’s “prefer defer to PR-04”. Accept as Draft scope, or strip first? |
 | Before upstream submit session | User explicitly asks to open Issues/PRs on `qew21/Genshin-Subtitles` |
 | PR-01 local Release on naked `master` | Screenshot was `v4.5.2` on master; PR-03 carries TFM `v4.8` — keep PR-01 narrow |
-| Parallel product PRs | Still do not parallelize 04+ until PR-03 scope is accepted |
-
+| Parallel product PRs | 05+ wait until PR-04 reviewed; do not parallelize with in-flight 04 |
 ## Branch table (fork `origin`)
 
 | Branch | Tip | Upstream Issue/PR | Notes |
 | --- | --- | --- | --- |
 | `pr/msbuild-script` | `1188d58` | — | Organize done; submit later |
 | `pr/deploy-repo-guard` | `378d430` | — | Organize done; submit later |
-| `pr/region-pairs-core` | `a9ecd04` | — | Organize done pending ExtraPath scope confirm; 49 files, +8319/−1115 |
-| `pr/extra-paths` … | — | — | Not started (expect scrub/narrow if 03 keeps ExtraPath) |
+| `pr/region-pairs-core` | `a9ecd04` | — | Organize complete; ExtraPath-early accepted |
+| `pr/extra-paths` | _(pending)_ | — | In progress — stack on `a9ecd04` |
 | `pr/overlay-layout-per-game` … `pr/subtitle-idle-timeout` | — | — | Not started |
 
 `master` last known ff of `upstream/master`: `cda7fa6`.
 
 ## Last updated
 
-- **When:** 2026-09-12 (end of session: progress doc + PR-03 subagent finished)
-- **By:** parent agent after PR-03 push `a9ecd04` and forbid spot-check
-- **personal docs commits:** `cc74267` (plan/manifest/progress created); `532fef6` (progress after PR-03). Further edits to this file in the same closeout may add another docs commit on `origin/personal`.
+- **When:** 2026-09-12 (user accepted ExtraPath-early; PR-04 subagent started)
+- **By:** parent agent
+- **personal docs commits:** will push this acceptance + in-progress PR-04 note to `origin/personal` in closeout
