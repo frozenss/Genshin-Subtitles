@@ -16,6 +16,8 @@ Tiny finished fork-only chores (docs, scripts, personal defaults) commit on `per
 
 Branch from updated `master`, push to `origin`, open the PR against `qew21/Genshin-Subtitles`.
 
+Use head names `pr/<short-topic>` on the fork (not `feature/…`). That name is only the PR head on `origin`; after merge, upstream keeps commits on `master` under the maintainer’s merge strategy. Slicing, forbid lists, and submit checklist: `docs/agents/upstream-pr-plan.md`.
+
 ## Sync from upstream
 
 ```

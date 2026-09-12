@@ -16,6 +16,12 @@ Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agent
 
 Default working branch is `personal` (fork mainline). `master` fast-forwards `upstream/master` only. Feature work, upstream PRs, and syncing: see `docs/agents/git-branches.md`.
 
+### Upstream PR slicing
+
+Fork-only plan for decoupled English PRs to `qew21/Genshin-Subtitles` (exclusions, inventory, submit checklist): see `docs/agents/upstream-pr-plan.md`.
+File-level cuts: `docs/agents/upstream-pr-file-manifest.md`.
+**Living progress / session handoff** (update every conversation that touches this work): `docs/agents/upstream-pr-progress.md`.
+
 ### Test-build releases
 
 Fork test builds ship as pre-release GitHub Releases from `-fork.N` tags pushed to `origin` only. See `docs/agents/test-build-releases.md`.
