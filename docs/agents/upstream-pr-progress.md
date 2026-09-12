@@ -85,4 +85,4 @@ Grill consensus (already settled): full upstreamable surface over time; doc-firs
 
 - **When:** 2026-09-12 (end of session: progress doc + PR-03 subagent finished)
 - **By:** parent agent after PR-03 push `a9ecd04` and forbid spot-check
-- **personal docs commit:** prior `cc74267` (plan/manifest/progress); this revision committed+pushed in the same closeout if status is clean after commit
+- **personal docs commits:** `cc74267` (plan/manifest/progress created); `532fef6` (progress after PR-03). Further edits to this file in the same closeout may add another docs commit on `origin/personal`.
