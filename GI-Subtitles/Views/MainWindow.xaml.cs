@@ -115,7 +115,8 @@ namespace GI_Subtitles.Views
         private readonly bool _performanceDiagnostics = Config.Get("PerformanceDiagnostics", false);
         private const int DarkScreenAnalysisMaxSide = 960;
         private const int DialogueOptionAnalysisMaxSide = 1920;
-        string ocrText = "";        private NotifyIcon notifyIcon;
+        string ocrText = "";
+        private NotifyIcon notifyIcon;
         string lastHeader = null;
         string lastContent = null;
         public System.Windows.Threading.DispatcherTimer OCRTimer = new System.Windows.Threading.DispatcherTimer();
@@ -1220,7 +1221,7 @@ namespace GI_Subtitles.Views
                 {
                     try
                     {
-if (data.IsVisible && target != null)
+                        if (data.IsVisible && target != null)
                         {
                             data.SetImage(target);
                         }
@@ -1730,7 +1731,7 @@ if (data.IsVisible && target != null)
             Mat screenMat = null;
             try
             {
-screenBitmap = CaptureRectangleScaled(screen, DialogueOptionAnalysisMaxSide);
+                screenBitmap = CaptureRectangleScaled(screen, DialogueOptionAnalysisMaxSide);
                 screenMat = LimitFrameSize(screenBitmap.ToMat(), DialogueOptionAnalysisMaxSide);
                 screenBitmap.Dispose();
                 screenBitmap = null;
