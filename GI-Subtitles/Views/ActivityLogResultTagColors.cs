@@ -6,12 +6,12 @@ using GI_Subtitles.Core.Overlay;
 namespace GI_Subtitles.Views
 {
     /// <summary>
-    /// The tag colors of the result column's colored layer (ADR 0012): OCR
-    /// blue and source green mirror the recognition-preview badges in
-    /// Video.xaml, translation purple completes the trio. Content text never
-    /// gets a color here — the null returned for <see cref="ActivityLogResultTag.None"/>
-    /// means "inherit the default foreground", which is what keeps the two
-    /// layers identical except for the tag color.
+    /// Category colors for the result column (ADR 0016): OCR blue and source
+    /// green mirror the recognition-preview badges in Video.xaml, translation
+    /// purple completes the trio. <see cref="BrushFor"/> returns null for
+    /// <see cref="ActivityLogResultTag.None"/> (no stripe). Issue #49 paints
+    /// the per-line stripe from this table; tag text itself stays default
+    /// foreground.
     /// </summary>
     public static class ActivityLogResultTagColors
     {
@@ -23,9 +23,9 @@ namespace GI_Subtitles.Views
                 { ActivityLogResultTag.Translation, Frozen(ParseHex("#8250DF")) }
             };
 
-        /// <summary>A frozen, shareable brush of the tag color, or null to
-        /// inherit the default foreground (content text, untagged lines).
-        /// Frozen brushes are safe to hand to any run on any thread.</summary>
+        /// <summary>A frozen, shareable brush of the category color, or null
+        /// when the line has no stripe (untagged). Frozen brushes are safe to
+        /// hand to any element on any thread.</summary>
         public static Brush BrushFor(ActivityLogResultTag tag)
         {
             SolidColorBrush brush;

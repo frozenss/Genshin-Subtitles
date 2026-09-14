@@ -7,7 +7,7 @@ namespace GI_Test
     /// <summary>
     /// Shared fixture for the result-column tests: mirrors the zh-CN
     /// resource values, stands in for the window's resource lookup, and
-    /// builds the rows, so the composer and colored-layer tests compose the
+    /// builds the rows, so the composer and line-TextBox tests compose the
     /// same rows the window would.
     /// </summary>
     internal static class ActivityLogResultComposerHarness

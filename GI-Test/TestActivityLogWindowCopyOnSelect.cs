@@ -68,18 +68,20 @@ namespace GI_Test
                 window.UpdateLayout();
                 Pump(window.Dispatcher);
 
-                TextBox result = FindResultTextBox(window.LogList);
-                Assert.IsNotNull(result, "result TextBox missing");
-                result.Focus();
+                // ADR 0016: copy-on-select targets the line TextBox that
+                // started the selection, not a single cell-wide TextBox.
+                TextBox lineBox = FindResultLineTextBox(window.LogList);
+                Assert.IsNotNull(lineBox, "result line TextBox missing");
+                lineBox.Focus();
                 Pump(window.Dispatcher);
 
-                result.Select(0, 0);
-                double plainMs = TimeMouseUp(window, result);
+                lineBox.Select(0, 0);
+                double plainMs = TimeMouseUp(window, lineBox);
 
-                int take = Math.Min(24, result.Text.Length);
-                result.Select(0, take);
-                string expected = result.SelectedText;
-                double selectMs = TimeMouseUp(window, result);
+                int take = Math.Min(24, lineBox.Text.Length);
+                lineBox.Select(0, take);
+                string expected = lineBox.SelectedText;
+                double selectMs = TimeMouseUp(window, lineBox);
                 string got = WaitForClipboardText(expected, 2000);
 
                 ForceClose(window);
@@ -89,6 +91,57 @@ namespace GI_Test
                     selectMs < 500.0,
                     "select-release froze UI: " + selectMs.ToString("0.0") + " ms");
                 Assert.AreEqual(expected, got, "copy-on-select did not publish the selection");
+            });
+        }
+
+        [TestMethod]
+        public void ContextMenuCopy_UsesLineSelection_WhenPlacementTargetIsParentHost()
+        {
+            RunOnSta(delegate
+            {
+                LiveOverlaySession session = new LiveOverlaySession(new MemoryOcrIntervalStore());
+                AppendRow(session, 0);
+                var window = new ActivityLogWindow(session)
+                {
+                    ShowActivated = false,
+                    ShowInTaskbar = false,
+                    Left = 60,
+                    Top = 60,
+                    Width = 720,
+                    Height = 400
+                };
+                window.Show();
+                Pump(window.Dispatcher);
+                window.UpdateLayout();
+                Pump(window.Dispatcher);
+
+                TextBox lineBox = FindResultLineTextBox(window.LogList);
+                Assert.IsNotNull(lineBox, "result line TextBox missing");
+                ItemsControl host = FindAncestorItemsControl(lineBox);
+                Assert.IsNotNull(host, "result lines ItemsControl missing");
+
+                int take = Math.Min(16, lineBox.Text.Length);
+                lineBox.Select(0, take);
+                string expected = lineBox.SelectedText;
+                Assert.IsFalse(string.IsNullOrEmpty(expected));
+
+                var menu = (ContextMenu)window.FindResource("LogCopyMenu");
+                menu.PlacementTarget = host;
+                MethodInfo opened = typeof(ActivityLogWindow).GetMethod(
+                    "CopyMenu_Opened",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                opened.Invoke(window, new object[] { menu, new RoutedEventArgs() });
+                var copyItem = (MenuItem)menu.Items[0];
+                Assert.IsTrue(copyItem.IsEnabled, "copy item should enable for in-line selection");
+
+                MethodInfo click = typeof(ActivityLogWindow).GetMethod(
+                    "CopyMenuItem_Click",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                click.Invoke(window, new object[] { copyItem, new RoutedEventArgs() });
+                string got = WaitForClipboardText(expected, 2000);
+
+                ForceClose(window);
+                Assert.AreEqual(expected, got, "context menu did not copy the line selection");
             });
         }
 
@@ -143,7 +196,7 @@ namespace GI_Test
             return clock.Elapsed.TotalMilliseconds;
         }
 
-        private static TextBox FindResultTextBox(ListView list)
+        private static TextBox FindResultLineTextBox(ListView list)
         {
             for (int i = 0; i < list.Items.Count; i++)
             {
@@ -153,29 +206,45 @@ namespace GI_Test
                     continue;
                 }
 
-                TextBox wrap = FindWrappingTextBox(container);
-                if (wrap != null)
+                TextBox line = FindResultLineTextBoxIn(container);
+                if (line != null)
                 {
-                    return wrap;
+                    return line;
                 }
             }
 
             return null;
         }
 
-        private static TextBox FindWrappingTextBox(DependencyObject root)
+        private static TextBox FindResultLineTextBoxIn(DependencyObject root)
         {
-            if (root is TextBox box && box.TextWrapping == TextWrapping.Wrap)
+            if (root is TextBox box
+                && box.TextWrapping == TextWrapping.Wrap
+                && box.DataContext is ActivityLogResultLine)
             {
                 return box;
             }
 
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
             {
-                TextBox child = FindWrappingTextBox(VisualTreeHelper.GetChild(root, i));
+                TextBox child = FindResultLineTextBoxIn(VisualTreeHelper.GetChild(root, i));
                 if (child != null)
                 {
                     return child;
+                }
+            }
+
+            return null;
+        }
+
+        private static ItemsControl FindAncestorItemsControl(DependencyObject element)
+        {
+            while (element != null)
+            {
+                element = VisualTreeHelper.GetParent(element);
+                if (element is ItemsControl items && !(items is ListView))
+                {
+                    return items;
                 }
             }
 

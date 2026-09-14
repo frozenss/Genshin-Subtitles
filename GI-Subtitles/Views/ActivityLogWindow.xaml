@@ -1,7 +1,6 @@
 <Window x:Class="GI_Subtitles.Views.ActivityLogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:GI_Subtitles.Views"
         Title="{DynamicResource ActivityLog_Title}"
         Width="720"
         Height="480"
@@ -48,16 +47,6 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <!-- The result cell's selection layer (ADR 0012): transparent glyphs
-             over the colored TextBlock, so selection, copy-on-select, and
-             Ctrl+C still read the full text while the color comes from the
-             layer underneath. Everything except the Foreground must match
-             the colored layer exactly, or the selection rectangles drift off
-             the visible glyphs; the caret is invisible by design. -->
-        <Style x:Key="LogResultSelectionTextBox" TargetType="TextBox" BasedOn="{StaticResource LogCellTextBox}">
-            <Setter Property="Foreground" Value="Transparent"/>
-            <Setter Property="IsReadOnlyCaretVisible" Value="False"/>
-        </Style>
     </Window.Resources>
     <Grid>
         <ListView x:Name="LogList"
@@ -74,11 +63,8 @@
                     <Setter Property="VerticalContentAlignment" Value="Top"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsRepeat}" Value="True">
-                            <!-- Whole-row dimming so the colored layer, the
-                                 transparent selection layer, and the default
-                                 text fade together (ADR 0012); a gray
-                                 Foreground would leave the colored tags at
-                                 full strength. -->
+                            <!-- Whole-row dimming so stripe, text, and
+                                 selection highlight fade together (ADR 0016). -->
                             <Setter Property="Opacity" Value="0.55"/>
                             <Setter Property="FontStyle" Value="Italic"/>
                         </DataTrigger>
@@ -111,23 +97,31 @@
                     <GridViewColumn Header="{DynamicResource ActivityLog_Column_Result}" Width="280">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
-                                <!-- Two layers of the same text (ADR 0012): the
-                                     colored TextBlock renders the tagged runs,
-                                     the transparent TextBox on top keeps the
-                                     native selection. Both wrap and inherit
-                                     font, padding, and size from the row, so
-                                     they stay glyph-aligned; if a sub-pixel
-                                     inset ever shows at high DPI, calibrate it
-                                     here with a one-time Margin. -->
-                                <Grid>
-                                    <local:ActivityLogResultTextBlock Lines="{Binding ResultLines, Mode=OneWay}"
-                                                                      TextWrapping="Wrap"
-                                                                      Padding="0"
-                                                                      IsHitTestVisible="False"/>
-                                    <TextBox Style="{StaticResource LogResultSelectionTextBox}"
-                                             Text="{Binding Result, Mode=OneWay}"
-                                             TextWrapping="Wrap"/>
-                                </Grid>
+                                <!-- One read-only TextBox per projected line
+                                     (ADR 0016): selection comes from the same
+                                     engine that draws the glyphs. Stripe slot
+                                     is collapsed until #49 fills it. -->
+                                <ItemsControl ItemsSource="{Binding ResultLines, Mode=OneWay}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Vertical"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel>
+                                                <Border DockPanel.Dock="Left"
+                                                        Tag="ResultStripeSlot"
+                                                        Width="0"
+                                                        Visibility="Collapsed"
+                                                        SnapsToDevicePixels="True"/>
+                                                <TextBox Style="{StaticResource LogCellTextBox}"
+                                                         Text="{Binding Text, Mode=OneWay}"
+                                                         TextWrapping="Wrap"/>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>

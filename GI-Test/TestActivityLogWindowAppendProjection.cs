@@ -341,6 +341,14 @@ namespace GI_Test
                     return;
                 }
 
+                // Another activity-log window test may already own Application;
+                // share its dispatcher so Window affinity stays on one STA.
+                if (Application.Current != null)
+                {
+                    _staDispatcher = Application.Current.Dispatcher;
+                    return;
+                }
+
                 var ready = new ManualResetEvent(false);
                 var thread = new Thread(delegate()
                 {

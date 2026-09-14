@@ -256,10 +256,9 @@ namespace GI_Subtitles.Views
             return joined;
         }
 
-        // One Compose call feeds both result layers (ADR 0012): the segments
-        // drive the colored TextBlock, and the plain text drives the
-        // selection TextBox and the row TSV, so copied text always equals
-        // displayed text.
+        // One Compose call feeds the result cell (ADR 0016): the segments
+        // drive one TextBox per line; PlainText drives the row-copy TSV.
+        // Copied text always equals displayed text.
         private void ApplyResult(ActivityLogRowView view, ActivityLogRow row)
         {
             ActivityLogResultProjection projection = ActivityLogResultComposer.Compose(row, ResolveText);
@@ -667,16 +666,22 @@ namespace GI_Subtitles.Views
         }
 
         // While a context menu is open, keyboard focus sits on the menu, so
-        // the right-clicked cell has to come from the placement target.
+        // the right-clicked cell has to come from the placement target. The
+        // result column hosts N line TextBoxes; PlacementTarget may be one of
+        // them or a parent (ItemsControl / list), so walk for a selection.
         private static string GetCellSelection(ContextMenu menu)
         {
             TextBox cell = null;
             if (menu != null)
             {
                 cell = menu.PlacementTarget as TextBox;
+                if (cell == null || cell.SelectionLength == 0)
+                {
+                    cell = FindTextBoxWithSelection(menu.PlacementTarget as DependencyObject);
+                }
             }
 
-            if (cell == null)
+            if (cell == null || cell.SelectionLength == 0)
             {
                 cell = Keyboard.FocusedElement as TextBox;
             }
@@ -684,6 +689,30 @@ namespace GI_Subtitles.Views
             if (cell != null && cell.SelectionLength > 0)
             {
                 return cell.SelectedText;
+            }
+
+            return null;
+        }
+
+        private static TextBox FindTextBoxWithSelection(DependencyObject root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            if (root is TextBox box && box.SelectionLength > 0)
+            {
+                return box;
+            }
+
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                TextBox child = FindTextBoxWithSelection(VisualTreeHelper.GetChild(root, i));
+                if (child != null)
+                {
+                    return child;
+                }
             }
 
             return null;
