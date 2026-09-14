@@ -113,6 +113,7 @@
                                             <DockPanel>
                                                 <Border DockPanel.Dock="Left"
                                                         Tag="ResultStripeSlot"
+                                                        Margin="0,2,0,2"
                                                         SnapsToDevicePixels="True">
                                                     <Border.Style>
                                                         <Style TargetType="Border">

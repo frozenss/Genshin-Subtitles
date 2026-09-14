@@ -21,6 +21,7 @@ namespace GI_Test
     public class TestActivityLogResultLineTextBoxes
     {
         private const double StripeWidthPx = 3.0;
+        private static readonly Thickness StripeInsetMargin = new Thickness(0, 2, 0, 2);
 
         [TestMethod]
         public void BrushFor_ReturnsTheAdrPaletteAsFrozenBrushes()
@@ -270,6 +271,7 @@ namespace GI_Test
             Assert.IsNotNull(stripe, "stripe slot missing");
             Assert.AreEqual(Visibility.Visible, stripe.Visibility, tag.ToString());
             Assert.AreEqual(StripeWidthPx, stripe.Width, tag.ToString());
+            Assert.AreEqual(StripeInsetMargin, stripe.Margin, tag.ToString());
             Assert.AreSame(
                 ActivityLogResultTagColors.BrushFor(tag),
                 stripe.Background,
