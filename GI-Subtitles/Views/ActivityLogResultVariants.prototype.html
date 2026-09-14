@@ -1,0 +1,255 @@
+<!doctype html>
+<!--
+  PROTOTYPE (throwaway) — 活动日志「结果列」视觉区分类别方案对比
+  问题: 逃离两层叠层 hack 后（每行一个原生控件），类别颜色放哪里？
+  变体: ?variant=current|a|b|c|d  （底部悬浮栏或 ←/→ 键切换）
+    current = 现状参照（彩色标签 + 单格跨行连选）
+    a = 整行前景色      b = 左侧彩色竖条      c = 浅色背景 tint      d = 无色纯文字标签
+  注意: a/b/c/d 每行是独立选择域（模拟每行一个 TextBox，选区不跨行）；
+        current 模拟今天的单格连续选区（可跨行拖选）。拖选试试。
+  这是浏览器近似渲染，只回答视觉/交互取舍，不回答 WPF 可行性（已另行论证）。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型：活动日志结果列 — 类别区分方案对比</title>
+<style>
+  :root{
+    --ocr:#315EA8; --orig:#287A4B; --trans:#8250DF; --sel:#3399FF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    padding:22px 22px 90px;
+    background:#464646;
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    font-size:12px; color:#000;
+  }
+  .banner{
+    max-width:724px; margin:0 auto 10px; color:#ddd; text-align:center;
+  }
+  .banner b{color:#fff}
+
+  /* ---- 仿真 WPF 窗口 ---- */
+  .window{
+    width:724px; margin:0 auto; background:#fff;
+    border:1px solid #7a7a7a; box-shadow:0 8px 30px rgba(0,0,0,.45);
+  }
+  .titlebar{
+    height:30px; line-height:30px; padding:0 10px;
+    background:linear-gradient(#fdfdfd,#f0f0f0); border-bottom:1px solid #d9d9d9;
+    font-size:12px; color:#333;
+  }
+  .titlebar .warn{color:#a05a00; margin-left:8px; font-size:11px}
+  table{border-collapse:collapse; table-layout:fixed; width:100%}
+  col.c-time{width:92px} col.c-region{width:152px} col.c-job{width:162px} col.c-result{width:318px}
+  thead th{
+    background:linear-gradient(#f7f7f7,#e9e9e9);
+    border-right:1px solid #d9d9d9; border-bottom:1px solid #cfcfcf;
+    font-weight:normal; text-align:left; padding:4px 6px; color:#444;
+  }
+  thead th:last-child{border-right:none}
+  tbody td{
+    border-bottom:1px solid #f0f0f0; padding:4px 6px;
+    vertical-align:top; white-space:pre-wrap; word-break:break-all;
+  }
+  tbody td.result{padding:4px 8px}
+  tr.repeat td{opacity:.55; font-style:italic}
+
+  /* ---- 结果行结构（所有变体共用 DOM） ---- */
+  .line{display:block; min-height:17px}
+  .tag{user-select:text}
+  ::selection{background:var(--sel); color:#fff}
+
+  /* ============ 变体样式 ============ */
+
+  /* current: 现状 — 仅标签着色，整格一个选择域 */
+  .v-current .tag[data-tag="ocr"]{color:var(--ocr); font-weight:normal}
+  .v-current .tag[data-tag="orig"]{color:var(--orig)}
+  .v-current .tag[data-tag="trans"]{color:var(--trans)}
+
+  /* a: 整行前景色 = 类别色（含标签和内容） */
+  .v-a .line[data-tag="ocr"]{color:var(--ocr)}
+  .v-a .line[data-tag="orig"]{color:var(--orig)}
+  .v-a .line[data-tag="trans"]{color:var(--trans)}
+
+  /* b: 文字默认色，类别色 = 行首竖条（竖条不参与复制） */
+  .v-b .result .line{border-left:3px solid transparent; padding-left:6px; margin-left:-9px}
+  .v-b .line[data-tag="ocr"]{border-left-color:var(--ocr)}
+  .v-b .line[data-tag="orig"]{border-left-color:var(--orig)}
+  .v-b .line[data-tag="trans"]{border-left-color:var(--trans)}
+
+  /* c: 文字默认色，类别色 = 浅色行背景（注意与蓝色选区的叠加） */
+  .v-c .line[data-tag="ocr"]{background:rgba(49,94,168,.13)}
+  .v-c .line[data-tag="orig"]{background:rgba(40,122,75,.13)}
+  .v-c .line[data-tag="trans"]{background:rgba(130,80,223,.13)}
+
+  /* d: 无色，仅靠文字标签区分 */
+
+  /* ---- 底部切换条 ---- */
+  .switcher{
+    position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
+    display:flex; align-items:center; gap:0;
+    background:#111; color:#fff; border-radius:22px;
+    padding:6px 10px; box-shadow:0 4px 18px rgba(0,0,0,.5);
+    user-select:none; z-index:10; max-width:92vw;
+  }
+  .switcher button{
+    width:30px; height:30px; border:none; border-radius:50%;
+    background:#333; color:#fff; font-size:15px; cursor:pointer;
+  }
+  .switcher button:hover{background:#444}
+  .switcher .label{min-width:420px; text-align:center; padding:0 10px}
+  .switcher .label .name{font-weight:bold; font-size:13px}
+  .switcher .label .desc{color:#bbb; font-size:11px; margin-top:2px}
+</style>
+</head>
+<body class="v-current">
+
+<div class="banner">
+  原型（抛弃式）：<b>结果列类别区分方案</b> — 底部栏或 ←/→ 切换，各行文字可直接拖选，对比选区手感。
+</div>
+
+<div class="window">
+  <div class="titlebar">活动日志<span class="warn">PROTOTYPE — 变体对比，非真实窗口</span></div>
+  <table>
+    <colgroup><col class="c-time"><col class="c-region"><col class="c-job"><col class="c-result"></colgroup>
+    <thead><tr><th>时间</th><th>区域</th><th>任务</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>12:03:41</td><td>对 1</td><td>识别</td>
+        <td class="result">
+          <span class="line" data-tag="ocr"><span class="tag" data-tag="ocr">[OCR]</span>「空月之歌在群星之间回响。」</span>
+          <span class="line" data-tag="orig"><span class="tag" data-tag="orig">[原文]</span>「空月之歌在群星之间回响。」</span>
+          <span class="line" data-tag="trans"><span class="tag" data-tag="trans">[译文]</span>「比星海更遥远的彼岸，如今终于展现在我们的眼前，而这仅仅是所有冒险开始的序章而已。」</span>
+        </td>
+      </tr>
+      <tr class="repeat">
+        <td>12:03:52</td><td>对 1</td><td>识别</td>
+        <td class="result">
+          <span class="line" data-tag="ocr"><span class="tag" data-tag="ocr">[OCR]</span>「空月之歌在群星之间回响。」</span>
+          <span class="line" data-tag="orig"><span class="tag" data-tag="orig">[原文]</span>「空月之歌在群星之间回响。」</span>
+          <span class="line" data-tag="trans"><span class="tag" data-tag="trans">[译文]</span>「比星海更遥远的彼岸，如今终于展现在我们的眼前，而这仅仅是所有冒险开始的序章而已。」</span>
+        </td>
+      </tr>
+      <tr>
+        <td>12:04:15</td><td>对 2</td><td>识别</td>
+        <td class="result">
+          <span class="line" data-tag="ocr"><span class="tag" data-tag="ocr">[OCR]</span>「The Ballad of the Hollow Moon」</span>
+          <span class="line" data-tag="orig"><span class="tag" data-tag="orig">[原文]</span>未在语言包中找到匹配</span>
+        </td>
+      </tr>
+      <tr>
+        <td>12:04:30</td><td>全局</td><td>开始识别</td>
+        <td class="result"><span class="line" data-tag="none">识别已启动，OCR 队列按节拍采样。</span></td>
+      </tr>
+      <tr>
+        <td>12:05:02</td><td>暗屏</td><td>识别</td>
+        <td class="result"><span class="line" data-tag="none">本帧未检测到文本。</span></td>
+      </tr>
+      <tr>
+        <td>12:05:40</td><td>对 1</td><td>识别</td>
+        <td class="result">
+          <span class="line" data-tag="ocr"><span class="tag" data-tag="ocr">[OCR]</span>「那个人比星星更遥远…」</span>
+          <span class="line" data-tag="orig"><span class="tag" data-tag="orig">[原文]</span>「那个人比星星更遥远。」</span>
+          <span class="line" data-tag="trans"><span class="tag" data-tag="trans">[译文]</span>「比星星更遥远的那个人，此刻就在眼前。」 The one farther than the stars is now right before your eyes.</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="switcher" id="switcher">
+  <button id="prev" title="上一个变体 (←)">‹</button>
+  <div class="label"><div class="name" id="vName"></div><div class="desc" id="vDesc"></div></div>
+  <button id="next" title="下一个变体 (→)">›</button>
+</div>
+
+<script>
+(function(){
+  var VARIANTS = [
+    {key:'current', name:'current — 现状参照',
+     desc:'彩色标签 + 单格连续选区（今天的样子）。注意：可从 [原文] 拖到 [译文] 跨行连选。'},
+    {key:'a', name:'a — 整行前景色',
+     desc:'整行文字 = 类别色。区分度最强；观察长译文整行紫色的阅读负担。'},
+    {key:'b', name:'b — 左侧彩色竖条',
+     desc:'文字默认色，类别色是行首竖条。观察换行后竖条与多行文本的对应关系是否直观。'},
+    {key:'c', name:'c — 浅色背景 tint',
+     desc:'类别色铺浅行背景。务必拖选一次：观察蓝色选区高亮与底色叠加后的效果。'},
+    {key:'d', name:'d — 无色纯文字',
+     desc:'只靠 [OCR]/[原文]/[译文] 文字标签。零风险基线：判断颜色到底带来多少扫视收益。'}
+  ];
+  var order = VARIANTS.map(function(v){return v.key});
+
+  function byKey(k){
+    for (var i=0;i<VARIANTS.length;i++) if (VARIANTS[i].key===k) return VARIANTS[i];
+    return VARIANTS[0];
+  }
+  function apply(k){
+    if (order.indexOf(k)<0) k='current';
+    document.body.className='v-'+k;
+    var v=byKey(k);
+    document.getElementById('vName').textContent=v.name;
+    document.getElementById('vDesc').textContent=v.desc;
+    try{
+      history.replaceState(null,'',location.pathname+'?variant='+k);
+    }catch(e){/* file:// 下可能失败，忽略 */}
+  }
+  function cycle(d){
+    var cur=(document.body.className||'v-current').replace('v-','');
+    var i=order.indexOf(cur);
+    apply(order[(i+d+order.length)%order.length]);
+  }
+  function initial(){
+    var m=/variant=([a-z]+)/.exec(location.search||'');
+    apply(m?m[1]:'current');
+  }
+  document.getElementById('prev').onclick=function(){cycle(-1)};
+  document.getElementById('next').onclick=function(){cycle(1)};
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+    var ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return;
+    var s=window.getSelection();
+    if(s&&!s.isCollapsed)return; // 不抢键盘选区编辑
+    cycle(e.key==='ArrowRight'?1:-1);
+    e.preventDefault();
+  });
+
+  // a/b/c/d 变体：把选区钳制在单行内（模拟"每行一个 TextBox"）；
+  // current 保持整格连选（模拟现状）。
+  var clamping=false;
+  function lineOf(node){
+    var el=node.nodeType===1?node:node.parentElement;
+    return el?el.closest('.line'):null;
+  }
+  document.addEventListener('selectionchange',function(){
+    if(clamping)return;
+    if(document.body.classList.contains('v-current'))return;
+    var sel=window.getSelection();
+    if(sel.isCollapsed||sel.rangeCount===0)return;
+    var r=sel.getRangeAt(0);
+    var a=lineOf(r.startContainer), b=lineOf(r.endContainer);
+    if(!a||!b||a===b)return;
+    clamping=true;
+    try{
+      var box=document.createRange(); box.selectNodeContents(a);
+      var inter=document.createRange();
+      if(r.compareBoundaryPoints(Range.START_TO_START,box)<0)
+        inter.setStart(box.startContainer,box.startOffset);
+      else
+        inter.setStart(r.startContainer,r.startOffset);
+      if(r.compareBoundaryPoints(Range.END_TO_END,box)>0)
+        inter.setEnd(box.endContainer,box.endOffset);
+      else
+        inter.setEnd(r.endContainer,r.endOffset);
+      sel.removeAllRanges();
+      if(!inter.collapsed)sel.addRange(inter);
+    }finally{clamping=false;}
+  });
+
+  initial();
+})();
+</script>
+</body>
+</html>
