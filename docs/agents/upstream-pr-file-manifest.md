@@ -484,7 +484,7 @@ Activity log; idle timeout; fork docs; adjust-trace.
 
 **STRIP for later:**
 - Copy-on-select mouse handlers / copy menu behavior → 07b
-- `ActivityLogResultTextBlock` colored layer → 07b (plain TextBox OK in 06)
+- Per-line result TextBoxes + category stripes → 07b (plain TextBox OK in 06)
 - `NewRecordsButton` follow-tail → 07c
 - Repeat opacity trigger can wait for 07a (or harmlessly include style without filter)
 
@@ -573,34 +573,36 @@ Copy/tags/follow-tail; session features unrelated to fold.
 
 ---
 
-## PR-07b — Copy selection + result tags
+## PR-07b — Copy selection + result tags + category stripes
 
 | Field | Value |
 | --- | --- |
 | Branch | `pr/activity-log-copy-tags` |
-| Title | `feat: activity log copy selection and result tags` |
+| Title | `feat: activity log copy selection, result tags, and category stripes` |
 | Depends on | PR-06 |
 | Size | M |
 
 ### Whole-file ADD
 
-- `GI-Subtitles/Views/ActivityLogResultTagColors.cs`
-- `GI-Subtitles/Views/ActivityLogResultTextBlock.cs`
+- `GI-Subtitles/Views/ActivityLogResultTagColors.cs` (Tol stripe palette)
 - `GI-Test/ActivityLogResultComposerHarness.cs`
 - `docs/adr/0011-activity-log-selection-per-cell-plus-row-copy.md`
-- `docs/adr/0012-activity-log-result-tags-colored-overlay.md`
+- `docs/adr/0012-activity-log-result-tags-colored-overlay.md` (keep; marked superseded by 0016)
+- `docs/adr/0016-activity-log-result-lines-one-control-per-line.md`
 
-(Ensure `ActivityLogResultProjection.cs` / composer complete if PR-06 shipped a stub.)
+Do **not** add `ActivityLogResultTextBlock.cs` (retired by ADR 0016).
+
+(Ensure `ActivityLogResultProjection.cs` / composer complete if PR-06 shipped a stub; include `ActivityLogResultLine.Text`.)
 
 ### Surgical shared files
 
 #### `ActivityLogWindow.xaml`
 
-**INCLUDE:** layered result cell (`ActivityLogResultTextBlock` + transparent selection `TextBox`), `LogCopyMenu`, `LogResultSelectionTextBox` style, repeat opacity trigger compatible with colored layer.
+**INCLUDE:** result cell as `ItemsControl` of per-line read-only `TextBox` + left category stripe (`ResultStripeSlot`, width 3, inset margin), `LogCopyMenu`, repeat opacity/italic trigger (dims stripe + text together). No stacked colored overlay; no `LogResultSelectionTextBox`.
 
 #### `ActivityLogWindow.xaml.cs`
 
-**INCLUDE:** copy-on-select mouse-up helpers, Ctrl+C / context menu row copy, selection rules from ADR 0011.
+**INCLUDE:** copy-on-select mouse-up helpers, Ctrl+C / context menu row copy, `FindTextBoxWithSelection` for N line TextBoxes per cell, selection rules from ADR 0011 + ADR 0016.
 
 #### Strings
 
@@ -608,26 +610,26 @@ Copy/tags/follow-tail; session features unrelated to fold.
 
 #### csproj
 
-Compile tag color + result text block.
+Compile `ActivityLogResultTagColors` only (not ResultTextBlock / FollowTail).
 
 ### Tests
 
 - `GI-Test/TestActivityLogResultComposer.cs`
-- `GI-Test/TestActivityLogResultColoredLayer.cs`
+- `GI-Test/TestActivityLogResultLineTextBoxes.cs` (replaces ColoredLayer)
 - `GI-Test/TestActivityLogWindowCopyOnSelect.cs`
 - `GI-Test/TestActivityLogWindowAppendProjection.cs` (if projection/tag focused)
 
 ### ADRs
 
-`0011`, `0012`
+`0011`, `0016` (ship `0012` file as superseded record)
 
 ### Explicit EXCLUDE
 
-Follow-tail / virtualization-only fixes (07c); fold filter (07a) except coexistence.
+Follow-tail / virtualization-only fixes (07c); fold filter (07a) except coexistence; `CONTEXT.md`.
 
 ### Risk notes
 
-- Glyph alignment between colored layer and selection TextBox is DPI-sensitive — keep personal template.
+- ADR 0016 removes the DPI-sensitive two-engine alignment contract; re-verify scroll smoothness with up to three line TextBoxes per recycled cell.
 - Parallel with 07c: merge `ActivityLogWindow` carefully.
 
 ---
@@ -813,7 +815,7 @@ Fork docs; activity-log rows on expiry (must **not** write log rows); adjust-tra
 | Per-game layout swap | 05 | `ApplyGame`, `OverlayLayoutPersistence` |
 | Activity log writes | 06 | `WritePipelineForSlot`, `AppendActivityLogRow` |
 | Fold / match-miss / de-noise view | 07a | `PairRecognitionResult.SameAs`, `ActivityLogRowFilter` |
-| Result tags / copy | 07b | composer tags + window controls |
+| Result tags / copy / category stripes | 07b | composer tags + per-line TextBoxes + stripes |
 | Follow-tail | 07c | `ActivityLogFollowTail` |
 | Adjust trace / mouse guard | 08 | `RegionAdjustTrace`, `AdjustMouseGuard` |
 | Idle timeout | 09 | `ExpireIdleSubtitlesIfNeeded`, `ISubtitleIdleTimeoutStore` |

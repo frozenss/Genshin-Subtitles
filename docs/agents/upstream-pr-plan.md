@@ -119,7 +119,7 @@ Split into separate heads if any one PR grows hard to review:
 | Sub | Branch | Title | ADRs |
 | --- | --- | --- | --- |
 | 07a | `pr/activity-log-fold-miss` | `feat: fold identical results and keep subtitle on match miss` | `0010` |
-| 07b | `pr/activity-log-copy-tags` | `feat: activity log copy selection and result tags` | `0011`, `0012` |
+| 07b | `pr/activity-log-copy-tags` | `feat: activity log copy selection, result tags, and category stripes` | `0011`, `0016` (keep `0012` file marked superseded) |
 | 07c | `pr/activity-log-follow-tail` | `feat: activity log follow-tail and virtualization fixes` | `0014` |
 
 | Field | Value |

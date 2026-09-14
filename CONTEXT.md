@@ -44,6 +44,10 @@ _Avoid_: OCR text (that is the run's input); 查询结果 when you mean only the
 The bracketed marker that opens one result line of an activity log row, naming which pipeline output the line carries: OCR text, the matched source, or the translation. A dual-output translation is still one tagged line whose content stacks the two languages; the detection-miss line carries no tag, and the match-miss line borrows the source tag.
 _Avoid_: coloring the whole line when you mean the tag; calling the line's colored stripe the tag (the tag is the bracketed text; the stripe only echoes its category); a second tag for the second output language; putting a tag on the detection-miss line; counting the tag as part of the job
 
+**Category stripe**:
+The colored vertical bar at the left edge of one activity-log result line. It echoes that line's result-tag category for scanning; it is not the tag, is outside the selectable text, and never appears in copied text. Untagged lines (detection-miss, action rows) have no stripe; the match-miss line borrows the source stripe the same way it borrows the source tag.
+_Avoid_: calling the stripe a result tag; treating the stripe as part of the clipboard payload; a second stripe for a dual-output translation line
+
 **Result fold**:
 Keeping the current subtitle and skipping voice replay when a run's recognition result is the same as what that pair already shows. The run itself still happens and is still recorded; only the re-apply is skipped.
 _Avoid_: caching the query result (the match cache is a forever map from OCR text; this is one pair's latest result, replaced by the next different one); turning this off with the log de-noise checkbox (that lever is view-only); treating subtitle idle timeout expiry as a fold (expiry clears the fold so the same line can return)
