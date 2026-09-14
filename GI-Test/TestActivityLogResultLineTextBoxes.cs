@@ -14,13 +14,14 @@ namespace GI_Test
 {
     /// <summary>
     /// Control/template seam for the result column (ADR 0016): each projected
-    /// line is one read-only TextBox (tag text + content), hosted in an
-    /// ItemsControl with a collapsed stripe slot reserved for #49. Palette
-    /// unit tests stay here so #49 can reuse <see cref="ActivityLogResultTagColors"/>.
+    /// line is one read-only TextBox (tag text + content) plus a left-edge
+    /// category stripe from <see cref="ActivityLogResultTagColors"/>.
     /// </summary>
     [TestClass]
     public class TestActivityLogResultLineTextBoxes
     {
+        private const double StripeWidthPx = 3.0;
+
         [TestMethod]
         public void BrushFor_ReturnsTheAdrPaletteAsFrozenBrushes()
         {
@@ -31,7 +32,7 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ResultCell_RendersOneReadOnlyTextBoxPerLine_WithCollapsedStripeSlot()
+        public void ResultCell_RendersOneReadOnlyTextBoxPerLine_WithCategoryStripe()
         {
             RunOnSta(() =>
             {
@@ -53,8 +54,11 @@ namespace GI_Test
                         TextBox box = LineTextBox(row);
                         Assert.IsTrue(box.IsReadOnly);
                         Assert.AreEqual(TextWrapping.Wrap, box.TextWrapping);
-                        AssertStripeSlotCollapsed(row);
                     }
+
+                    AssertStripe(rows[0], ActivityLogResultTag.Ocr);
+                    AssertStripe(rows[1], ActivityLogResultTag.Original);
+                    AssertStripe(rows[2], ActivityLogResultTag.Translation);
                 }
                 finally
                 {
@@ -64,7 +68,7 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ResultCell_RendersUntaggedLineAsSingleTextBox()
+        public void ResultCell_RendersUntaggedLineWithoutStripe()
         {
             RunOnSta(() =>
             {
@@ -79,7 +83,7 @@ namespace GI_Test
                     IList<FrameworkElement> rows = LineHosts(cell);
                     Assert.AreEqual(1, rows.Count);
                     Assert.AreEqual("检测 miss", LineTextBox(rows[0]).Text);
-                    AssertStripeSlotCollapsed(rows[0]);
+                    AssertStripeCollapsed(rows[0]);
                 }
                 finally
                 {
@@ -89,7 +93,34 @@ namespace GI_Test
         }
 
         [TestMethod]
-        public void ResultCell_RebuildsWhenTheResultLinesBindingRetargets()
+        public void ResultCell_MatchMissLine_BorrowsOriginalStripe()
+        {
+            RunOnSta(() =>
+            {
+                LiveOverlaySession session = new LiveOverlaySession(new MemoryOcrIntervalStore());
+                AppendMatchMissRow(session, 0);
+                ActivityLogWindow window = ShowWindow(session);
+                try
+                {
+                    ItemsControl cell = FindResultLinesHost(window.LogList);
+                    Assert.IsNotNull(cell, "result cell ItemsControl missing");
+
+                    IList<FrameworkElement> rows = LineHosts(cell);
+                    Assert.AreEqual(2, rows.Count);
+                    Assert.AreEqual("[OCR]「ocr-miss-0」", LineTextBox(rows[0]).Text);
+                    Assert.AreEqual("[原文] 匹配 miss", LineTextBox(rows[1]).Text);
+                    AssertStripe(rows[0], ActivityLogResultTag.Ocr);
+                    AssertStripe(rows[1], ActivityLogResultTag.Original);
+                }
+                finally
+                {
+                    ForceClose(window);
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ResultCell_RebuildsTextAndStripeWhenTheResultLinesBindingRetargets()
         {
             RunOnSta(() =>
             {
@@ -101,9 +132,11 @@ namespace GI_Test
                     ItemsControl cell = FindResultLinesHost(window.LogList);
                     Assert.IsNotNull(cell, "result cell ItemsControl missing");
                     Assert.AreEqual(3, LineHosts(cell).Count);
+                    AssertStripe(LineHosts(cell)[0], ActivityLogResultTag.Ocr);
 
                     // Container recycling: DataContext swaps, the binding
-                    // re-fires, and the line TextBoxes must come from the new row.
+                    // re-fires, and the line TextBoxes + stripes must come
+                    // from the new row.
                     cell.DataContext = new StubRow
                     {
                         ResultLines = ActivityLogResultComposerHarness.Compose(
@@ -116,6 +149,26 @@ namespace GI_Test
                     IList<FrameworkElement> rows = LineHosts(cell);
                     Assert.AreEqual(1, rows.Count);
                     Assert.AreEqual("检测 miss", LineTextBox(rows[0]).Text);
+                    AssertStripeCollapsed(rows[0]);
+
+                    cell.DataContext = new StubRow
+                    {
+                        ResultLines = ActivityLogResultComposerHarness.Compose(
+                            ActivityLogResultComposerHarness.Row(
+                                ocrText: "retarget-ocr",
+                                original: "retarget-orig",
+                                translation: "retarget-trans")).Lines
+                    };
+                    Pump(window.Dispatcher);
+                    cell.UpdateLayout();
+                    Pump(window.Dispatcher);
+
+                    rows = LineHosts(cell);
+                    Assert.AreEqual(3, rows.Count);
+                    Assert.AreEqual("[OCR]「retarget-ocr」", LineTextBox(rows[0]).Text);
+                    AssertStripe(rows[0], ActivityLogResultTag.Ocr);
+                    AssertStripe(rows[1], ActivityLogResultTag.Original);
+                    AssertStripe(rows[2], ActivityLogResultTag.Translation);
                 }
                 finally
                 {
@@ -211,7 +264,19 @@ namespace GI_Test
             return box;
         }
 
-        private static void AssertStripeSlotCollapsed(FrameworkElement lineHost)
+        private static void AssertStripe(FrameworkElement lineHost, ActivityLogResultTag tag)
+        {
+            Border stripe = FindStripeSlot(lineHost);
+            Assert.IsNotNull(stripe, "stripe slot missing");
+            Assert.AreEqual(Visibility.Visible, stripe.Visibility, tag.ToString());
+            Assert.AreEqual(StripeWidthPx, stripe.Width, tag.ToString());
+            Assert.AreSame(
+                ActivityLogResultTagColors.BrushFor(tag),
+                stripe.Background,
+                tag.ToString());
+        }
+
+        private static void AssertStripeCollapsed(FrameworkElement lineHost)
         {
             Border stripe = FindStripeSlot(lineHost);
             Assert.IsNotNull(stripe, "stripe slot missing");
@@ -303,6 +368,31 @@ namespace GI_Test
                     null,
                     true,
                     false,
+                    false
+                });
+        }
+
+        private static void AppendMatchMissRow(LiveOverlaySession session, int index)
+        {
+            MethodInfo append = typeof(LiveOverlaySession).GetMethod(
+                "AppendActivityLogRow",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            append.Invoke(
+                session,
+                new object[]
+                {
+                    new DateTime(2026, 9, 10, 12, 0, 0, DateTimeKind.Utc).AddSeconds(index),
+                    new[] { OperatorJob.Capture, OperatorJob.Ocr, OperatorJob.Match },
+                    ActivityLogScope.Pair,
+                    1,
+                    true,
+                    null,
+                    null,
+                    "ocr-miss-" + index,
+                    null,
+                    null,
+                    false,
+                    true,
                     false
                 });
         }

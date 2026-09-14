@@ -9,8 +9,8 @@ namespace GI_Subtitles.Views
     /// Category colors for the result column (ADR 0016): OCR blue and source
     /// green mirror the recognition-preview badges in Video.xaml, translation
     /// purple completes the trio. <see cref="BrushFor"/> returns null for
-    /// <see cref="ActivityLogResultTag.None"/> (no stripe). Issue #49 paints
-    /// the per-line stripe from this table; tag text itself stays default
+    /// <see cref="ActivityLogResultTag.None"/> (no stripe). The per-line stripe
+    /// binds these brushes via <c>x:Static</c>; tag text stays default
     /// foreground.
     /// </summary>
     public static class ActivityLogResultTagColors
@@ -22,6 +22,24 @@ namespace GI_Subtitles.Views
                 { ActivityLogResultTag.Original, Frozen(ParseHex("#287A4B")) },
                 { ActivityLogResultTag.Translation, Frozen(ParseHex("#8250DF")) }
             };
+
+        /// <summary>Frozen OCR stripe brush for XAML <c>x:Static</c>.</summary>
+        public static Brush Ocr
+        {
+            get { return BrushFor(ActivityLogResultTag.Ocr); }
+        }
+
+        /// <summary>Frozen source stripe brush for XAML <c>x:Static</c>.</summary>
+        public static Brush Original
+        {
+            get { return BrushFor(ActivityLogResultTag.Original); }
+        }
+
+        /// <summary>Frozen translation stripe brush for XAML <c>x:Static</c>.</summary>
+        public static Brush Translation
+        {
+            get { return BrushFor(ActivityLogResultTag.Translation); }
+        }
 
         /// <summary>A frozen, shareable brush of the category color, or null
         /// when the line has no stripe (untagged). Frozen brushes are safe to
