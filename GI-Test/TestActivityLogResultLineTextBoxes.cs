@@ -26,9 +26,9 @@ namespace GI_Test
         [TestMethod]
         public void BrushFor_ReturnsTheAdrPaletteAsFrozenBrushes()
         {
-            AssertPalette(ActivityLogResultTag.Ocr, "#315EA8");
-            AssertPalette(ActivityLogResultTag.Original, "#287A4B");
-            AssertPalette(ActivityLogResultTag.Translation, "#8250DF");
+            AssertPalette(ActivityLogResultTag.Ocr, "#004488");
+            AssertPalette(ActivityLogResultTag.Original, "#DDAA33");
+            AssertPalette(ActivityLogResultTag.Translation, "#BB5566");
             Assert.IsNull(ActivityLogResultTagColors.BrushFor(ActivityLogResultTag.None));
         }
 

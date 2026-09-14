@@ -6,9 +6,10 @@ using GI_Subtitles.Core.Overlay;
 namespace GI_Subtitles.Views
 {
     /// <summary>
-    /// Category colors for the result column (ADR 0016): OCR blue and source
-    /// green mirror the recognition-preview badges in Video.xaml, translation
-    /// purple completes the trio. <see cref="BrushFor"/> returns null for
+    /// Category colors for the result column (ADR 0016): Paul Tol high-contrast
+    /// triad for in-cell stripe scan (OCR cool, 原文 warm, 译文 rose). Stripe
+    /// hexes are independent of Video.xaml preview badge Foregrounds.
+    /// <see cref="BrushFor"/> returns null for
     /// <see cref="ActivityLogResultTag.None"/> (no stripe). The per-line stripe
     /// binds these brushes via <c>x:Static</c>; tag text stays default
     /// foreground.
@@ -18,9 +19,9 @@ namespace GI_Subtitles.Views
         private static readonly Dictionary<ActivityLogResultTag, SolidColorBrush> Brushes =
             new Dictionary<ActivityLogResultTag, SolidColorBrush>
             {
-                { ActivityLogResultTag.Ocr, Frozen(ParseHex("#315EA8")) },
-                { ActivityLogResultTag.Original, Frozen(ParseHex("#287A4B")) },
-                { ActivityLogResultTag.Translation, Frozen(ParseHex("#8250DF")) }
+                { ActivityLogResultTag.Ocr, Frozen(ParseHex("#004488")) },
+                { ActivityLogResultTag.Original, Frozen(ParseHex("#DDAA33")) },
+                { ActivityLogResultTag.Translation, Frozen(ParseHex("#BB5566")) }
             };
 
         /// <summary>Frozen OCR stripe brush for XAML <c>x:Static</c>.</summary>
