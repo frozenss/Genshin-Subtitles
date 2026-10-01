@@ -172,6 +172,10 @@ namespace GI_Subtitles.Views
         private const int WsExLayered = 0x00080000;
         private const int GwlStyle = -16;
         private const int WsDisabled = 0x08000000;
+        private const int HwndTopmost = -1;
+        private const int SwpNoSize = 0x0001;
+        private const int SwpNoMove = 0x0002;
+        private const int SwpNoActivate = 0x0010;
 
         private const int HOTKEY_ID_1 = 9000; // Custom hotkey ID
         private const int HOTKEY_ID_2 = 9001; // Custom hotkey ID
@@ -390,7 +394,7 @@ namespace GI_Subtitles.Views
             UITimer.Interval = new TimeSpan(0, 0, 0, 0, 500);
             UITimer.Tick += UpdateText;    // Delegate: method to execute
 
-            SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
+            ReassertOverlayTopmost(new WindowInteropHelper(this).Handle);
             SizeOverlayToVirtualScreen();
             ApplyPairOverlay();
 
@@ -517,6 +521,18 @@ namespace GI_Subtitles.Views
         private void ApplyOverlayClickThrough()
         {
             ApplyOverlayHitMode();
+        }
+
+        // HWND_TOPMOST without SWP_NOACTIVATE activates the overlay and greys
+        // other windows in this process (activity log title bar / cell selection).
+        internal static void ReassertOverlayTopmost(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNoSize | SwpNoMove | SwpNoActivate);
         }
 
         private void ApplyOverlayHitMode()
@@ -977,7 +993,7 @@ namespace GI_Subtitles.Views
             Bitmap bitmap = _pairCapturedBitmaps[idx];
             _pairCapturedMats[idx] = null;
             _pairCapturedBitmaps[idx] = null;
-            SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
+            ReassertOverlayTopmost(new WindowInteropHelper(this).Handle);
             _ = TriggerOcrAsync(frame, bitmap, pairIndex: idx);
         }
 
@@ -997,7 +1013,7 @@ namespace GI_Subtitles.Views
             _darkScreenBitmap = null;
             _darkScreenPendingHash = null;
             _lastDarkScreenOcrHash = hash;
-            SetWindowPos(new WindowInteropHelper(this).Handle, -1, 0, 0, 0, 0, 1 | 2);
+            ReassertOverlayTopmost(new WindowInteropHelper(this).Handle);
             _ = TriggerOcrAsync(frame, bitmap, darkScreenHash: hash);
         }
 

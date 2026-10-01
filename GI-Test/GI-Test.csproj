@@ -122,6 +122,7 @@
     <Compile Include="TestActivityLogWindowFollowTailPin.cs" />
     <Compile Include="TestActivityLogWindowCopyOnSelect.cs" />
     <Compile Include="TestActivityLogWindowVirtualization.cs" />
+    <Compile Include="TestActivityLogWindowFocus.cs" />
     <Compile Include="TestLiveOverlaySessionRegionPairs.cs" />
     <Compile Include="TestLiveOverlaySessionVoicePrimary.cs" />
     <Compile Include="TestLiveOverlaySessionPreviewAndAdjust.cs" />
